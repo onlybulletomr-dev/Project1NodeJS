@@ -1,0 +1,199 @@
+.invoice-vertical-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+.invoice-rectangle-top {
+  flex: 0 0 20%;
+  background: #f5f7fa;
+  border-radius: 12px;
+  margin: 8px 0 8px 0;
+  padding: 16px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.top-rect-flex {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  align-items: center;
+  justify-content: space-between;
+}
+.company-details {
+  font-size: 1.1em;
+  min-width: 260px;
+}
+.right-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: 1;
+}
+.invoice-customer-vehicle {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 1.05em;
+}
+
+.invoice-rectangle-grid {
+  flex: 0 0 70%;
+  background: #fff;
+  border-radius: 12px;
+  margin: 0 0 8px 0;
+  padding: 12px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.invoice-detail-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #f9fafb;
+}
+.invoice-detail-table th, .invoice-detail-table td {
+  border: 1px solid #e0e0e0;
+  padding: 8px 10px;
+  text-align: left;
+}
+.invoice-detail-table th {
+  background: #e8f0fe;
+  font-weight: 600;
+}
+.desc-col {
+  min-width: 220px;
+  width: 40%;
+}
+.qty-col, .price-col {
+  min-width: 60px;
+  width: 7%;
+  text-align: right;
+}
+
+ .invoice-rectangle-bottom {
+  flex: 0 0 20%;
+  background: #f5f7fa;
+  border-radius: 12px;
+  margin: 0 0 8px 0;
+  padding: 12px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.bottom-flex {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+}
+.totals-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+}
+.staff-row {
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+  font-size: 1.05em;
+  align-items: center;
+}
+/* Layout for InvoiceMaster vertical split */
+.invoice-vertical-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+.invoice-rectangle-top {
+  flex: 0 0 20%;
+  background: #f5f7fa;
+  border-radius: 12px;
+  margin: 8px 0 8px 0;
+  padding: 16px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.company-details {
+  font-size: 1.1em;
+  margin-bottom: 8px;
+}
+.invoice-details-row, .vehicle-customer-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 8px;
+}
+.invoice-details-row label, .vehicle-customer-row label {
+  font-weight: 500;
+  margin-right: 4px;
+}
+.invoice-details-row input, .vehicle-customer-row input {
+  width: 120px;
+  margin-right: 8px;
+}
+
+.invoice-rectangle-grid {
+  flex: 0 0 70%;
+  background: #fff;
+  border-radius: 12px;
+  margin: 0 0 8px 0;
+  padding: 12px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  overflow-y: auto;
+}
+
+.invoice-detail-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #f9fafb;
+}
+.invoice-detail-table th, .invoice-detail-table td {
+  border: 1px solid #e0e0e0;
+  padding: 8px 10px;
+  text-align: left;
+}
+.invoice-detail-table th {
+  background: #e8f0fe;
+  font-weight: 600;
+}
+.invoice-detail-table input {
+  width: 90px;
+}
+
+.invoice-rectangle-bottom {
+  flex: 0 0 10%;
+  background: #f5f7fa;
+  border-radius: 12px;
+  margin: 0 0 8px 0;
+  padding: 12px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.totals-row, .notes-row, .staff-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 6px;
+}
+.totals-row label, .notes-row label, .staff-row label {
+  font-weight: 500;
+  margin-right: 4px;
+}
+.totals-row input, .notes-row input, .staff-row input {
+  width: 110px;
+  margin-right: 8px;
+}
