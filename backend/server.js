@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const fs = require('fs');
+const path = require('path');
+const { Pool } = require('pg');
 require('dotenv').config();
 
 const companyRoutes = require('./routes/companyRoutes');
@@ -43,9 +46,46 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Database initialization
+async function initializeDatabase() {
+  const pool = new Pool({
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT || 5432,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+  });
 
-// Render cache clear - 02/21/2026 14:14:22
+  try {
+    const client = await pool.connect();
+    const res = await client.query("SELECT to_regclass('public.invoicemaster');");
+    client.release();
+    
+    if (res.rows[0].to_regclass === null) {
+      console.log('Tables not found, running migration...');
+      const schemaPath = path.join(__dirname, '../database/schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        const schema = fs.readFileSync(schemaPath, 'utf-8');
+        const migrationClient = await pool.connect();
+        try {
+          await migrationClient.query(schema);
+          console.log('✓ Database migration completed successfully!');
+        } finally {
+          migrationClient.release();
+        }
+      }
+    } else {
+      console.log('✓ Database tables already exist');
+    }
+  } catch (err) {
+    console.warn('Database initialization warning:', err.message);
+  } finally {
+    await pool.end();
+  }
+}
+
+// Start server
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+  await initializeDatabase();
+});
