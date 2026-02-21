@@ -13,6 +13,7 @@ const invoiceRoutes = require('./routes/invoiceRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const seedRoutes = require('./routes/seedRoutes');
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 5000;
@@ -30,6 +31,7 @@ app.use('/api', invoiceRoutes);
 app.use('/api', itemRoutes);
 app.use('/api', vehicleRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api', seedRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
