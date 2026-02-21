@@ -58,27 +58,51 @@ async function initializeDatabase() {
 
   try {
     const client = await pool.connect();
+    console.log('Connected to database, checking tables...');
+    
     const res = await client.query("SELECT to_regclass('public.invoicemaster');");
-    client.release();
     
     if (res.rows[0].to_regclass === null) {
       console.log('Tables not found, running migration...');
-      const schemaPath = path.join(__dirname, '../database/schema.sql');
-      if (fs.existsSync(schemaPath)) {
+      
+      // Try multiple possible paths for schema.sql
+      const possiblePaths = [
+        path.join(__dirname, '../database/schema.sql'),
+        path.join(__dirname, '../../database/schema.sql'),
+        '/opt/render/project/src/database/schema.sql',
+        '/opt/render/project/database/schema.sql'
+      ];
+      
+      let schemaPath = null;
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          schemaPath = p;
+          console.log('Found schema at:', p);
+          break;
+        }
+      }
+      
+      if (schemaPath) {
         const schema = fs.readFileSync(schemaPath, 'utf-8');
         const migrationClient = await pool.connect();
         try {
           await migrationClient.query(schema);
           console.log('✓ Database migration completed successfully!');
+        } catch (migrationErr) {
+          console.error('Migration error:', migrationErr.message);
         } finally {
           migrationClient.release();
         }
+      } else {
+        console.warn('Schema file not found at any expected path');
       }
     } else {
       console.log('✓ Database tables already exist');
     }
+    
+    client.release();
   } catch (err) {
-    console.warn('Database initialization warning:', err.message);
+    console.error('Database connection error:', err.message);
   } finally {
     await pool.end();
   }
