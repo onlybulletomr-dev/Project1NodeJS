@@ -67,9 +67,13 @@ async function initializeDatabase() {
       
       // Try multiple possible paths for schema.sql
       const possiblePaths = [
+        path.join(__dirname, '../database/schema-simple.sql'),
         path.join(__dirname, '../database/schema.sql'),
+        path.join(__dirname, '../../database/schema-simple.sql'),
         path.join(__dirname, '../../database/schema.sql'),
+        '/opt/render/project/src/database/schema-simple.sql',
         '/opt/render/project/src/database/schema.sql',
+        '/opt/render/project/database/schema-simple.sql',
         '/opt/render/project/database/schema.sql'
       ];
       
