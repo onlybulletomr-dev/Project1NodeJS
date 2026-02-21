@@ -1,0 +1,30 @@
+# Render Deployment Configuration for Project1 ERP
+
+## Backend Service Configuration
+services:
+  - type: web
+    name: project1-backend
+    runtime: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SERVER_PORT
+        scope: build,runtime
+        value: 5000
+      - key: CORS_ORIGIN
+        value: https://project1-frontend.onrender.com
+
+## Frontend Service Configuration
+  - type: web
+    name: project1-frontend  
+    runtime: static-site
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/build
+
+## Database
+databases:
+  - name: project1-postgres
+    databaseName: project1db
+    user: postgres
