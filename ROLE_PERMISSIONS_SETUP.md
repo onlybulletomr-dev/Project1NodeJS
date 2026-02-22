@@ -45,11 +45,17 @@ This guide implements role-based access control with branch isolation for your E
 
 ### Step A: Update Other Controllers
 You need to apply the same pattern to:
-1. **customerController.js** - Add branch filter to getAll(), verify in getById()
-2. **vehicleController.js** - Add branch filter to getAll(), verify in getById()
-3. **itemController.js** - Add branch filter to getAll(), verify in getById()
 
-Pattern to follow:
+**BRANCH-SPECIFIC controllers** (require branch filtering):
+1. **customerController.js** - Add branch filter to getAll(), verify in getById()
+2. **itemDetailController.js** - Add branch filter to getAll(), verify in getById()
+
+**SHARED MASTER controllers** (NO branch filtering):
+3. **vehicleController.js** - NO branch filter (VehicleMaster is shared)
+4. **vehicleDetailController.js** - NO branch filter (VehicleDetails are shared)
+5. **itemController.js** - NO branch filter (ItemMaster is shared)
+
+Pattern for BRANCH-SPECIFIC:
 ```javascript
 // In controller function
 const userBranchId = req.user?.branchId;
@@ -64,6 +70,16 @@ BranchId: userBranchId,  // NEVER use request value
 CreatedBy: userId
 ```
 
+Pattern for SHARED MASTERS:
+```javascript
+// In controller function
+const userId = req.user?.userId;
+
+// NO branch filtering
+// NO BranchId in request/body
+CreatedBy: userId  // Only track who created it
+```
+
 ### Step B: Update Remaining Routes
 Add middleware to routes that don't have it:
 ```javascript
@@ -75,17 +91,30 @@ router.post('/customers', branchAccessMiddleware, customerController.create);
 ```
 
 ### Step C: Update Models
-Add `getAllByBranch(branchId)` method to:
+Add `getAllByBranch(branchId)` method to BRANCH-SPECIFIC models only:
 - CustomerMaster
+- ItemDetail
+
+Do NOT add getBranch method to SHARED MASTERS:
+- VehicleMaster
 - VehicleDetails
 - ItemMaster
 
 Pattern:
 ```javascript
+// For branch-specific models only
 static async getAllByBranch(branchId) {
   const result = await pool.query(
     `SELECT * FROM tablename WHERE branchid = $1 AND deletedat IS NULL ORDER BY id DESC`,
     [branchId]
+  );
+  return result.rows;
+}
+
+// For shared masters:
+static async getAll() {
+  const result = await pool.query(
+    `SELECT * FROM tablename WHERE deletedat IS NULL ORDER BY id DESC`
   );
   return result.rows;
 }
