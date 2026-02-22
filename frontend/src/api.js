@@ -5,10 +5,45 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api
 // Configure axios defaults
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
+// Get current userId from localStorage
+let currentUserId = localStorage.getItem('userId');
+
+// Function to set userId (call this after user login)
+export function setUserId(userId) {
+  currentUserId = userId;
+  localStorage.setItem('userId', userId);
+  if (userId) {
+    axios.defaults.headers.common['x-user-id'] = userId;
+    console.log(`[API] userId set to: ${userId}`);
+  }
+}
+
+// Function to get current userId
+export function getUserId() {
+  return currentUserId;
+}
+
+// Function to clear userId (call this on logout)
+export function clearUserId() {
+  currentUserId = null;
+  localStorage.removeItem('userId');
+  delete axios.defaults.headers.common['x-user-id'];
+  console.log('[API] userId cleared');
+}
+
+// Initialize userId header if it exists in localStorage
+if (currentUserId) {
+  axios.defaults.headers.common['x-user-id'] = currentUserId;
+}
+
 // Request interceptor
 axios.interceptors.request.use(
   config => {
-    console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`);
+    // Ensure userId is included in every request
+    if (currentUserId) {
+      config.headers['x-user-id'] = currentUserId;
+    }
+    console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`, { userId: currentUserId });
     return config;
   },
   error => {

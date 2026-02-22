@@ -1,20 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const invoiceController = require('../controllers/invoiceController');
+const { branchAccessMiddleware } = require('../middleware/authMiddleware');
 
+// All invoice routes protected with branch access middleware
 // Save new invoice
-router.post('/invoices', invoiceController.saveInvoice);
+router.post('/invoices', branchAccessMiddleware, invoiceController.saveInvoice);
 
-// Get all invoices
-router.get('/invoices', invoiceController.getAllInvoices);
+// Get all invoices for user's branch
+router.get('/invoices', branchAccessMiddleware, invoiceController.getAllInvoices);
 
-// Get invoice by ID
-router.get('/invoices/:id', invoiceController.getInvoiceById);
+// Get invoice by ID with branch verification
+router.get('/invoices/:id', branchAccessMiddleware, invoiceController.getInvoiceById);
 
-// Update invoice
-router.put('/invoices/:id', invoiceController.updateInvoice);
+// Update invoice with branch verification
+router.put('/invoices/:id', branchAccessMiddleware, invoiceController.updateInvoice);
 
-// Delete invoice
-router.delete('/invoices/:id', invoiceController.deleteInvoice);
+// Delete invoice with branch verification
+router.delete('/invoices/:id', branchAccessMiddleware, invoiceController.deleteInvoice);
 
 module.exports = router;

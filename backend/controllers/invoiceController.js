@@ -6,6 +6,17 @@ exports.saveInvoice = async (req, res) => {
   try {
     console.log('Invoice save request received:', req.body);
     
+    // Get user details from middleware
+    const userBranchId = req.user?.branchId;
+    const userId = req.user?.userId;
+
+    if (!userBranchId || !userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required',
+      });
+    }
+    
     const {
       InvoiceNumber,
       BranchId,
@@ -31,7 +42,6 @@ exports.saveInvoice = async (req, res) => {
       Notes,
       Notes1,
       InvoiceDetails,
-      CreatedBy,
     } = req.body;
 
     // Validate required fields
@@ -43,10 +53,10 @@ exports.saveInvoice = async (req, res) => {
       });
     }
 
-    // Create invoice master record
+    // Create invoice master record - FORCE user's branch, use userId as CreatedBy
     const invoiceMasterData = {
       InvoiceNumber,
-      BranchId: BranchId || 1,
+      BranchId: userBranchId,  // FORCE user's branch - cannot be overridden
       CustomerId,
       VehicleId,
       JobCardId,
@@ -69,7 +79,7 @@ exports.saveInvoice = async (req, res) => {
       Odometer: Odometer || null,
       Notes: Notes || null,
       Notes1: Notes1 || null,
-      CreatedBy: CreatedBy || 1,
+      CreatedBy: userId,  // Track who created it
     };
 
     console.log('Creating invoice master with data:', invoiceMasterData);
@@ -112,7 +122,7 @@ exports.saveInvoice = async (req, res) => {
         LineTotal: parseFloat(detail.Total),
         LineItemTax1: 0,
         LineItemTax2: 0,
-        CreatedBy: CreatedBy || 1,
+        CreatedBy: userId,  // Track who created it
       };
       
       console.log('Creating invoice detail with looked-up itemid:', invoiceDetailData);
@@ -142,12 +152,28 @@ exports.saveInvoice = async (req, res) => {
 exports.getInvoiceById = async (req, res) => {
   try {
     const { id } = req.params;
+    const userBranchId = req.user?.branchId;
+
+    if (!userBranchId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required',
+      });
+    }
 
     const invoiceMaster = await InvoiceMaster.getById(id);
     if (!invoiceMaster) {
       return res.status(404).json({
         success: false,
         message: 'Invoice not found',
+      });
+    }
+
+    // Verify invoice belongs to user's branch
+    if (invoiceMaster.branchid !== userBranchId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this invoice',
       });
     }
 
@@ -173,12 +199,24 @@ exports.getInvoiceById = async (req, res) => {
 
 exports.getAllInvoices = async (req, res) => {
   try {
-    const invoices = await InvoiceMaster.getAll();
+    // Get user's branch from middleware
+    const userBranchId = req.user?.branchId;
+
+    if (!userBranchId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required',
+      });
+    }
+
+    // Fetch only invoices from user's branch
+    const invoices = await InvoiceMaster.getAllByBranch(userBranchId);
 
     res.status(200).json({
       success: true,
-      message: 'All invoices retrieved successfully',
+      message: 'Invoices retrieved successfully for your branch',
       data: invoices,
+      branch: userBranchId,
     });
   } catch (err) {
     console.error('Error retrieving invoices:', err);
@@ -193,6 +231,16 @@ exports.getAllInvoices = async (req, res) => {
 exports.updateInvoice = async (req, res) => {
   try {
     const { id } = req.params;
+    const userBranchId = req.user?.branchId;
+    const userId = req.user?.userId;
+
+    if (!userBranchId || !userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required',
+      });
+    }
+
     const {
       VehicleNumber,
       VehicleModel,
@@ -211,8 +259,16 @@ exports.updateInvoice = async (req, res) => {
       Odometer,
       TotalDiscount,
       InvoiceDetails,
-      UpdatedBy,
     } = req.body;
+
+    // Verify invoice belongs to user's branch
+    const invoiceMasterCheck = await InvoiceMaster.getById(id);
+    if (!invoiceMasterCheck || invoiceMasterCheck.branchid !== userBranchId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to update this invoice',
+      });
+    }
 
     const invoiceMasterData = {
       VehicleNumber,
@@ -231,7 +287,7 @@ exports.updateInvoice = async (req, res) => {
       WaterWash: WaterWash || null,
       Odometer,
       TotalDiscount: TotalDiscount || 0,
-      UpdatedBy,
+      UpdatedBy: userId,  // Track who updated it
     };
 
     const invoiceMaster = await InvoiceMaster.update(id, invoiceMasterData);
@@ -245,7 +301,7 @@ exports.updateInvoice = async (req, res) => {
 
     // Delete existing details and create new ones
     if (InvoiceDetails && Array.isArray(InvoiceDetails)) {
-      await InvoiceDetail.deleteByInvoiceId(id, UpdatedBy);
+      await InvoiceDetail.deleteByInvoiceId(id, userId);
 
       const invoiceDetailRecords = [];
       for (const detail of InvoiceDetails) {
@@ -256,7 +312,7 @@ exports.updateInvoice = async (req, res) => {
           UnitPrice: detail.UnitPrice,
           LineDiscount: detail.Discount || 0,
           Total: detail.Total,
-          CreatedBy: UpdatedBy,
+          CreatedBy: userId,  // Track who created it
         };
 
         const invoiceDetail = await InvoiceDetail.create(invoiceDetailData);
@@ -270,6 +326,7 @@ exports.updateInvoice = async (req, res) => {
           invoiceMaster,
           invoiceDetails: invoiceDetailRecords,
         },
+        updatedBy: userId,
       });
     }
 
@@ -277,6 +334,7 @@ exports.updateInvoice = async (req, res) => {
       success: true,
       message: 'Invoice updated successfully',
       data: invoiceMaster,
+      updatedBy: userId,
     });
   } catch (err) {
     console.error('Error updating invoice:', err);

@@ -72,6 +72,14 @@ class InvoiceMaster {
     return result.rows;
   }
 
+  static async getAllByBranch(branchId) {
+    const result = await pool.query(
+      `SELECT * FROM invoicemaster WHERE branchid = $1 AND deletedat IS NULL ORDER BY invoiceid DESC`,
+      [branchId]
+    );
+    return result.rows;
+  }
+
   static async update(id, data) {
     const {
       InvoiceNumber,
