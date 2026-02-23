@@ -94,7 +94,7 @@ class InvoiceMaster {
         im.totalamount,
         im.paymentstatus,
         im.paymentdate,
-        COALESCE(cm.firstname || ' ' || cm.lastname, 'N/A') as customername,
+        COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
         COALESCE(SUM(pd.amount), 0) as paidamount
       FROM invoicemaster im
       LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
