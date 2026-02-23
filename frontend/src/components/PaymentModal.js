@@ -1,0 +1,374 @@
+import React, { useState, useEffect } from 'react';
+import { getUnpaidInvoicesByVehicle } from '../api';
+
+function PaymentModal({ 
+  isOpen, 
+  onClose, 
+  vehicleId,
+  onProcessPayment,
+  paymentMethods = []
+}) {
+  const [vehicleData, setVehicleData] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [invoicePaymentAmounts, setInvoicePaymentAmounts] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Fetch invoices for the vehicle when modal opens
+  useEffect(() => {
+    if (isOpen && vehicleId) {
+      fetchInvoicesForVehicle();
+    } else {
+      resetState();
+    }
+  }, [isOpen, vehicleId]);
+
+  const fetchInvoicesForVehicle = async () => {
+    setLoading(true);
+    try {
+      const result = await getUnpaidInvoicesByVehicle(vehicleId);
+      if (result.success) {
+        setVehicleData(result.data.vehicle);
+        setInvoices(result.data.invoices || []);
+        setError(null);
+      } else {
+        setError(result.message || 'Failed to fetch invoices');
+      }
+    } catch (err) {
+      setError('Error fetching invoices: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetState = () => {
+    setVehicleData(null);
+    setInvoices([]);
+    setSelectedPaymentMethod('');
+    setPaymentAmount('');
+    setInvoicePaymentAmounts({});
+    setError(null);
+  };
+
+  const handlePaymentAmountChange = (invoiceId, value) => {
+    if (!value) {
+      setInvoicePaymentAmounts(prev => ({
+        ...prev,
+        [invoiceId]: ''
+      }));
+      return;
+    }
+
+    const numValue = Number(value);
+    const invoice = invoices.find(inv => inv.invoiceid === invoiceId);
+    const maxAllowed = invoice.totalamount || invoice.amount || 0;
+
+    const finalValue = numValue > maxAllowed ? maxAllowed : numValue;
+
+    setInvoicePaymentAmounts(prev => ({
+      ...prev,
+      [invoiceId]: finalValue
+    }));
+  };
+
+  const handleProcessPayment = () => {
+    const paymentData = {
+      paymentMethod: selectedPaymentMethod,
+      totalAmount: Number(paymentAmount),
+      allocations: invoicePaymentAmounts,
+      invoices: invoices.filter(inv => invoicePaymentAmounts[inv.invoiceid]),
+      vehicleId: vehicleId
+    };
+    onProcessPayment(paymentData);
+    handleClose();
+  };
+
+  const handleClose = () => {
+    resetState();
+    onClose();
+  };
+
+  const isPaymentValid = paymentAmount && selectedPaymentMethod && Object.values(invoicePaymentAmounts).some(amt => amt);
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: '#fff',
+        borderRadius: 8,
+        padding: 24,
+        width: '90%',
+        maxWidth: 600,
+        maxHeight: '80vh',
+        overflowY: 'auto',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        position: 'relative'
+      }}>
+        {/* Close Button */}
+        <button
+          onClick={handleClose}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            background: 'transparent',
+            border: 'none',
+            fontSize: 24,
+            cursor: 'pointer',
+            color: '#666'
+          }}
+          title="Close"
+        >
+          ✕
+        </button>
+
+        {!vehicleId ? (
+          <div style={{ padding: 20, textAlign: 'center' }}>
+            <div style={{ color: '#d32f2f', fontSize: 16, fontWeight: 600, marginBottom: 10 }}>
+              ⚠️ Missing Vehicle Information
+            </div>
+            <div style={{ color: '#666', marginBottom: 20 }}>
+              This invoice does not have associated vehicle information. Payment cannot be processed.
+            </div>
+            <button
+              onClick={handleClose}
+              style={{
+                padding: 10,
+                background: '#999',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Close
+            </button>
+          </div>
+        ) : loading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>Loading invoices...</div>
+        ) : error ? (
+          <div style={{ padding: 20 }}>
+            <div style={{ color: '#d32f2f', padding: 10, background: '#ffebee', borderRadius: 4, marginBottom: 20 }}>
+              {error}
+            </div>
+            <button
+              onClick={handleClose}
+              style={{
+                padding: 10,
+                background: '#999',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                width: '100%'
+              }}
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <h2 style={{ margin: 0 }}>💳 Payment</h2>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#333', marginBottom: 8 }}>
+                    Vehicle: <span style={{ color: '#2196F3', fontSize: 16 }}>{vehicleData?.registrationnumber || 'N/A'}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>
+                    {vehicleData?.manufacturername} {vehicleData?.modelname} {vehicleData?.color}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Total and Pending Amount */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 30, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 8, borderTop: '1px solid #eee' }}>
+                <div>
+                  Total Amount: <span style={{ color: '#4CAF50', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.totalamount) || Number(inv.amount) || 0), 0)).toFixed(2)}</span>
+                </div>
+                <div>
+                  Pending: <span style={{ color: '#FF9800', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.totalamount) || Number(inv.amount) || 0), 0) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Payment Method Dropdown and Amount Input */}
+            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              {/* Payment Method Dropdown */}
+              <div style={{ flex: 1 }}>
+                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Payment Method:</label>
+                <select
+                  value={selectedPaymentMethod}
+                  onChange={e => setSelectedPaymentMethod(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: 10,
+                    border: '1px solid #ddd',
+                    borderRadius: 4,
+                    fontSize: 14,
+                    backgroundColor: '#fff'
+                  }}
+                >
+                  <option value="">-- Select Method --</option>
+                  {paymentMethods.map(method => (
+                    <option key={method.id} value={method.id}>
+                      {method.paymentmethodname}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Payment Amount Input */}
+              <div style={{ flex: 1 }}>
+                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Amount:</label>
+                <input
+                  type="number"
+                  placeholder="Enter amount"
+                  value={paymentAmount}
+                  onChange={e => setPaymentAmount(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: 10,
+                    border: '1px solid #ddd',
+                    borderRadius: 4,
+                    fontSize: 14,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Remaining Balance Display */}
+            {paymentAmount && (
+              <div style={{ padding: 10, background: '#f5f5f5', borderRadius: 4, marginBottom: 20 }}>
+                <div style={{ marginBottom: 4 }}>Total Amount: <strong>₹{Number(paymentAmount).toFixed(2)}</strong></div>
+                <div>Allocated: <strong>₹{Number(Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
+                <div>Unallocated: <strong style={{ color: Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0) < 0 ? '#d32f2f' : '#666' }}>₹{Number(Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
+              </div>
+            )}
+
+            <p style={{ marginBottom: 12, color: '#666', fontSize: 14, fontWeight: 600 }}>Allocate payment to invoices:</p>
+            
+            {/* Invoices List with Individual Payment Inputs */}
+            <div style={{ marginBottom: 20, border: '1px solid #ddd', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
+              {/* Header Row */}
+              <div style={{
+                padding: 10,
+                background: '#f9f9f9',
+                borderBottom: '2px solid #ddd',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: 8,
+                fontWeight: 600,
+                fontSize: 13,
+                color: '#333'
+              }}>
+                <div>Invoice Number</div>
+                <div style={{ textAlign: 'right' }}>Invoice Value</div>
+                <div style={{ textAlign: 'right' }}>Amount Allocated</div>
+              </div>
+              
+              {/* Data Rows */}
+              {invoices.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>
+                  No pending invoices for this vehicle
+                </div>
+              ) : (
+                invoices.map(invoice => (
+                  <div
+                    key={invoice.invoiceid}
+                    style={{
+                      padding: 10,
+                      borderBottom: '1px solid #eee',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      gap: 8,
+                      alignItems: 'center',
+                      background: '#fff'
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{invoice.invoicenumber}</div>
+                    <div style={{ textAlign: 'right', fontSize: 13, color: '#2196F3', fontWeight: 600 }}>
+                      ₹{Number(invoice.totalamount || invoice.amount || 0).toFixed(2)}
+                    </div>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={invoicePaymentAmounts[invoice.invoiceid] || ''}
+                      onChange={e => handlePaymentAmountChange(invoice.invoiceid, e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: 6,
+                        border: '1px solid #ddd',
+                        borderRadius: 4,
+                        fontSize: 13,
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleClose}
+                style={{
+                  flex: 1,
+                  padding: 10,
+                  background: '#999',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleProcessPayment}
+                disabled={!isPaymentValid}
+                style={{
+                  flex: 1,
+                  padding: 10,
+                  background: !isPaymentValid ? '#ccc' : '#4CAF50',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: !isPaymentValid ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Process Payment
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default PaymentModal;

@@ -1,0 +1,484 @@
+.customer-master {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100vh;
+}
+
+.main-content {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+
+.messages-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.customer-master h1 {
+  color: #2c3e50;
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.3rem;
+  font-size: 1.1rem;
+}
+
+.customer-master h2 {
+  color: #2c3e50;
+  margin-top: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.95rem;
+}
+
+.error-message {
+  background-color: #fee;
+  color: #c33;
+  padding: 0.6rem 0.8rem;
+  border-radius: 4px;
+  margin-bottom: 0;
+  border: 1px solid #fcc;
+  font-size: 0.8rem;
+}
+
+.success-message {
+  background-color: #efe;
+  color: #3c3;
+  padding: 0.6rem 0.8rem;
+  border-radius: 4px;
+  margin-bottom: 0;
+  border: 1px solid #cfc;
+  font-size: 0.8rem;
+}
+
+.warning-message {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+  border: 1px solid #ffeeba;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.customer-form {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid #e0e0e0;
+  width: 100%;
+}
+
+/* Top Section - Two Column Layout */
+.form-top-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  border-bottom: none;
+  padding-bottom: 0;
+  width: 100%;
+}
+
+.form-left-column,
+.form-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-right-column {
+  border-left: none;
+  padding-left: 0;
+}
+
+/* Inline form groups - label and input on same line */
+.form-group {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.3rem;
+  width: 100%;
+}
+
+.form-group label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.7rem;
+  margin-bottom: 0;
+  text-align: left;
+  min-width: 120px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.form-group input[type="checkbox"] {
+  margin-right: 0.3rem;
+  cursor: pointer;
+}
+
+.form-group input[type="checkbox"] + label {
+  display: inline;
+  margin-bottom: 0;
+  min-width: auto;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  flex: 1;
+  padding: 0.4rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  height: 32px;
+  transition: border-color 0.3s;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.form-group select {
+  height: 32px;
+  padding: 0.35rem 0.4rem;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+
+.customer-form button[type="submit"] {
+  background-color: #27ae60;
+  color: white;
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.3s;
+  flex: 1;
+}
+
+.customer-form button[type="submit"]:hover {
+  background-color: #229954;
+}
+
+.customer-form button[type="submit"]:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background-color: #e74c3c;
+  color: white;
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.3s;
+  flex: 1;
+}
+
+.cancel-btn:hover {
+  background-color: #c0392b;
+}
+
+/* Recent Customer Details Section */
+.recent-customer-section {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid #e0e0e0;
+  width: 100%;
+}
+
+.recent-customer-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  color: #2c3e50;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 0.4rem;
+}
+
+.customer-list-simple {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: none;
+  overflow-y: visible;
+}
+
+.customer-item {
+  background-color: #f9f9f9;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  color: #2c3e50;
+  line-height: 1.5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.customer-item-content {
+  flex: 1;
+}
+
+.customer-item-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.btn-edit,
+.btn-delete {
+  padding: 0.3rem 0.6rem;
+  border: none;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  white-space: nowrap;
+}
+
+.btn-edit {
+  background-color: #3498db;
+  color: white;
+}
+
+.btn-edit:hover {
+  background-color: #2980b9;
+}
+
+.btn-delete {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-delete:hover {
+  background-color: #c0392b;
+}
+
+.customer-item-number {
+  font-weight: 600;
+  color: #333;
+}
+
+.customer-item-name {
+  font-weight: 600;
+}
+
+.customer-item-details {
+  color: #666;
+  font-size: 0.75rem;
+}
+
+.customers-list {
+  width: 100%;
+  margin-top: 0.4rem;
+  background-color: white;
+  padding: 0.4rem;
+  border-radius: 8px;
+}
+
+.customers-list table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.3rem;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.list-header h2 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.refresh-btn {
+  background-color: #3498db;
+  color: white;
+  padding: 0.25rem 0.6rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  transition: background-color 0.3s;
+}
+
+.refresh-btn:hover {
+  background-color: #2980b9;
+}
+
+.refresh-btn:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.customers-list table thead {
+  background-color: #34495e;
+  color: white;
+}
+
+.customers-list table th,
+.customers-list table td {
+  padding: 0.25rem;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.7rem;
+}
+
+.customers-list table tbody tr:hover {
+  background-color: #f5f5f5;
+}
+
+.edit-btn,
+.delete-btn {
+  padding: 0.3rem 0.6rem;
+  margin-right: 0.3rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: opacity 0.3s;
+}
+
+.edit-btn {
+  background-color: #3498db;
+  color: white;
+}
+
+.edit-btn:hover {
+  opacity: 0.8;
+}
+
+.delete-btn {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.delete-btn:hover {
+  opacity: 0.8;
+}
+
+/* Vehicle Styles */
+.vehicles-list {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background-color: #f0f0f0;
+  border-radius: 5px;
+}
+
+.vehicles-list h3 {
+  color: #2c3e50;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.vehicles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.vehicle-card {
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.vehicle-info {
+  margin-bottom: 0.5rem;
+}
+
+.vehicle-info p {
+  margin: 0.2rem 0;
+  font-size: 0.75rem;
+  color: #2c3e50;
+}
+
+.vehicle-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.vehicle-form-actions {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.save-vehicle-btn {
+  background-color: #27ae60;
+  color: white;
+  padding: 0.35rem 0.8rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.3s;
+}
+
+.save-vehicle-btn:hover {
+  background-color: #229954;
+}
+
+.save-vehicle-btn:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.tab-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .customer-form {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .customers-list table {
+    font-size: 0.75rem;
+  }
+
+  .customers-list table th,
+  .customers-list table td {
+    padding: 0.2rem;
+  }
+}

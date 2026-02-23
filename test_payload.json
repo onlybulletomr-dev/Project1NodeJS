@@ -1,0 +1,12 @@
+﻿{
+  "FirstName": "TestFirst",
+  "LastName": "TestLast",
+  "EmailAddress": "testfresh@test.com",
+  "MobileNumber1": "9999999999",
+  "VehicleNumber": "TEST-VEH-001",
+  "VehicleModel": "Honda Accord",
+  "VehicleColor": "Silver",
+  "BranchID": 1,
+  "CreatedBy": 1,
+  "CreatedAt": "2026-02-23"
+}

@@ -1,0 +1,235 @@
+.company-master {
+  background-color: white;
+  padding: 0.6rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.company-master h1 {
+  color: #2c3e50;
+  margin-bottom: 0.4rem;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 0.3rem;
+  font-size: 1.1rem;
+}
+
+.company-master h2 {
+  color: #2c3e50;
+  margin-top: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.95rem;
+}
+
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+  border: 1px solid #f5c6cb;
+  font-size: 0.8rem;
+}
+
+.success-message {
+  background-color: #d4edda;
+  color: #155724;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+  border: 1px solid #c3e6cb;
+  font-size: 0.8rem;
+}
+
+.company-form {
+  background-color: #f9f9f9;
+  padding: 0.6rem;
+  border-radius: 8px;
+  margin-bottom: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.form-group {
+  margin-bottom: 0;
+}
+
+.form-row {
+  display: contents;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.75rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 0.3rem;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+}
+
+.form-group button {
+  background-color: #3498db;
+  color: white;
+  padding: 0.7rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+}
+
+.company-form button[type="submit"] {
+  background-color: #27ae60;
+  color: white;
+  padding: 0.35rem 0.8rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.3s;
+  margin-right: 0.3rem;
+  margin-top: 0;
+  grid-column: 1;
+}
+
+.company-form button[type="submit"]:hover {
+  background-color: #229954;
+}
+
+.company-form button[type="submit"]:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background-color: #e74c3c !important;
+  color: white;
+  padding: 0.35rem 0.8rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.3s;
+  margin-top: 0;
+  grid-column: 2;
+}
+
+.cancel-btn:hover {
+  background-color: #c0392b !important;
+}
+
+.companies-list table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.4rem;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.list-header h2 {
+  margin: 0;
+}
+
+.refresh-btn {
+  background-color: #3498db;
+  color: white;
+  padding: 0.3rem 0.7rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background-color 0.3s;
+}
+
+.refresh-btn:hover {
+  background-color: #2980b9;
+}
+
+.refresh-btn:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.companies-list table thead {
+  background-color: #34495e;
+  color: white;
+}
+
+.companies-list table th,
+.companies-list table td {
+  padding: 0.3rem;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.8rem;
+}
+
+.companies-list table tbody tr:hover {
+  background-color: #f5f5f5;
+}
+
+.edit-btn,
+.delete-btn {
+  padding: 0.3rem 0.6rem;
+  margin-right: 0.3rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: opacity 0.3s;
+}
+
+.edit-btn {
+  background-color: #3498db;
+  color: white;
+}
+
+.edit-btn:hover {
+  opacity: 0.8;
+}
+
+.delete-btn {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.delete-btn:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .company-form {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .companies-list table {
+    font-size: 0.75rem;
+  }
+
+  .companies-list table th,
+  .companies-list table td {
+    padding: 0.2rem;
+  }
+}
