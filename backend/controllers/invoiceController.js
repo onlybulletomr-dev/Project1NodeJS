@@ -22,6 +22,7 @@ exports.saveInvoice = async (req, res) => {
       BranchId,
       CustomerId,
       VehicleId,
+      VehicleNumber,
       JobCardId,
       SubTotal,
       TotalDiscount,
@@ -59,6 +60,7 @@ exports.saveInvoice = async (req, res) => {
       BranchId: userBranchId,  // FORCE user's branch - cannot be overridden
       CustomerId,
       VehicleId,
+      VehicleNumber,
       JobCardId,
       InvoiceType: 'Service Invoice',
       SubTotal: parseFloat(SubTotal),
