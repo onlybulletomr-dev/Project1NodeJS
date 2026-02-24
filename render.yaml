@@ -27,7 +27,7 @@ services:
       # Format: https://[backend-service-name].onrender.com/api
       # The frontend will auto-detect this from the environment variable or construct it
       - key: REACT_APP_API_URL
-        value: https://project1-backend-xyzabc.onrender.com/api
+        value: https://project1-backend1.onrender.com/api
 
 ## Database
 databases:
