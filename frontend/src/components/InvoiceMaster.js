@@ -12,11 +12,20 @@ async function searchVehiclesByNumber(query) {
       getCustomers()
     ]);
     
+    console.log('Vehicle response:', vehiclesRes);
+    console.log('Customers response:', customersRes);
+    
     // Extract arrays from responses
     const allVehicles = Array.isArray(vehiclesRes) ? vehiclesRes : (vehiclesRes?.data || []);
     const allCustomers = Array.isArray(customersRes) ? customersRes : (customersRes?.data || []);
     
-    if (!Array.isArray(allVehicles)) return [];
+    console.log('Extracted allVehicles:', allVehicles);
+    console.log('Extracted allCustomers:', allCustomers);
+    
+    if (!Array.isArray(allVehicles)) {
+      console.log('allVehicles is not an array, returning []');
+      return [];
+    }
     
     // Create customer lookup map
     const customerMap = {};
@@ -24,8 +33,10 @@ async function searchVehiclesByNumber(query) {
       customerMap[c.CustomerID] = c;
     });
     
+    console.log('Customer map:', customerMap);
+    
     // Filter by vehicle number and enhance with customer data
-    return allVehicles
+    const results = allVehicles
       .filter(v => 
         v.vehiclenumber && v.vehiclenumber.toLowerCase().includes(query.toLowerCase())
       )
@@ -38,6 +49,9 @@ async function searchVehiclesByNumber(query) {
           mobilenumber1: customer?.mobilenumber1 || customer?.MobileNumber1 || customer?.phonenumber || customer?.PhoneNumber || '-'
         };
       });
+    
+    console.log('Vehicle search results for query "' + query + '":', results);
+    return results;
   } catch (error) {
     console.error('Error searching vehicles:', error);
     return [];
