@@ -78,18 +78,20 @@ exports.getUnpaidInvoicesByVehicle = async (req, res) => {
     const userResult = await pool.query(userQuery, [userId]);
     const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
 
-    // First get vehicle details from vehicledetail table
+    // First get vehicle details from vehicledetail table and join with invoice to get customer
     const vehicleQuery = `
       SELECT 
-        vd.vehicledetailid as vehicleid, 
-        vd.vehiclenumber, 
-        vd.vehiclemodel, 
-        vd.vehiclecolor,
+        vd.vehicleid, 
+        vd.registrationnumber as vehiclenumber, 
+        vd.model as vehiclemodel, 
+        vd.color as vehiclecolor,
         TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')) as customername,
         cm.mobilenumber1
       FROM vehicledetail vd
-      LEFT JOIN customermaster cm ON vd.customerid = cm.customerid AND cm.deletedat IS NULL
-      WHERE vd.vehicledetailid = $1 AND vd.deletedat IS NULL
+      INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
+      LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
+      WHERE vd.vehicleid = $1 AND vd.deletedat IS NULL
+      LIMIT 1
     `;
     const vehicleResult = await pool.query(vehicleQuery, [vehicleId]);
     const vehicleData = vehicleResult.rows[0];
@@ -246,8 +248,8 @@ exports.updatePaymentStatus = async (req, res) => {
         // Validate vehicleID exists in vehicledetail table
         if (vehicleID) {
           const vehicleCheckQuery = `
-            SELECT vehicledetailid FROM vehicledetail 
-            WHERE vehicledetailid = $1 AND deletedat IS NULL
+            SELECT vehicleid FROM vehicledetail 
+            WHERE vehicleid = $1 AND deletedat IS NULL
           `;
           const vehicleCheckResult = await pool.query(vehicleCheckQuery, [vehicleID]);
           if (vehicleCheckResult.rows.length === 0) {
