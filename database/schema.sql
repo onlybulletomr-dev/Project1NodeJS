@@ -101,35 +101,6 @@ CREATE TABLE CustomerMaster (
         ON DELETE RESTRICT
 );
 
--- CREATE TABLE VehicleDetail
-CREATE TABLE VehicleDetail (
-    VehicleDetailID INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
-    CustomerID INTEGER NOT NULL,
-
-    VehicleNumber VARCHAR(50) NOT NULL,
-    VehicleModel VARCHAR(255) NOT NULL,
-    VehicleColor VARCHAR(50) NOT NULL,
-
-    ExtraVar1 VARCHAR(100) NULL,
-    ExtraVar2 VARCHAR(100) NULL,
-    ExtraInt1 INTEGER NULL,
-
-    CreatedBy INTEGER NOT NULL,
-    CreatedAt DATE NOT NULL,
-
-    UpdatedBy INTEGER NULL,
-    UpdatedAt DATE NULL,
-
-    DeletedBy INTEGER NULL,
-    DeletedAt DATE NULL,
-
-    CONSTRAINT fk_vehicledetail_customer
-        FOREIGN KEY (CustomerID)
-        REFERENCES CustomerMaster (CustomerID)
-        ON DELETE CASCADE
-);
-
 -- CREATE TABLE VehicleManufacturer
 CREATE TABLE VehicleManufacturer (
     ManufacturerID INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -293,61 +264,4 @@ CREATE TABLE InvoiceDetail (
         FOREIGN KEY (InvoiceID)
         REFERENCES InvoiceMaster (InvoiceID)
         ON DELETE CASCADE
-);
-
--- CREATE TABLE PaymentDetail
-CREATE TABLE PaymentDetail (
-    PaymentReceivedID INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
-    InvoiceID INTEGER NULL,
-    VehicleID INTEGER NULL,
-    PaymentMethodID INTEGER NOT NULL,
-
-    ProcessedByUserID INTEGER NOT NULL,
-    BranchID INTEGER NOT NULL,
-
-    PaymentDate DATE NOT NULL,
-    Amount DECIMAL(10, 2) NOT NULL,
-
-    TransactionReference VARCHAR(100) NULL,
-    PaymentStatus VARCHAR(20) DEFAULT 'Completed' NOT NULL,
-    Notes TEXT NULL,
-
-    ExtraVar1 VARCHAR(100) NULL,
-    ExtraVar2 VARCHAR(100) NULL,
-    ExtraInt1 INTEGER NULL,
-
-    CreatedBy INTEGER NOT NULL,
-    CreatedAt DATE NOT NULL,
-
-    UpdatedBy INTEGER NULL,
-    UpdatedAt DATE NULL,
-
-    DeletedBy INTEGER NULL,
-    DeletedAt DATE NULL,
-
-    CONSTRAINT fk_payment_detail_invoice
-        FOREIGN KEY (InvoiceID)
-        REFERENCES InvoiceMaster (InvoiceID)
-        ON DELETE RESTRICT,
-
-    CONSTRAINT fk_payment_detail_vehicle
-        FOREIGN KEY (VehicleID)
-        REFERENCES VehicleDetail (VehicleDetailID)
-        ON DELETE RESTRICT,
-
-    CONSTRAINT fk_payment_detail_method
-        FOREIGN KEY (PaymentMethodID)
-        REFERENCES PaymentMethodMaster (PaymentMethodID)
-        ON DELETE RESTRICT,
-
-    CONSTRAINT fk_payment_detail_user
-        FOREIGN KEY (ProcessedByUserID)
-        REFERENCES EmployeeMaster (EmployeeID)
-        ON DELETE RESTRICT,
-
-    CONSTRAINT fk_payment_detail_branch
-        FOREIGN KEY (BranchID)
-        REFERENCES CompanyMaster (CompanyID)
-        ON DELETE RESTRICT
 );

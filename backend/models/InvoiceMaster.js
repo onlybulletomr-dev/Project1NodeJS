@@ -7,7 +7,6 @@ class InvoiceMaster {
       BranchId,
       CustomerId,
       VehicleId,
-      VehicleNumber,
       JobCardId,
       InvoiceDate,
       DueDate,
@@ -37,16 +36,16 @@ class InvoiceMaster {
 
     const result = await pool.query(
       `INSERT INTO invoicemaster (
-        invoicenumber, branchid, customerid, vehicleid, vehiclenumber, jobcardid,
+        invoicenumber, branchid, customerid, vehicleid, jobcardid,
         invoicedate, duedate, invoicetype,
         subtotal, totaldiscount, partsincome, serviceincome, tax1, tax2, totalamount,
         technicianmain, technicianassistant, waterwash, serviceadvisorin, serviceadvisordeliver,
         testdriver, cleaner, additionalwork,
         odometer, notes, notes1, createdby, createdat
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING *`,
       [
-        InvoiceNumber, BranchId, CustomerId, VehicleId, VehicleNumber, JobCardId,
+        InvoiceNumber, BranchId, CustomerId, VehicleId, JobCardId,
         InvoiceDate || new Date().toISOString().split('T')[0], DueDate, InvoiceType || 'Service Invoice',
         SubTotal, TotalDiscount || 0, PartsIncome || 0, ServiceIncome || 0, Tax1 || 0, Tax2 || 0, TotalAmount,
         Technicianmain, Technicianassistant, WaterWash, ServiceAdvisorIn, ServiceAdvisorDeliver,
@@ -76,33 +75,6 @@ class InvoiceMaster {
   static async getAllByBranch(branchId) {
     const result = await pool.query(
       `SELECT * FROM invoicemaster WHERE branchid = $1 AND deletedat IS NULL ORDER BY invoiceid DESC`,
-      [branchId]
-    );
-    return result.rows;
-  }
-
-  static async getAllByBranchWithDetails(branchId) {
-    const result = await pool.query(
-      `SELECT 
-        im.invoiceid,
-        im.invoicenumber,
-        im.invoicedate,
-        im.branchid,
-        im.customerid,
-        im.vehicleid,
-        im.vehiclenumber,
-        im.totalamount,
-        im.paymentstatus,
-        im.paymentdate,
-        COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
-        COALESCE(SUM(pd.amount), 0) as paidamount
-      FROM invoicemaster im
-      LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
-      LEFT JOIN paymentdetail pd ON im.invoiceid = pd.invoiceid AND pd.deletedat IS NULL
-      WHERE im.branchid = $1 AND im.deletedat IS NULL
-      GROUP BY im.invoiceid, im.invoicenumber, im.invoicedate, im.branchid, im.customerid, im.vehicleid, 
-               im.vehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname
-      ORDER BY im.invoicedate DESC`,
       [branchId]
     );
     return result.rows;

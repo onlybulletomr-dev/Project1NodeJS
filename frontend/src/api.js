@@ -274,47 +274,6 @@ export const createVehicle = async (data) => {
   }
 };
 
-// Vehicle Detail API
-export const createVehicleDetail = async (data) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/vehicle-details`, data);
-    return response.data;
-  } catch (error) {
-    console.error('Error creating vehicle detail:', error);
-    throw error;
-  }
-};
-
-export const getVehicleDetailsByCustomerId = async (customerId) => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/customer/${customerId}/vehicle-details`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching vehicle details for customer:', error);
-    throw error;
-  }
-};
-
-export const getAllVehicleDetails = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/vehicle-details`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching vehicle details:', error);
-    throw error;
-  }
-};
-
-export const updateVehicleDetail = async (vehicleDetailId, data) => {
-  try {
-    const response = await axios.put(`${API_BASE_URL}/vehicle-details/${vehicleDetailId}`, data);
-    return response.data;
-  } catch (error) {
-    console.error('Error updating vehicle detail:', error);
-    throw error;
-  }
-};
-
 export const updateVehicle = async (id, data) => {
   try {
     const response = await axios.put(`${API_BASE_URL}/vehicles/${id}`, data);
@@ -359,16 +318,6 @@ export const getUniqueVehicleColors = async (model) => {
 };
 
 // Employee API
-export const getAllEmployees = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/employees/all`);
-    return response.data?.data || [];
-  } catch (error) {
-    console.error('Error fetching all employees:', error);
-    return [];
-  }
-};
-
 export const searchEmployees = async (query) => {
   if (!query || query.length < 2) return [];
   const response = await axios.get(`${API_BASE_URL}/employees/search`, { params: { q: query } });
@@ -376,16 +325,6 @@ export const searchEmployees = async (query) => {
 };
 
 // Item API
-export const getAllItems = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/items`);
-    return response.data?.data || [];
-  } catch (error) {
-    console.error('Error fetching all items:', error);
-    return [];
-  }
-};
-
 export const searchItems = async (query) => {
   try {
     if (!query || query.length < 2) return [];
@@ -393,40 +332,6 @@ export const searchItems = async (query) => {
     return response.data.data || [];
   } catch (error) {
     console.error('Error searching items:', error);
-    return [];
-  }
-};
-
-// Service API
-export const getAllServices = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/services`);
-    return response.data?.data || [];
-  } catch (error) {
-    console.error('Error fetching all services:', error);
-    return [];
-  }
-};
-
-export const searchServices = async (query) => {
-  try {
-    if (!query || query.length < 2) return [];
-    const response = await axios.get(`${API_BASE_URL}/services/search`, { params: { q: query } });
-    return response.data.data || [];
-  } catch (error) {
-    console.error('Error searching services:', error);
-    return [];
-  }
-};
-
-// Combined Items and Services Search
-export const searchItemsAndServices = async (query) => {
-  try {
-    if (!query || query.length < 2) return [];
-    const response = await axios.get(`${API_BASE_URL}/items-services/search`, { params: { q: query } });
-    return response.data.data || [];
-  } catch (error) {
-    console.error('Error searching items and services:', error);
     return [];
   }
 };
@@ -485,20 +390,10 @@ export const deleteInvoice = async (id, deleteData) => {
 // Payment Method API
 export const getPaymentMethods = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/payments/methods/all`);
+    const response = await axios.get(`${API_BASE_URL}/paymentmethods`);
     return response.data;
   } catch (error) {
     console.error('Error fetching payment methods:', error);
-    throw error;
-  }
-};
-
-export const getActivePaymentMethods = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/payments/methods/active`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching active payment methods:', error);
     throw error;
   }
 };
@@ -604,16 +499,6 @@ export const updatePaymentStatus = async (invoiceId, paymentData) => {
     return response.data;
   } catch (error) {
     console.error('Error updating payment status:', error);
-    throw error;
-  }
-};
-
-export const recordAdvancePayment = async (advancePaymentData) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/payments/advance`, advancePaymentData);
-    return response.data;
-  } catch (error) {
-    console.error('Error recording advance payment:', error);
     throw error;
   }
 };

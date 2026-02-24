@@ -28,7 +28,7 @@ static async getAllByBranch(branchId) {
 // For VehicleDetails:
 static async getAllByBranch(branchId) {
   const result = await pool.query(
-    `SELECT * FROM vehicledetail WHERE branchid = $1 AND deletedat IS NULL ORDER BY vehicledetailid DESC`,
+    `SELECT * FROM vehicledetails WHERE branchid = $1 AND deletedat IS NULL ORDER BY vehicleid DESC`,
     [branchId]
   );
   return result.rows;

@@ -26,7 +26,7 @@ router.post('/seed', async (req, res) => {
 
     // Insert test vehicles
     await client.query(`
-      INSERT INTO vehicledetail (vehiclenumber, vehiclemodel, vehiclecolor, customerid) VALUES
+      INSERT INTO vehicledetails (registrationnumber, vehicletype, manufacturer, model) VALUES
       ('DL01AB1234', 'Car', 'Maruti', 'Swift'),
       ('MH02CD5678', 'Car', 'Honda', 'City'),
       ('KA03EF9012', 'Car', 'Hyundai', 'i20'),

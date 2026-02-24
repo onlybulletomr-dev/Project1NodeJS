@@ -13,8 +13,6 @@ function PaymentModal({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [invoicePaymentAmounts, setInvoicePaymentAmounts] = useState({});
-  const [transactionReference, setTransactionReference] = useState('');
-  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -51,8 +49,6 @@ function PaymentModal({
     setSelectedPaymentMethod('');
     setPaymentAmount('');
     setInvoicePaymentAmounts({});
-    setTransactionReference('');
-    setNotes('');
     setError(null);
   };
 
@@ -67,9 +63,8 @@ function PaymentModal({
 
     const numValue = Number(value);
     const invoice = invoices.find(inv => inv.invoiceid === invoiceId);
-    const maxAllowed = invoice.amounttobepaid || invoice.totalamount || invoice.amount || 0;
+    const maxAllowed = invoice.totalamount || invoice.amount || 0;
 
-    // Cap allocation at invoice amount (no overpayment per invoice on UI)
     const finalValue = numValue > maxAllowed ? maxAllowed : numValue;
 
     setInvoicePaymentAmounts(prev => ({
@@ -78,42 +73,13 @@ function PaymentModal({
     }));
   };
 
-  const handleTotalAmountChange = (value) => {
-    setPaymentAmount(value);
-
-    if (!value || Number(value) === 0) {
-      setInvoicePaymentAmounts({});
-      return;
-    }
-
-    const totalPayment = Number(value);
-    let remainingAmount = totalPayment;
-    const newAllocations = {};
-
-    // Distribute amount across invoices sequentially, capping each at pending amount
-    for (const invoice of invoices) {
-      if (remainingAmount <= 0) break;
-      
-      const pendingAmount = Number(invoice.amounttobepaid) || Number(invoice.totalamount) || Number(invoice.amount) || 0;
-      // Cap each allocation at pending amount
-      const allocatedAmount = Math.min(remainingAmount, pendingAmount);
-      
-      newAllocations[invoice.invoiceid] = allocatedAmount;
-      remainingAmount -= allocatedAmount;
-    }
-
-    setInvoicePaymentAmounts(newAllocations);
-  };
-
   const handleProcessPayment = () => {
     const paymentData = {
       paymentMethod: selectedPaymentMethod,
       totalAmount: Number(paymentAmount),
       allocations: invoicePaymentAmounts,
       invoices: invoices.filter(inv => invoicePaymentAmounts[inv.invoiceid]),
-      vehicleId: vehicleId,
-      transactionReference: transactionReference,
-      notes: notes
+      vehicleId: vehicleId
     };
     onProcessPayment(paymentData);
     handleClose();
@@ -225,10 +191,10 @@ function PaymentModal({
                 <h2 style={{ margin: 0 }}>💳 Payment</h2>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#333', marginBottom: 8 }}>
-                    Vehicle: <span style={{ color: '#2196F3', fontSize: 16 }}>{vehicleData?.vehiclenumber || 'N/A'}</span>
+                    Vehicle: <span style={{ color: '#2196F3', fontSize: 16 }}>{vehicleData?.registrationnumber || 'N/A'}</span>
                   </div>
                   <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>
-                    {vehicleData?.vehiclemodel} {vehicleData?.vehiclecolor && `(${vehicleData.vehiclecolor})`}
+                    {vehicleData?.manufacturername} {vehicleData?.modelname} {vehicleData?.color}
                   </div>
                 </div>
               </div>
@@ -236,10 +202,10 @@ function PaymentModal({
               {/* Total and Pending Amount */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 30, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 8, borderTop: '1px solid #eee' }}>
                 <div>
-                  Total Pending: <span style={{ color: '#FF9800', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.amounttobepaid) || Number(inv.totalamount) || Number(inv.amount) || 0), 0)).toFixed(2)}</span>
+                  Total Amount: <span style={{ color: '#4CAF50', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.totalamount) || Number(inv.amount) || 0), 0)).toFixed(2)}</span>
                 </div>
                 <div>
-                  Remaining: <span style={{ color: '#2196F3', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.amounttobepaid) || Number(inv.totalamount) || Number(inv.amount) || 0), 0) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</span>
+                  Pending: <span style={{ color: '#FF9800', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.totalamount) || Number(inv.amount) || 0), 0) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -263,8 +229,8 @@ function PaymentModal({
                 >
                   <option value="">-- Select Method --</option>
                   {paymentMethods.map(method => (
-                    <option key={method.paymentmethodid} value={method.paymentmethodid}>
-                      {method.methodname}
+                    <option key={method.id} value={method.id}>
+                      {method.paymentmethodname}
                     </option>
                   ))}
                 </select>
@@ -277,7 +243,7 @@ function PaymentModal({
                   type="number"
                   placeholder="Enter amount"
                   value={paymentAmount}
-                  onChange={e => handleTotalAmountChange(e.target.value)}
+                  onChange={e => setPaymentAmount(e.target.value)}
                   style={{
                     width: '100%',
                     padding: 10,
@@ -299,47 +265,6 @@ function PaymentModal({
               </div>
             )}
 
-            {/* Transaction Reference and Notes */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Transaction Reference:</label>
-                <input
-                  type="text"
-                  placeholder="(Optional) Cheque/Reference number"
-                  value={transactionReference}
-                  onChange={e => setTransactionReference(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 4,
-                    fontSize: 14,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Notes:</label>
-              <textarea
-                placeholder="(Optional) Additional payment notes"
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: 10,
-                  border: '1px solid #ddd',
-                  borderRadius: 4,
-                  fontSize: 14,
-                  boxSizing: 'border-box',
-                  minHeight: 60,
-                  fontFamily: 'Arial, sans-serif'
-                }}
-              />
-            </div>
-
             <p style={{ marginBottom: 12, color: '#666', fontSize: 14, fontWeight: 600 }}>Allocate payment to invoices:</p>
             
             {/* Invoices List with Individual Payment Inputs */}
@@ -357,8 +282,8 @@ function PaymentModal({
                 color: '#333'
               }}>
                 <div>Invoice Number</div>
-                <div style={{ textAlign: 'right' }}>Pending Amount</div>
-                <div style={{ textAlign: 'right' }}>Pay Now</div>
+                <div style={{ textAlign: 'right' }}>Invoice Value</div>
+                <div style={{ textAlign: 'right' }}>Amount Allocated</div>
               </div>
               
               {/* Data Rows */}
@@ -382,7 +307,7 @@ function PaymentModal({
                   >
                     <div style={{ fontWeight: 600, fontSize: 13 }}>{invoice.invoicenumber}</div>
                     <div style={{ textAlign: 'right', fontSize: 13, color: '#2196F3', fontWeight: 600 }}>
-                      ₹{Number(invoice.amounttobepaid || invoice.totalamount || invoice.amount || 0).toFixed(2)}
+                      ₹{Number(invoice.totalamount || invoice.amount || 0).toFixed(2)}
                     </div>
                     <input
                       type="number"

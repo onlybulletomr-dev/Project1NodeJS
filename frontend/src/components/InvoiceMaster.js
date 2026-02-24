@@ -1,47 +1,15 @@
 import React, { useState } from 'react';
-import { searchEmployees, searchItems, saveInvoice, getPaymentMethods, getNextInvoiceNumber, getCustomers, getVehicles, getAllVehicleDetails, getAllEmployees, getAllItems, searchItemsAndServices } from '../api';
+import { searchEmployees, searchItems, saveInvoice, getPaymentMethods, getNextInvoiceNumber } from '../api';
 
-// Search all vehicles by vehicle number and return with customer details
+// Placeholder async function to simulate vehicle search from customer master
 async function searchVehiclesByNumber(query) {
-  if (!query || query.length < 2) return []; // Require at least 2 characters
-  
-  try {
-    // Fetch all vehicle details and customers
-    const [vehiclesRes, customersRes] = await Promise.all([
-      getAllVehicleDetails(),
-      getCustomers()
-    ]);
-    
-    // Extract arrays from responses
-    const allVehicles = Array.isArray(vehiclesRes) ? vehiclesRes : (vehiclesRes?.data || []);
-    const allCustomers = Array.isArray(customersRes) ? customersRes : (customersRes?.data || []);
-    
-    if (!Array.isArray(allVehicles)) return [];
-    
-    // Create customer lookup map
-    const customerMap = {};
-    allCustomers?.forEach(c => {
-      customerMap[c.CustomerID] = c;
-    });
-    
-    // Filter by vehicle number and enhance with customer data
-    return allVehicles
-      .filter(v => 
-        v.vehiclenumber && v.vehiclenumber.toLowerCase().includes(query.toLowerCase())
-      )
-      .map(v => {
-        const customer = customerMap[v.customerid];
-        return {
-          ...v,
-          customername: customer ? `${customer.firstname || customer.FirstName || ''} ${customer.lastname || customer.LastName || ''}`.trim() : 'N/A',
-          customerfirstname: customer?.firstname || customer?.FirstName || 'N/A',
-          mobilenumber1: customer?.mobilenumber1 || customer?.MobileNumber1 || customer?.phonenumber || customer?.PhoneNumber || '-'
-        };
-      });
-  } catch (error) {
-    console.error('Error searching vehicles:', error);
-    return [];
-  }
+  // TODO: Replace with real API call
+  // Simulate: [{ VehicleNumber, VehicleModel, VehicleColor, CustomerName, CustomerAddress, MobileNumber1, VehicleID, CustomerID, ... }]
+  if (!query || query.length < 2) return [];
+  return [
+    { VehicleNumber: 'TN01AB1234', VehicleModel: 'Swift', VehicleColor: 'Red', CustomerName: 'Amit Kumar', CustomerAddress: 'Chennai', MobileNumber1: '9876543210', VehicleID: 1, CustomerID: 1 },
+    { VehicleNumber: 'TN01AC5678', VehicleModel: 'i20', VehicleColor: 'Blue', CustomerName: 'Sunita Sharma', CustomerAddress: 'Chennai', MobileNumber1: '9123456780', VehicleID: 2, CustomerID: 2 },
+  ].filter(v => v.VehicleNumber.toLowerCase().includes(query.toLowerCase()));
 }
 
 export default function InvoiceMaster() {
@@ -91,9 +59,6 @@ export default function InvoiceMaster() {
     const [selectedStaff, setSelectedStaff] = useState({
       technician1: null, technician2: null, serviceadvisor: null, deliveryadvisor: null, testdriver: null, cleaner: null, waterwash: null
     });
-    const [allEmployees, setAllEmployees] = useState([]);
-    const [allItems, setAllItems] = useState([]);
-    const [gsChecked, setGsChecked] = useState(false);
     // Discount state
     const [discount, setDiscount] = useState('');
     // Invoice running number state - resets each month AND year
@@ -106,9 +71,6 @@ export default function InvoiceMaster() {
     };
     const [invoiceRunningNumber, setInvoiceRunningNumber] = useState(1);
     const [invoiceYearMonth, setInvoiceYearMonth] = useState(getCurrentYearMonth());
-    // Generated invoice number and date from backend
-    const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState(null);
-    const [invoiceDate, setInvoiceDate] = useState(null);
     // Payment popup state
     const [showPaymentPopup, setShowPaymentPopup] = useState(false);
     const [openInvoices, setOpenInvoices] = useState([]);
@@ -123,15 +85,10 @@ export default function InvoiceMaster() {
       const fetchPaymentMethods = async () => {
         try {
           const response = await getPaymentMethods();
-          const methods = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
-          const formatted = methods.map(method => ({
-            id: method.paymentmethodid,
-            paymentmethodname: method.methodname
-          }));
-          setPaymentMethods(formatted);
+          setPaymentMethods(response.data || response);
         } catch (error) {
           console.error('Error fetching payment methods:', error);
-          // Fallback to default methods if API fails
+          // Fallback to mock data if API fails
           setPaymentMethods([
             { id: 1, paymentmethodname: 'Cash' },
             { id: 2, paymentmethodname: 'Check' },
@@ -144,52 +101,6 @@ export default function InvoiceMaster() {
         }
       };
       fetchPaymentMethods();
-    }, []);
-
-    // Load all employees for dropdown selection
-    React.useEffect(() => {
-      const fetchAllEmployees = async () => {
-        try {
-          const employees = await getAllEmployees();
-          console.log('Loaded employees:', employees.length, employees);
-          setAllEmployees(Array.isArray(employees) ? employees : []);
-        } catch (error) {
-          console.error('Error fetching employees:', error);
-          setAllEmployees([]);
-        }
-      };
-      fetchAllEmployees();
-    }, []);
-
-    // Load all items for item dropdown selection
-    React.useEffect(() => {
-      const fetchAllItems = async () => {
-        try {
-          const items = await getAllItems();
-          console.log('Loaded items:', items.length, items);
-          setAllItems(Array.isArray(items) ? items : []);
-        } catch (error) {
-          console.error('Error fetching items:', error);
-          setAllItems([]);
-        }
-      };
-      fetchAllItems();
-    }, []);
-
-    // Fetch the next invoice number on component mount
-    React.useEffect(() => {
-      const fetchNextInvoiceNumber = async () => {
-        try {
-          const { runningNumber, yearMonth } = await getNextInvoiceNumber();
-          console.log('Fetched next invoice number:', runningNumber, yearMonth);
-          setInvoiceRunningNumber(runningNumber);
-          setInvoiceYearMonth(yearMonth);
-        } catch (error) {
-          console.error('Error fetching next invoice number:', error);
-          // Keep default values (1 and current year-month)
-        }
-      };
-      fetchNextInvoiceNumber();
     }, []);
 
     // Auto-allocate payment amount starting from the latest invoice
@@ -346,7 +257,7 @@ export default function InvoiceMaster() {
         }
 
         // Validate required fields
-        if (!selectedVehicle || !selectedVehicle.vehiclenumber) {
+        if (!selectedVehicle || !selectedVehicle.VehicleNumber) {
           alert('Please select a vehicle');
           return;
         }
@@ -363,12 +274,11 @@ export default function InvoiceMaster() {
         const totalAmount = total;
 
         // Prepare invoice data with correct field names for the database schema
-        // Note: InvoiceNumber is auto-generated by the backend with branch code
         const invoiceData = {
+          InvoiceNumber: await generateInvoiceNumberForSave(),
           BranchId: 1, // Default branch
-          CustomerId: selectedVehicle.customerid || 1,
-          VehicleId: selectedVehicle.vehicleid || 1,
-          VehicleNumber: selectedVehicle.vehiclenumber,
+          CustomerId: selectedVehicle.CustomerID || 1,
+          VehicleId: selectedVehicle.VehicleID || 1, // Would need VehicleID from selected vehicle
           JobCardId: jobCardInput || 0,
           SubTotal: subTotal,
           TotalDiscount: totalDiscount,
@@ -394,7 +304,6 @@ export default function InvoiceMaster() {
             UnitPrice: row.UnitPrice,
             Discount: row.Discount || 0,
             Total: row.Total,
-            source: row.source || 'item', // Include source field to identify items vs services
           })),
           CreatedBy: 1, // Replace with actual user ID
         };
@@ -405,9 +314,6 @@ export default function InvoiceMaster() {
         const response = await saveInvoice(invoiceData);
 
         if (response.success) {
-          // Store the generated invoice number and date
-          setGeneratedInvoiceNumber(response.data.invoiceMaster.invoicenumber);
-          setInvoiceDate(response.data.invoiceMaster.invoicedate);
           alert('Invoice saved successfully! Invoice Number: ' + response.data.invoiceMaster.invoicenumber);
           // Reset form
           setVehicleInput('');
@@ -442,6 +348,77 @@ export default function InvoiceMaster() {
       }
     };
 
+    // Load test data
+    const handleLoadTestData = async () => {
+      // Select vehicle
+      const testVehicle = { 
+        VehicleNumber: 'TN01AB1234', 
+        VehicleModel: 'Swift', 
+        VehicleColor: 'Red', 
+        CustomerName: 'Amit Kumar',
+        CustomerID: 1,
+        VehicleID: 1,
+        MobileNumber1: '9876543210'
+      };
+      setSelectedVehicle(testVehicle);
+      setVehicleInput(testVehicle.VehicleNumber);
+
+      // JobCard
+      setJobCardInput('jc1');
+
+      // Add item to grid
+      const testItem = { 
+        itemid: 1,
+        partnumber: '888414', 
+        itemname: 'Test Item',
+        mrp: 500,
+        ItemNumber: '888414',
+        Qty: 2,
+        Discount: 1,
+        UnitPrice: 500,
+        Total: 500 * 2 * (1 - 1 / 100)
+      };
+      setGridRows([testItem]);
+
+      // Set notes
+      setNotes('note1');
+
+      // Set staff (search and simulate selection)
+      const staffMap = {
+        technician1: 'murali',
+        technician2: 'murali1',
+        serviceadvisor: 'murali2',
+        deliveryadvisor: 'murali3',
+        testdriver: 'murali4',
+        cleaner: 'Jagatheish',
+        waterwash: 'Jagatheish'
+      };
+
+      // Set staff fields and simulate search results
+      setStaffFields(staffMap);
+      
+      // Create dummy staff objects with searched names
+      const dummyStaffMap = {
+        technician1: { employeeid: 1, firstname: 'murali' },
+        technician2: { employeeid: 2, firstname: 'murali1' },
+        serviceadvisor: { employeeid: 3, firstname: 'murali2' },
+        deliveryadvisor: { employeeid: 4, firstname: 'murali3' },
+        testdriver: { employeeid: 5, firstname: 'murali4' },
+        cleaner: { employeeid: 6, firstname: 'Jagatheish' },
+        waterwash: { employeeid: 7, firstname: 'Jagatheish' }
+      };
+      
+      setSelectedStaff(dummyStaffMap);
+
+      // Set odometer
+      setOdometer('111');
+
+      // Set discount
+      setDiscount('100');
+
+      alert('Test data loaded successfully! Click "Save Invoice" to save.');
+    };
+
     // Handle item input change
     const handleItemInputChange = async (e) => {
       const value = e.target.value;
@@ -449,13 +426,9 @@ export default function InvoiceMaster() {
       setSelectedItem(null);
       setItemPopupIndex(-1);
       if (value.length >= 2) {
-        const results = await searchItemsAndServices(value);
+        const results = await searchItems(value);
         setItemResults(results);
         setShowItemPopup(results.length > 0);
-      } else if (value.length > 0) {
-        // Show all items if user types any character (even 1 char)
-        setItemResults(allItems);
-        setShowItemPopup(allItems.length > 0);
       } else {
         setItemResults([]);
         setShowItemPopup(false);
@@ -501,11 +474,7 @@ export default function InvoiceMaster() {
     // Handle item selection
     const handleSelectItem = (item) => {
       setSelectedItem(item);
-      // Format display based on source (item or service)
-      const displayText = item.source === 'item' 
-        ? `${item.partnumber} - ${item.itemname}`
-        : `${item.serviceid} - ${item.servicename}`;
-      setItemInput(displayText);
+      setItemInput(item.partnumber + ' - ' + item.itemname);
       setShowItemPopup(false);
       setItemPopupIndex(-1);
       itemRowRefs.current = {};
@@ -524,31 +493,7 @@ export default function InvoiceMaster() {
     const addItemToGrid = () => {
       if (selectedItem && qtyInput) {
         setGridRows(prevRows => {
-          // Create unique key based on source and ID
-          const uniqueKey = selectedItem.source === 'item' 
-            ? `item-${selectedItem.itemid}`
-            : `service-${selectedItem.serviceid}`;
-          
-          // Create item identifier for finding duplicates
-          const itemId = selectedItem.source === 'item' 
-            ? selectedItem.itemid
-            : selectedItem.serviceid;
-          
-          const idx = prevRows.findIndex(row => 
-            row.source === selectedItem.source && 
-            (row.itemid === itemId || row.serviceid === itemId)
-          );
-          
-          // Get unit price based on source
-          const unitPrice = selectedItem.source === 'item' 
-            ? selectedItem.mrp
-            : selectedItem.defaultrate;
-          
-          // Get item name for display
-          const itemName = selectedItem.source === 'item'
-            ? selectedItem.itemname
-            : selectedItem.servicename;
-          
+          const idx = prevRows.findIndex(row => row.partnumber === selectedItem.partnumber);
           if (idx !== -1) {
             // Item exists: update qty and total
             return prevRows.map((row, i) =>
@@ -556,7 +501,7 @@ export default function InvoiceMaster() {
                 ? {
                     ...row,
                     Qty: row.Qty + Number(qtyInput),
-                    Total: (row.Qty + Number(qtyInput)) * unitPrice * (1 - (row.Discount || 0) / 100),
+                    Total: (row.Qty + Number(qtyInput)) * row.mrp * (1 - (row.Discount || 0) / 100),
                   }
                 : row
             );
@@ -566,12 +511,11 @@ export default function InvoiceMaster() {
               ...prevRows,
               {
                 ...selectedItem,
-                ItemNumber: selectedItem.source === 'item' ? selectedItem.partnumber : selectedItem.serviceid,
-                ItemName: itemName,
+                ItemNumber: selectedItem.partnumber,
                 Qty: Number(qtyInput),
                 Discount: 0,
-                UnitPrice: unitPrice,
-                Total: unitPrice * Number(qtyInput),
+                UnitPrice: selectedItem.mrp,
+                Total: selectedItem.mrp * Number(qtyInput),
                 isDeleted: false,
               },
             ];
@@ -580,50 +524,6 @@ export default function InvoiceMaster() {
         setItemInput('');
         setQtyInput('');
         setSelectedItem(null);
-      }
-    };
-
-    // Handle GS checkbox - add Water Wash, Chemical Charges, General Service
-    const handleGsCheckboxChange = (e) => {
-      const checked = e.target.checked;
-      setGsChecked(checked);
-      
-      if (checked) {
-        // Define the three services to add
-        const gsServices = [
-          { serviceid: 13, servicename: 'Water Wash', defaultrate: 150.00, source: 'service' },
-          { serviceid: 15, servicename: 'Chemical Charges', defaultrate: 180.00, source: 'service' },
-          { serviceid: 14, servicename: 'General Service', defaultrate: 880.00, source: 'service' }
-        ];
-
-        // Add all three services to grid
-        setGridRows(prevRows => {
-          let newRows = [...prevRows];
-          gsServices.forEach(service => {
-            // Check if service already exists
-            const exists = newRows.some(row => row.serviceid === service.serviceid);
-            if (!exists) {
-              newRows.push({
-                ...service,
-                ItemNumber: service.serviceid,
-                ItemName: service.servicename,
-                Qty: 1,
-                Discount: 0,
-                UnitPrice: parseFloat(service.defaultrate),
-                Total: parseFloat(service.defaultrate) * 1,
-                isDeleted: false,
-              });
-            }
-          });
-          return newRows;
-        });
-      } else {
-        // Remove the three GS services from grid when unchecked
-        setGridRows(prevRows =>
-          prevRows.filter(row => 
-            !(row.serviceid === 13 || row.serviceid === 15 || row.serviceid === 14)
-          )
-        );
       }
     };
 
@@ -711,7 +611,6 @@ export default function InvoiceMaster() {
       setSelectedPaymentMethod('');
       setInvoicePaymentAmounts({});
     };
-
   // Vehicle search state
   const [vehicleInput, setVehicleInput] = useState('');
   const [vehicleResults, setVehicleResults] = useState([]);
@@ -720,8 +619,6 @@ export default function InvoiceMaster() {
   const [vehiclePopupIndex, setVehiclePopupIndex] = useState(-1);
   const vehiclePopupRef = React.useRef(null);
   const vehicleItemRefs = React.useRef({});
-
-
 
   // Auto-scroll vehicle popup when navigating with arrow keys
   React.useEffect(() => {
@@ -749,7 +646,6 @@ export default function InvoiceMaster() {
     setVehicleInput(value);
     setSelectedVehicle(null);
     setVehiclePopupIndex(-1);
-    
     if (value.length >= 2) {
       const results = await searchVehiclesByNumber(value);
       setVehicleResults(results);
@@ -781,222 +677,196 @@ export default function InvoiceMaster() {
   // Handle vehicle selection
   const handleSelectVehicle = (vehicle) => {
     setSelectedVehicle(vehicle);
-    setVehicleInput(vehicle.vehiclenumber);
+    setVehicleInput(vehicle.VehicleNumber);
     setShowVehiclePopup(false);
     setVehiclePopupIndex(-1);
     vehicleItemRefs.current = {};
   };
 
   return (
-    <div style={{ height: '100vh', width: '100vw', background: '#f8f9fa', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Top 18%: Vehicle and Invoice Info */}
-      <div style={{ flex: '0 0 18%', display: 'flex', borderBottom: '1px solid #ddd', background: '#fff', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', width: '100vw', background: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
+      {/* Top 20%: Vehicle and Invoice Info */}
+      <div style={{ flex: '0 0 20%', display: 'flex', borderBottom: '1px solid #ddd', background: '#fff' }}>
         {/* Left: Vehicle Details */}
-        <div style={{ flex: 1, padding: '12px 16px', borderRight: '1px solid #eee', minWidth: 0 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>Vehicle Details</div>
-          
-          {/* Vehicle Number and JobCard - Same Line */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 8 }}>
-            {/* Vehicle Number Selection */}
-            <div style={{ position: 'relative', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>Vehicle *:</label>
+        <div style={{ flex: 1, padding: 24, borderRight: '1px solid #eee', minWidth: 0 }}>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Vehicle Details</div>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 8 }}>
+            <div style={{ position: 'relative' }}>
               <input
                 type="text"
-                placeholder="Search vehicle"
+                placeholder="Enter vehicle number"
                 value={vehicleInput}
                 onChange={handleVehicleInputChange}
                 onKeyDown={handleVehicleInputKeyDown}
-                onBlur={() => setTimeout(() => setShowVehiclePopup(false), 200)}
-                style={{ width: '140px', padding: 4, fontSize: 14 }}
+                style={{ width: 220, padding: 6, fontSize: 16 }}
               />
               {showVehiclePopup && (
-                <div ref={vehiclePopupRef} style={{ position: 'absolute', top: 32, left: 0, zIndex: 10, background: '#fff', border: '1px solid #ccc', width: '480px', maxHeight: 180, overflowY: 'auto', boxShadow: '0 2px 8px #0001' }}>
+                <div ref={vehiclePopupRef} style={{ position: 'absolute', top: 36, left: 0, zIndex: 10, background: '#fff', border: '1px solid #ccc', width: 260, maxHeight: 200, overflowY: 'auto', boxShadow: '0 2px 8px #0001' }}>
                   {vehicleResults.map((v, i) => (
                     <div
                       ref={el => vehicleItemRefs.current[i] = el}
-                      key={v.vehicledetailid || v.vehicleid}
-                      style={{ padding: 10, cursor: 'pointer', borderBottom: '1px solid #eee', background: i === vehiclePopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff') }}
+                      key={v.VehicleNumber}
+                      style={{ padding: 8, cursor: 'pointer', borderBottom: '1px solid #eee', background: i === vehiclePopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff') }}
                       onClick={() => handleSelectVehicle(v)}
                     >
-                      <div style={{ fontWeight: 500, marginBottom: 4 }}>
-                        {v.vehiclenumber} - {v.vehiclemodel} ({v.vehiclecolor}) | {v.customername || 'N/A'} ({v.mobilenumber1 || v.MobileNumber1 || '-'})
-                      </div>
+                      {v.VehicleNumber} - {v.VehicleModel} ({v.VehicleColor})
                     </div>
                   ))}
                 </div>
               )}
             </div>
-
-            {/* JobCard */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label htmlFor="jobCardInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>JobCard:</label>
+            <div>
+              <label htmlFor="jobCardInput" style={{ fontWeight: 500, marginRight: 6 }}>JobCard:</label>
               <input
                 id="jobCardInput"
                 type="text"
-                placeholder="Enter JobCard"
+                placeholder="Enter JobCard number"
                 value={jobCardInput}
                 onChange={e => setJobCardInput(e.target.value)}
-                style={{ width: '100px', padding: 4, fontSize: 14 }}
-              />
-            </div>
-
-            {/* KMs (Odometer) */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label htmlFor="odometerInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>KMs:</label>
-              <input
-                id="odometerInput"
-                type="text"
-                placeholder="Enter KMs"
-                value={odometer}
-                onChange={e => setOdometer(e.target.value.replace(/[^0-9]/g, ''))}
-                style={{ width: '70px', padding: 4, fontSize: 14 }}
+                style={{ width: 140, padding: 6, fontSize: 16 }}
               />
             </div>
           </div>
-
-          {/* Vehicle and Customer Info - Single Line (when vehicle is selected) */}
-          {selectedVehicle && (
-            <div style={{ fontSize: 14, color: '#333', display: 'flex', gap: 16, alignItems: 'center', padding: '4px 0' }}>
-              <span>{selectedVehicle.customername || 'N/A'}</span>
-              <span>{selectedVehicle.mobilenumber1 || selectedVehicle.MobileNumber1 || '-'}</span>
-              <span>{selectedVehicle.vehiclemodel || '-'}</span>
-              <span>{selectedVehicle.vehiclecolor || '-'}</span>
-            </div>
-          )}
-
-
+          {/* Vehicle Model and Color */}
+          <div style={{ marginBottom: 4 }}>
+            <span style={{ fontWeight: 500 }}>Model: </span>
+            {selectedVehicle ? selectedVehicle.VehicleModel : <span style={{ color: '#aaa' }}>-</span>}
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <span style={{ fontWeight: 500 }}>Color: </span>
+            {selectedVehicle ? selectedVehicle.VehicleColor : <span style={{ color: '#aaa' }}>-</span>}
+          </div>
+          {/* Customer Name and Phone Number */}
+          <div style={{ fontWeight: 600, marginTop: 12, marginBottom: 4 }}></div>
+          <div style={{ marginBottom: 2 }}>
+            <span style={{ fontWeight: 500 }}>Customer Name: </span>
+            {selectedVehicle ? selectedVehicle.CustomerName : <span style={{ color: '#aaa' }}>-</span>}
+          </div>
+          <div>
+            <span style={{ fontWeight: 500 }}>Phone Number: </span>
+            {selectedVehicle && selectedVehicle.MobileNumber1 ? selectedVehicle.MobileNumber1 : <span style={{ color: '#aaa' }}>-</span>}
+          </div>
         </div>
         {/* Right: Invoice Info */}
-        <div style={{ flex: 1, padding: '12px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'flex-start' }}>
-          {generatedInvoiceNumber ? (
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6, textAlign: 'right', color: '#1a1a1a' }}>
-                {generatedInvoiceNumber}
-              </div>
-              <div style={{ fontSize: 13, color: '#999', textAlign: 'right' }}>
-                {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A'}
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 16, color: '#999' }}>Invoice number will appear here after saving</div>
-            </div>
-          )}
+        <div style={{ flex: 1, padding: 24, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, marginBottom: 16, textAlign: 'center' }}>
+            Invoice No: {generateInvoiceNumber(invoiceRunningNumber, invoiceYearMonth)}
+          </div>
+          <button
+            onClick={handleLoadTestData}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#2196F3',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginTop: 'auto'
+            }}
+          >
+            Load Test Data
+          </button>
         </div>
       </div>
-
-      {/* Bottom 82%: Invoice Grid and Details */}
-      <div style={{ flex: 1, padding: '12px 16px', display: 'flex', gap: 12, overflow: 'hidden' }}>
-        {/* Left: Invoice Grid and Employee Fields */}
-        <div style={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Bottom 80%: Invoice Grid and Details (placeholder) */}
+      <div style={{ flex: 1, padding: 24, display: 'flex', gap: 24 }}>
+        {/* Left: Notes, Staff, Odometer */}
+        <div style={{ flex: 2, minWidth: 0 }}>
           {/* Invoice Grid */}
-          <div style={{ marginBottom: 4, flex: '0 0 210px', overflow: 'auto' }}>
-            <div style={{ display: 'flex', gap: 3, marginBottom: 2 }}>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  placeholder="Enter item number or description"
-                  value={itemInput}
-                  onChange={handleItemInputChange}
-                  onKeyDown={handleItemInputKeyDown}
-                  onBlur={() => setTimeout(() => setShowItemPopup(false), 200)}
-                  style={{ width: 220, padding: 4, fontSize: 14 }}
-                />
-                {showItemPopup && (
-                  <div ref={itemPopupRef} style={{ position: 'absolute', top: '100%', left: 0, background: '#fff', border: '1px solid #ccc', width: 420, maxHeight: 180, overflowY: 'auto', boxShadow: '0 2px 8px #0001', zIndex: 10, marginTop: 2 }}>
-                  <table style={{ width: '100%', fontSize: '0.92em', borderCollapse: 'collapse' }}>
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input
+                type="text"
+                placeholder="Enter item number or description"
+                value={itemInput}
+                onChange={handleItemInputChange}
+                onKeyDown={handleItemInputKeyDown}
+                style={{ width: 260, padding: 6, fontSize: 15 }}
+              />
+              {showItemPopup && (
+                <div ref={itemPopupRef} style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: 340, maxHeight: 200, overflowY: 'auto', boxShadow: '0 2px 8px #0001', zIndex: 10 }}>
+                  <table style={{ width: '100%', fontSize: '0.95em' }}>
                     <thead>
-                      <tr style={{ background: '#e8f0fe', position: 'sticky', top: 0 }}>
-                        <th style={{ borderBottom: '1px solid #ddd', padding: '4px', textAlign: 'left', width: '15%' }}>ID/Number</th>
-                        <th style={{ borderBottom: '1px solid #ddd', padding: '4px', textAlign: 'left', width: '45%' }}>Name/Description</th>
-                        <th style={{ borderBottom: '1px solid #ddd', padding: '4px', textAlign: 'right', width: '15%' }}>Amount</th>
-                        <th style={{ borderBottom: '1px solid #ddd', padding: '4px', textAlign: 'center', width: '12%' }}>Type</th>
+                      <tr style={{ background: '#e8f0fe' }}>
+                        <th>PartNo</th>
+                        <th>Item Name</th>
+                        <th>UOM</th>
+                        <th>MRP</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {itemResults.map((result, i) => (
+                      {itemResults.map((item, i) => (
                         <tr
                           ref={el => itemRowRefs.current[i] = el}
-                          key={`${result.source}-${result.itemid || result.serviceid}`}
-                          style={{ cursor: 'pointer', background: i === itemPopupIndex ? '#e3f2fd' : undefined, borderBottom: '1px solid #eee' }}
-                          onClick={() => handleSelectItem(result)}
+                          key={item.itemid}
+                          style={{ cursor: 'pointer', background: i === itemPopupIndex ? '#e3f2fd' : undefined }}
+                          onClick={() => handleSelectItem(item)}
                         >
-                          <td style={{ padding: '4px' }}>{result.source === 'item' ? result.partnumber : result.serviceid}</td>
-                          <td style={{ padding: '4px' }}>{result.source === 'item' ? result.itemname : result.servicename}</td>
-                          <td style={{ padding: '4px', textAlign: 'right' }}>₹{result.source === 'item' ? result.mrp : result.defaultrate}</td>
-                          <td style={{ padding: '4px', textAlign: 'center', fontSize: '0.92em', color: '#666' }}>{result.source === 'item' ? 'Item' : 'Service'}</td>
+                          <td>{item.partnumber}</td>
+                          <td>{item.itemname}</td>
+                          <td>{item.uom}</td>
+                          <td>{item.mrp}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-              </div>
               <input
                 type="text"
                 placeholder="Qty"
                 value={qtyInput}
                 onChange={handleQtyInputChange}
-                style={{ width: 50, textAlign: 'right', fontSize: 14, padding: 4 }}
+                style={{ width: 60, textAlign: 'right', fontSize: 15 }}
                 disabled={!selectedItem}
                 ref={qtyInputRef}
                 onKeyDown={handleQtyKeyDown}
               />
-              <button type="button" onClick={addItemToGrid} disabled={!selectedItem || !qtyInput} style={{ padding: '4px 8px', fontSize: 14 }}>Add</button>
-              <label style={{ marginLeft: '16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 14 }}>
-                <input 
-                  type="checkbox" 
-                  checked={gsChecked} 
-                  onChange={handleGsCheckboxChange}
-                  style={{ cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '16px', fontWeight: '500' }}>GS</span>
-              </label>
+              <button type="button" onClick={addItemToGrid} disabled={!selectedItem || !qtyInput}>Add</button>
             </div>
-            <div style={{ maxHeight: '210px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '2px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', fontSize: '1em' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
               <thead>
                 <tr style={{ background: '#f1f3f4' }}>
-                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>PartNo</th>
-                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Item Name</th>
-                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Qty</th>
-                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Unit Price</th>
-                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Discount %</th>
-                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Total</th>
-                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Action</th>
+                  <th style={{ border: '1px solid #eee', padding: 6 }}>PartNo</th>
+                  <th style={{ border: '1px solid #eee', padding: 6 }}>Item Name</th>
+                  <th style={{ border: '1px solid #eee', padding: 6 }}>Qty</th>
+                  <th style={{ border: '1px solid #eee', padding: 6 }}>Unit Price</th>
+                  <th style={{ border: '1px solid #eee', padding: 6 }}>Discount %</th>
+                  <th style={{ border: '1px solid #eee', padding: 6 }}>Total</th>
+                  <th style={{ border: '1px solid #eee', padding: 6 }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {activeGridRows.map((row) => {
                   const actualIdx = gridRows.findIndex(r => r === row);
-                  const itemNumber = row.ItemNumber || row.partnumber || row.serviceid;
-                  const itemName = row.ItemName || row.itemname || row.servicename;
                   return (
                   <tr key={actualIdx}>
-                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{itemNumber}</td>
-                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{itemName}</td>
-                    <td style={{ border: '1px solid #eee', padding: 2 }}>
+                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.partnumber}</td>
+                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.itemname}</td>
+                    <td style={{ border: '1px solid #eee', padding: 6 }}>
                       <input
                         type="number"
                         min="1"
                         value={row.Qty}
                         onChange={e => handleGridChange(actualIdx, 'Qty', e.target.value)}
-                        style={{ width: 40, textAlign: 'right', fontSize: '12px', padding: 2 }}
+                        style={{ width: 50, textAlign: 'right' }}
                       />
                     </td>
-                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.UnitPrice}</td>
-                    <td style={{ border: '1px solid #eee', padding: 2 }}>
+                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.UnitPrice}</td>
+                    <td style={{ border: '1px solid #eee', padding: 6 }}>
                       <input
                         type="number"
                         min="0"
                         max="100"
                         value={row.Discount}
                         onChange={e => handleGridChange(actualIdx, 'Discount', e.target.value)}
-                        style={{ width: 40, textAlign: 'right', fontSize: '12px', padding: 2 }}
+                        style={{ width: 50, textAlign: 'right' }}
                       />
                     </td>
-                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.Total.toFixed(2)}</td>
-                    <td style={{ border: '1px solid #eee', padding: 3, textAlign: 'center' }}>
+                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.Total.toFixed(2)}</td>
+                    <td style={{ border: '1px solid #eee', padding: 6, textAlign: 'center' }}>
                       <button
                         type="button"
                         onClick={() => handleDeleteRow(actualIdx)}
@@ -1005,8 +875,8 @@ export default function InvoiceMaster() {
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
-                          fontSize: 16,
-                          padding: 2,
+                          fontSize: 18,
+                          padding: 4,
                           color: '#d32f2f',
                           transition: 'transform 0.2s',
                           display: 'inline-flex',
@@ -1024,131 +894,231 @@ export default function InvoiceMaster() {
                 })}
                 {activeGridRows.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', color: '#aaa', padding: 3, fontSize: '12px' }}>No items added</td>
+                    <td colSpan={7} style={{ textAlign: 'center', color: '#aaa', padding: 12 }}>No items added</td>
                   </tr>
                 )}
               </tbody>
             </table>
-            </div>
           </div>
-          {/* Employee Fields - Single Row Below Grid - Left Side */}
-          <div style={{ display: 'flex', gap: 3, marginTop: 2, justifyContent: 'flex-start', flexWrap: 'nowrap' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Technician 1</div>
-              <select
-                value={staffFields.technician1}
-                onChange={e => setStaffFields(f => ({ ...f, technician1: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
-              >
-                <option value="">-- Select --</option>
-                {allEmployees.map((emp) => (
-                  <option key={emp.employeeid} value={emp.firstname}>
-                    {emp.firstName || emp.firstname || 'N/A'}
-                  </option>
-                ))}
-              </select>
+          {/* Notes, Staff, Odometer */}
+          <div style={{ display: 'flex', gap: 16, marginTop: 24 }}>
+            <div style={{ flex: 2 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Notes</div>
+              <textarea
+                rows={3}
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                style={{ width: '100%', fontSize: 15, padding: 6, resize: 'vertical' }}
+              />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Technician 2</div>
-              <select
-                value={staffFields.technician2}
-                onChange={e => setStaffFields(f => ({ ...f, technician2: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
-              >
-                <option value="">-- Select --</option>
-                {allEmployees.map((emp) => (
-                  <option key={emp.employeeid} value={emp.firstname}>
-                    {emp.firstName || emp.firstname || 'N/A'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Service Advisor</div>
-              <select
-                value={staffFields.serviceadvisor}
-                onChange={e => setStaffFields(f => ({ ...f, serviceadvisor: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
-              >
-                <option value="">-- Select --</option>
-                {allEmployees.map((emp) => (
-                  <option key={emp.employeeid} value={emp.firstname}>
-                    {emp.firstName || emp.firstname || 'N/A'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Delivery Advisor</div>
-              <select
-                value={staffFields.deliveryadvisor}
-                onChange={e => setStaffFields(f => ({ ...f, deliveryadvisor: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
-              >
-                <option value="">-- Select --</option>
-                {allEmployees.map((emp) => (
-                  <option key={emp.employeeid} value={emp.firstname}>
-                    {emp.firstName || emp.firstname || 'N/A'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Test Driver</div>
-              <select
-                value={staffFields.testdriver}
-                onChange={e => setStaffFields(f => ({ ...f, testdriver: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
-              >
-                <option value="">-- Select --</option>
-                {allEmployees.map((emp) => (
-                  <option key={emp.employeeid} value={emp.firstname}>
-                    {emp.firstName || emp.firstname || 'N/A'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Cleaner</div>
-              <select
-                value={staffFields.cleaner}
-                onChange={e => setStaffFields(f => ({ ...f, cleaner: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
-              >
-                <option value="">-- Select --</option>
-                {allEmployees.map((emp) => (
-                  <option key={emp.employeeid} value={emp.firstname}>
-                    {emp.firstName || emp.firstname || 'N/A'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>WaterWash</div>
-              <select
-                value={staffFields.waterwash}
-                onChange={e => setStaffFields(f => ({ ...f, waterwash: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
-              >
-                <option value="">-- Select --</option>
-                {allEmployees.map((emp) => (
-                  <option key={emp.employeeid} value={emp.firstname}>
-                    {emp.firstName || emp.firstname || 'N/A'}
-                  </option>
-                ))}
-              </select>
+            <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div>Technician 1</div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={staffFields.technician1}
+                      onChange={e => handleStaffInputChange('technician1', e.target.value)}
+                      style={{ width: '100%' }}
+                      ref={staffInputRefs.technician1}
+                      onKeyDown={e => handleStaffInputKeyDown('technician1', e)}
+                    />
+                    {showStaffPopup.technician1 && (
+                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
+                        {staffResults.technician1?.map((staff, i) => (
+                          <div
+                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
+                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.technician1 ? '#e3f2fd' : undefined }}
+                            onClick={() => handleSelectStaff('technician1', staff)}
+                          >
+                            {staff.employeeid} - {staff.firstname}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div>Technician 2</div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={staffFields.technician2}
+                      onChange={e => handleStaffInputChange('technician2', e.target.value)}
+                      style={{ width: '100%' }}
+                      ref={staffInputRefs.technician2}
+                      onKeyDown={e => handleStaffInputKeyDown('technician2', e)}
+                    />
+                    {showStaffPopup.technician2 && (
+                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
+                        {staffResults.technician2?.map((staff, i) => (
+                          <div
+                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
+                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.technician2 ? '#e3f2fd' : undefined }}
+                            onClick={() => handleSelectStaff('technician2', staff)}
+                          >
+                            {staff.employeeid} - {staff.firstname}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div>Service Advisor</div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={staffFields.serviceadvisor}
+                      onChange={e => handleStaffInputChange('serviceadvisor', e.target.value)}
+                      style={{ width: '100%' }}
+                      ref={staffInputRefs.serviceadvisor}
+                      onKeyDown={e => handleStaffInputKeyDown('serviceadvisor', e)}
+                    />
+                    {showStaffPopup.serviceadvisor && (
+                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
+                        {staffResults.serviceadvisor?.map((staff, i) => (
+                          <div
+                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
+                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.serviceadvisor ? '#e3f2fd' : undefined }}
+                            onClick={() => handleSelectStaff('serviceadvisor', staff)}
+                          >
+                            {staff.employeeid} - {staff.firstname}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div>Delivery Advisor</div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={staffFields.deliveryadvisor}
+                      onChange={e => handleStaffInputChange('deliveryadvisor', e.target.value)}
+                      style={{ width: '100%' }}
+                      ref={staffInputRefs.deliveryadvisor}
+                      onKeyDown={e => handleStaffInputKeyDown('deliveryadvisor', e)}
+                    />
+                    {showStaffPopup.deliveryadvisor && (
+                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
+                        {staffResults.deliveryadvisor?.map((staff, i) => (
+                          <div
+                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
+                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.deliveryadvisor ? '#e3f2fd' : undefined }}
+                            onClick={() => handleSelectStaff('deliveryadvisor', staff)}
+                          >
+                            {staff.employeeid} - {staff.firstname}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div>Test Driver</div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={staffFields.testdriver}
+                      onChange={e => handleStaffInputChange('testdriver', e.target.value)}
+                      style={{ width: '100%' }}
+                      ref={staffInputRefs.testdriver}
+                      onKeyDown={e => handleStaffInputKeyDown('testdriver', e)}
+                    />
+                    {showStaffPopup.testdriver && (
+                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
+                        {staffResults.testdriver?.map((staff, i) => (
+                          <div
+                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
+                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.testdriver ? '#e3f2fd' : undefined }}
+                            onClick={() => handleSelectStaff('testdriver', staff)}
+                          >
+                            {staff.employeeid} - {staff.firstname}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div>Cleaner</div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={staffFields.cleaner}
+                      onChange={e => handleStaffInputChange('cleaner', e.target.value)}
+                      style={{ width: '100%' }}
+                      ref={staffInputRefs.cleaner}
+                      onKeyDown={e => handleStaffInputKeyDown('cleaner', e)}
+                    />
+                    {showStaffPopup.cleaner && (
+                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
+                        {staffResults.cleaner?.map((staff, i) => (
+                          <div
+                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
+                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.cleaner ? '#e3f2fd' : undefined }}
+                            onClick={() => handleSelectStaff('cleaner', staff)}
+                          >
+                            {staff.employeeid} - {staff.firstname}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div>WaterWash</div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={staffFields.waterwash}
+                      onChange={e => handleStaffInputChange('waterwash', e.target.value)}
+                      style={{ width: '100%' }}
+                      ref={staffInputRefs.waterwash}
+                      onKeyDown={e => handleStaffInputKeyDown('waterwash', e)}
+                    />
+                    {showStaffPopup.waterwash && (
+                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
+                        {staffResults.waterwash?.map((staff, i) => (
+                          <div
+                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
+                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.waterwash ? '#e3f2fd' : undefined }}
+                            onClick={() => handleSelectStaff('waterwash', staff)}
+                          >
+                            {staff.employeeid} - {staff.firstname}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <div>Odometer Reading</div>
+                <input
+                  type="text"
+                  value={odometer}
+                  onChange={e => setOdometer(e.target.value.replace(/[^0-9]/g, ''))}
+                  style={{ width: 180, fontSize: 15 }}
+                />
+              </div>
             </div>
           </div>
         </div>
-        {/* Right: Summary, Payment, Save Button */}
-        <div style={{ flex: 1, minWidth: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 4, padding: 12, minWidth: 220, maxWidth: 280, flex: '0 0 auto' }}>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Summary</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+        {/* Right: Subtotal, Discount, Total */}
+        <div style={{ flex: 1, minWidth: 0, alignSelf: 'flex-start' }}>
+          <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: 24, minWidth: 260, maxWidth: 320 }}>
+            <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 16 }}>Summary</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span>Subtotal</span>
               <span>{subtotal.toFixed(2)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span>Discount</span>
               <input
                 type="number"
@@ -1156,39 +1126,24 @@ export default function InvoiceMaster() {
                 max={subtotal}
                 value={discount}
                 onChange={e => setDiscount(e.target.value.replace(/[^0-9.]/g, ''))}
-                style={{ width: 50, textAlign: 'right', fontSize: 14, padding: 2 }}
+                style={{ width: 80, textAlign: 'right' }}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 14, marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 17, marginTop: 18 }}>
               <span>Total</span>
               <span>{total.toFixed(2)}</span>
             </div>
-            <textarea
-              rows={3}
-              placeholder="Notes"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              style={{
-                width: '100%',
-                marginTop: 7,
-                padding: 6,
-                fontSize: 13,
-                resize: 'none',
-                border: '1px solid #ddd',
-                borderRadius: 4,
-              }}
-            />
             <button
               onClick={handleOpenPaymentPopup}
               style={{
                 width: '100%',
-                marginTop: 7,
-                padding: 6,
+                marginTop: 10,
+                padding: 10,
                 backgroundColor: '#FF9800',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 4,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
@@ -1200,13 +1155,13 @@ export default function InvoiceMaster() {
               disabled={isSaving}
               style={{
                 width: '100%',
-                marginTop: 7,
-                padding: 6,
+                marginTop: 20,
+                padding: 10,
                 backgroundColor: isSaving ? '#ccc' : '#4CAF50',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 4,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: 600,
                 cursor: isSaving ? 'not-allowed' : 'pointer',
               }}
