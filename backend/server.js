@@ -11,7 +11,6 @@ const customerRoutes = require('./routes/customerRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
 const itemRoutes = require('./routes/itemRoutes');
-const serviceRoutes = require('./routes/serviceRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
 const vehicleDetailRoutes = require('./routes/vehicleDetailRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
@@ -27,17 +26,16 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api', companyRoutes);
 app.use('/api', customerRoutes);
 app.use('/api', employeeRoutes);
 app.use('/api', invoiceRoutes);
 app.use('/api', itemRoutes);
-app.use('/api', serviceRoutes);
 app.use('/api', vehicleRoutes);
 app.use('/api', vehicleDetailRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api', seedRoutes);
-app.use('/api/auth', authRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

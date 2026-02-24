@@ -100,11 +100,14 @@ function CustomerMaster() {
           customerList.map(async (customer) => {
             const customerId = customer.CustomerID || customer.customerid;
             try {
+              console.log(`[DEBUG] Fetching vehicles for customer ${customerId}`);
               const vehicleResponse = await getVehicleDetailsByCustomerId(customerId);
+              console.log(`[DEBUG] Vehicle response for customer ${customerId}:`, vehicleResponse);
               const vehicleList = vehicleResponse.data || [];
               
               // Get the first vehicle (if any)
               const firstVehicle = vehicleList.length > 0 ? vehicleList[0] : null;
+              console.log(`[DEBUG] First vehicle for customer ${customerId}:`, firstVehicle);
               
               return {
                 ...customer,
@@ -114,7 +117,9 @@ function CustomerMaster() {
                 vehiclecolor: firstVehicle?.vehiclecolor || null,
               };
             } catch (err) {
-              console.warn(`Could not fetch vehicles for customer ${customerId}:`, err.message);
+              console.error(`[ERROR] Could not fetch vehicles for customer ${customerId}:`, err);
+              console.error('Error message:', err.message);
+              console.error('Error response:', err.response?.data);
               return { ...customer, vehicles: [] };
             }
           })
