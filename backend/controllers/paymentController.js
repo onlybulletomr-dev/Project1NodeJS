@@ -393,7 +393,7 @@ exports.getPaymentSummary = async (req, res) => {
         COALESCE(SUM(im.totalamount), 0) AS totalamount
       FROM invoicemaster im
       LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
-      WHERE im.deletedat IS NULL AND cm.branchid = $1
+      WHERE im.deletedat IS NULL AND im.branchid = $1
     `;
 
     const result = await pool.query(query, [userBranchID]);
