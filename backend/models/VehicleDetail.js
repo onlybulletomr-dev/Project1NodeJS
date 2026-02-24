@@ -8,7 +8,7 @@ class VehicleDetail {
     
     console.log('[VehicleDetail.create] Creating vehicle:', { registrationnumber, vehicletype, manufacturer, model });
     
-    const queryText = `INSERT INTO vehicledetails (registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, createdat) 
+    const queryText = `INSERT INTO vehicledetail (registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, createdat) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
     
     const values = [registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, CreatedAt];
@@ -24,7 +24,7 @@ class VehicleDetail {
   // Get all vehicle details
   static async getAll() {
     const result = await pool.query(
-      'SELECT * FROM vehicledetails WHERE deletedat IS NULL ORDER BY registrationnumber'
+      'SELECT * FROM vehicledetail WHERE deletedat IS NULL ORDER BY registrationnumber'
     );
     return result.rows;
   }
@@ -32,7 +32,7 @@ class VehicleDetail {
   // Get vehicle detail by ID
   static async getById(id) {
     const result = await pool.query(
-      'SELECT * FROM vehicledetails WHERE vehicleid = $1 AND deletedat IS NULL',
+      'SELECT * FROM vehicledetail WHERE vehicleid = $1 AND deletedat IS NULL',
       [id]
     );
     return result.rows;
@@ -43,7 +43,7 @@ class VehicleDetail {
     try {
       const query = `
         SELECT DISTINCT vd.* 
-        FROM vehicledetails vd
+        FROM vehicledetail vd
         INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
         WHERE im.customerid = $1 AND vd.deletedat IS NULL
         ORDER BY vd.registrationnumber
@@ -66,7 +66,7 @@ class VehicleDetail {
     console.log('[VehicleDetail.update] Updating vehicle', id, 'with:', { registrationnumber, model });
     
     const result = await pool.query(
-      `UPDATE vehicledetails SET registrationnumber = $1, vehicletype = $2, manufacturer = $3, model = $4, yearofmanufacture = $5, enginenumber = $6, chassisnumber = $7, color = $8, updatedat = $9 
+      `UPDATE vehicledetail SET registrationnumber = $1, vehicletype = $2, manufacturer = $3, model = $4, yearofmanufacture = $5, enginenumber = $6, chassisnumber = $7, color = $8, updatedat = $9 
        WHERE vehicleid = $10 AND deletedat IS NULL RETURNING *`,
       [registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, UpdatedAt, id]
     );
@@ -80,7 +80,7 @@ class VehicleDetail {
     const DeletedAt = new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      `UPDATE vehicledetails SET deletedat = $1 WHERE vehicleid = $2 RETURNING *`,
+      `UPDATE vehicledetail SET deletedat = $1 WHERE vehicleid = $2 RETURNING *`,
       [DeletedAt, id]
     );
     return result.rows[0];
