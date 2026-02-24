@@ -42,6 +42,81 @@ app.get('/health', (req, res) => {
   res.status(200).json({ message: 'Server is running' });
 });
 
+// Migration endpoint - rename vehicledetails to vehicledetail
+app.post('/admin/migrate/rename-vehicledetails', async (req, res) => {
+  try {
+    console.log('[Migration Endpoint] Starting table rename migration...');
+    const pool = require('./config/db');
+    const client = await pool.connect();
+    
+    try {
+      // Check if table needs renaming (vehicledetails still exists)
+      const checkRes = await client.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_name = 'vehicledetails' AND table_schema = 'public'
+      `);
+      
+      if (checkRes.rows.length === 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'Table vehicledetail already exists - no migration needed'
+        });
+      }
+      
+      // Step 1: Drop foreign key constraint
+      console.log('[Migration] Dropping foreign key constraint...');
+      await client.query(`
+        ALTER TABLE invoicemaster
+        DROP CONSTRAINT IF EXISTS invoicemaster_vehicleid_fkey
+      `);
+      
+      // Step 2: Rename table
+      console.log('[Migration] Renaming table...');
+      await client.query(`
+        ALTER TABLE vehicledetails
+        RENAME TO vehicledetail
+      `);
+      
+      // Step 3: Recreate foreign key
+      console.log('[Migration] Recreating foreign key...');
+      await client.query(`
+        ALTER TABLE invoicemaster
+        ADD CONSTRAINT invoicemaster_vehicleid_fkey
+        FOREIGN KEY (vehicleid) REFERENCES vehicledetail(vehicleid)
+      `);
+      
+      // Step 4: Verify
+      const verifyRes = await client.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_name IN ('vehicledetail', 'vehicledetails')
+        AND table_schema = 'public'
+      `);
+      
+      const countRes = await client.query('SELECT COUNT(*) as count FROM vehicledetail');
+      
+      console.log('[Migration] ✓ Successfully renamed vehicledetails to vehicledetail');
+      
+      res.status(200).json({
+        success: true,
+        message: 'Migration completed successfully',
+        data: {
+          tablesPresent: verifyRes.rows.map(r => r.table_name),
+          vehicleCount: parseInt(countRes.rows[0].count)
+        }
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[Migration Endpoint ERROR]', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Migration failed',
+      error: error.message
+    });
+  }
+});
+
 // Debug endpoint to show available routes
 app.get('/debug/routes', (req, res) => {
   const routes = [];
@@ -83,7 +158,10 @@ app.get('/debug/database', async (req, res) => {
     // Check data in key tables
     const data = {};
     
-    for (const table of ['customermaster', 'vehicledetails', 'invoicemaster']) {
+    // Determine which vehicle table exists
+    const vehicleTableName = tables.includes('vehicledetail') ? 'vehicledetail' : 'vehicledetails';
+    
+    for (const table of ['customermaster', vehicleTableName, 'invoicemaster']) {
       if (tables.includes(table)) {
         const countRes = await pool.query(`SELECT COUNT(*) as count FROM ${table} WHERE deletedat IS NULL`);
         data[table] = {
@@ -101,7 +179,15 @@ app.get('/debug/database', async (req, res) => {
       }
     }
     
-    res.json({ tables, data });
+    res.json({ 
+      tables, 
+      data,
+      vehicleTableInUse: vehicleTableName,
+      migration: {
+        needed: tables.includes('vehicledetails'),
+        message: tables.includes('vehicledetails') ? 'Table rename migration pending - call POST /admin/migrate/rename-vehicledetails' : 'Using correct vehicledetail table name'
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message, stack: error.stack });
   }
@@ -173,6 +259,51 @@ async function initializeDatabase() {
       }
     } else {
       console.log('✓ Database tables already exist');
+    }
+    
+    // Step 2: Check if vehicledetails table needs to be renamed to vehicledetail
+    console.log('[Startup] Checking if vehicledetails needs to be renamed to vehicledetail...');
+    try {
+      const tableCheckRes = await client.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_name = 'vehicledetails' AND table_schema = 'public'
+      `);
+      
+      if (tableCheckRes.rows.length > 0) {
+        console.log('[Startup] Found vehicledetails table - executing rename migration...');
+        
+        try {
+          // Drop foreign key
+          await client.query(`
+            ALTER TABLE invoicemaster
+            DROP CONSTRAINT IF EXISTS invoicemaster_vehicleid_fkey
+          `);
+          console.log('[Startup] ✓ Dropped foreign key constraint');
+          
+          // Rename table
+          await client.query(`
+            ALTER TABLE vehicledetails
+            RENAME TO vehicledetail
+          `);
+          console.log('[Startup] ✓ Renamed vehicledetails to vehicledetail');
+          
+          // Recreate foreign key
+          await client.query(`
+            ALTER TABLE invoicemaster
+            ADD CONSTRAINT invoicemaster_vehicleid_fkey
+            FOREIGN KEY (vehicleid) REFERENCES vehicledetail(vehicleid)
+          `);
+          console.log('[Startup] ✓ Recreated foreign key constraint');
+          console.log('[Startup] ✅ Table rename migration completed successfully!');
+        } catch (renameErr) {
+          console.error('[Startup] Rename migration error:', renameErr.message);
+          // Don't fail startup, just log the error
+        }
+      } else {
+        console.log('[Startup] ✓ vehicledetail table naming is correct');
+      }
+    } catch (checkErr) {
+      console.error('[Startup] Table check error:', checkErr.message);
     }
     
     client.release();
