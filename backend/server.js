@@ -42,6 +42,30 @@ app.get('/health', (req, res) => {
   res.status(200).json({ message: 'Server is running' });
 });
 
+// Debug endpoint to show available routes
+app.get('/debug/routes', (req, res) => {
+  const routes = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      routes.push({
+        route: middleware.route.path,
+        methods: Object.keys(middleware.route.methods).join(', ').toUpperCase()
+      });
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler) => {
+        const route = handler.route;
+        if (route) {
+          routes.push({
+            route: route.path,
+            methods: Object.keys(route.methods).join(', ').toUpperCase()
+          });
+        }
+      });
+    }
+  });
+  res.json({ routes });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

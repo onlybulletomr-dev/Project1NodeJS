@@ -53,13 +53,16 @@ exports.createVehicleDetail = async (req, res) => {
 
 exports.getAllVehicleDetails = async (req, res) => {
   try {
+    console.log('[DEBUG] getAllVehicleDetails called');
     const vehicleDetails = await VehicleDetail.getAll();
+    console.log(`[DEBUG] Found ${vehicleDetails.length} total vehicles in database`);
     res.status(200).json({
       success: true,
       message: 'All vehicle details retrieved successfully',
       data: vehicleDetails,
     });
   } catch (err) {
+    console.error('[ERROR] Failed to retrieve vehicle details:', err);
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve vehicle details',
@@ -95,13 +98,18 @@ exports.getVehicleDetailById = async (req, res) => {
 exports.getVehicleDetailsByCustomerId = async (req, res) => {
   try {
     const { customerId } = req.params;
+    console.log(`[DEBUG] getVehicleDetailsByCustomerId called for customerId: ${customerId}`);
+    
     const vehicleDetails = await VehicleDetail.getByCustomerId(customerId);
+    console.log(`[DEBUG] Found ${vehicleDetails.length} vehicles for customer ${customerId}:`, vehicleDetails);
+    
     res.status(200).json({
       success: true,
       message: 'Vehicle details retrieved successfully',
       data: vehicleDetails,
     });
   } catch (err) {
+    console.error(`[ERROR] Failed to retrieve vehicle details for customer ${req.params.customerId}:`, err);
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve vehicle details',
