@@ -1,6 +1,34 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// Dynamically determine API URL based on environment
+const getAPIBaseURL = () => {
+  // If environment variable is set, use it (for Render deployment)
+  if (process.env.REACT_APP_API_URL) {
+    console.log('[API] Using REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // If running on localhost, use localhost
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    console.log('[API] Using localhost URL');
+    return 'http://localhost:5000/api';
+  }
+  
+  // For Render or other production domains, construct backend URL
+  // Assumes backend service name follows pattern: project1-backend-XXXX.onrender.com
+  if (window.location.hostname.includes('onrender.com')) {
+    // Replace 'frontend' with 'backend' in the domain name
+    const backendURL = `${window.location.protocol}//${window.location.hostname.replace('frontend', 'backend')}/api`;
+    console.log('[API] Using constructed Render backend URL:', backendURL);
+    return backendURL;
+  }
+  
+  // Fallback
+  console.log('[API] Using default localhost URL');
+  return 'http://localhost:5000/api';
+};
+
+const API_BASE_URL = getAPIBaseURL();
 
 // Configure axios defaults
 axios.defaults.headers.common['Content-Type'] = 'application/json';

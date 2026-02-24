@@ -14,7 +14,7 @@ services:
         scope: build,runtime
         value: 5000
       - key: CORS_ORIGIN
-        value: https://project1-frontend.onrender.com
+        value: https://project1-frontend-8abj.onrender.com
 
 ## Frontend Service Configuration
   - type: web
@@ -22,6 +22,12 @@ services:
     runtime: static-site
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/build
+    envVars:
+      # Backend URL for API calls from the frontend
+      # Format: https://[backend-service-name].onrender.com/api
+      # The frontend will auto-detect this from the environment variable or construct it
+      - key: REACT_APP_API_URL
+        value: https://project1-backend-xyzabc.onrender.com/api
 
 ## Database
 databases:
