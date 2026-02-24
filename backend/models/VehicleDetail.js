@@ -48,14 +48,22 @@ class VehicleDetail {
 
   // Get vehicle details by Customer ID (join through invoicemaster)
   static async getByCustomerId(customerId) {
-    const result = await pool.query(`
-      SELECT DISTINCT vd.* 
-      FROM vehicledetails vd
-      INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
-      WHERE im.customerid = $1 AND vd.deletedat IS NULL
-      ORDER BY vd.registrationnumber
-    `, [customerId]);
-    return result.rows;
+    try {
+      const query = `
+        SELECT DISTINCT vd.* 
+        FROM vehicledetails vd
+        INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
+        WHERE im.customerid = $1 AND vd.deletedat IS NULL
+        ORDER BY vd.registrationnumber
+      `;
+      console.log(`[SQL] Executing query for customer ${customerId}:`, query);
+      const result = await pool.query(query, [customerId]);
+      console.log(`[SQL] Result: ${result.rows.length} vehicles found`);
+      return result.rows;
+    } catch (error) {
+      console.error(`[SQL ERROR] Failed to get vehicles for customer ${customerId}:`, error.message);
+      throw error;
+    }
   }
 
   // Update vehicle detail

@@ -66,6 +66,47 @@ app.get('/debug/routes', (req, res) => {
   res.json({ routes });
 });
 
+// Debug endpoint to check database tables and data
+app.get('/debug/database', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    
+    // Check what tables exist
+    const tablesRes = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    
+    const tables = tablesRes.rows.map(r => r.table_name);
+    
+    // Check data in key tables
+    const data = {};
+    
+    for (const table of ['customermaster', 'vehicledetails', 'invoicemaster']) {
+      if (tables.includes(table)) {
+        const countRes = await pool.query(`SELECT COUNT(*) as count FROM ${table} WHERE deletedat IS NULL`);
+        data[table] = {
+          exists: true,
+          count: countRes.rows[0].count,
+          sample: null
+        };
+        
+        const sampleRes = await pool.query(`SELECT * FROM ${table} WHERE deletedat IS NULL LIMIT 1`);
+        if (sampleRes.rows.length > 0) {
+          data[table].sample = sampleRes.rows[0];
+        }
+      } else {
+        data[table] = { exists: false };
+      }
+    }
+    
+    res.json({ tables, data });
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
