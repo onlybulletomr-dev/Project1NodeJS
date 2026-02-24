@@ -118,7 +118,7 @@ exports.updateCustomer = async (req, res) => {
     }
     
     // Handle vehicle update if vehicle data exists
-    if (vehicleData && vehicleData.vehicledetailid) {
+    if (vehicleData && vehicleData.vehicleid) {
       try {
         const vehicleUpdateData = {
           RegistrationNumber: vehicleData.vehiclenumber,
@@ -126,7 +126,7 @@ exports.updateCustomer = async (req, res) => {
           Color: vehicleData.vehiclecolor,
           UpdatedBy: customerData.UpdatedBy || 1,
         };
-        await VehicleDetail.update(vehicleData.vehicledetailid, vehicleUpdateData);
+        await VehicleDetail.update(vehicleData.vehicleid, vehicleUpdateData);
       } catch (vehicleError) {
         console.error('[CustomerController] Error updating vehicle:', vehicleError.message);
         // Don't fail the entire request if vehicle update fails, just log it
