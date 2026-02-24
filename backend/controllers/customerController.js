@@ -23,11 +23,9 @@ exports.createCustomer = async (req, res) => {
     if (vehicleData) {
       try {
         const vehicleCreateData = {
-          CustomerID: customer.customerid || customer.CustomerID,
-          RegistrationNumber: vehicleData.vehiclenumber,
-          VehicleModel: vehicleData.vehiclemodel,
-          Color: vehicleData.vehiclecolor,
-          CreatedBy: customerData.CreatedBy || customerData.createdby || 1,
+          registrationnumber: vehicleData.vehiclenumber,
+          model: vehicleData.vehiclemodel,
+          color: vehicleData.vehiclecolor,
         };
         await VehicleDetail.create(vehicleCreateData);
       } catch (vehicleError) {
@@ -121,10 +119,9 @@ exports.updateCustomer = async (req, res) => {
     if (vehicleData && vehicleData.vehicleid) {
       try {
         const vehicleUpdateData = {
-          RegistrationNumber: vehicleData.vehiclenumber,
-          VehicleModel: vehicleData.vehiclemodel,
-          Color: vehicleData.vehiclecolor,
-          UpdatedBy: customerData.UpdatedBy || 1,
+          registrationnumber: vehicleData.vehiclenumber,
+          model: vehicleData.vehiclemodel,
+          color: vehicleData.vehiclecolor,
         };
         await VehicleDetail.update(vehicleData.vehicleid, vehicleUpdateData);
       } catch (vehicleError) {
