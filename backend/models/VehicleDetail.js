@@ -3,29 +3,21 @@ const pool = require('../config/db');
 class VehicleDetail {
   // Create a new vehicle detail
   static async create(data) {
-    const { CustomerID, RegistrationNumber, VehicleModel, Color, CreatedBy } = data;
+    const { registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color } = data;
     const CreatedAt = new Date().toISOString().split('T')[0];
     
-    console.log('[VehicleDetail.create] Input data:', JSON.stringify(data, null, 2));
-    console.log('[VehicleDetail.create] Parameters:');
-    console.log('  CustomerID:', CustomerID, 'Type:', typeof CustomerID);
-    console.log('  RegistrationNumber:', RegistrationNumber, 'Type:', typeof RegistrationNumber);
-    console.log('  VehicleModel:', VehicleModel, 'Type:', typeof VehicleModel);
-    console.log('  Color:', Color, 'Type:', typeof Color);
-    console.log('  CreatedBy:', CreatedBy, 'Type:', typeof CreatedBy);
-    console.log('  CreatedAt:', CreatedAt);
+    console.log('[VehicleDetail.create] Creating vehicle:', { registrationnumber, vehicletype, manufacturer, model });
     
-    const queryText = `INSERT INTO vehicledetail (customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdby, createdat) 
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`;
+    const queryText = `INSERT INTO vehicledetails (registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, createdat) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
     
-    const values = [CustomerID, RegistrationNumber, VehicleModel, Color, CreatedBy, CreatedAt];
+    const values = [registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, CreatedAt];
     
-    console.log('[VehicleDetail.create] Query values:', JSON.stringify(values, null, 2));
     console.log('[VehicleDetail.create] Query:', queryText);
     
     const result = await pool.query(queryText, values);
     
-    console.log('[VehicleDetail.create] Result:', JSON.stringify(result.rows[0], null, 2));
+    console.log('[VehicleDetail.create] Created vehicle:', result.rows[0]);
     return result.rows[0];
   }
 
@@ -68,14 +60,18 @@ class VehicleDetail {
 
   // Update vehicle detail
   static async update(id, data) {
-    const { RegistrationNumber, VehicleModel, Color, UpdatedBy } = data;
+    const { registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color } = data;
     const UpdatedAt = new Date().toISOString().split('T')[0];
     
+    console.log('[VehicleDetail.update] Updating vehicle', id, 'with:', { registrationnumber, model });
+    
     const result = await pool.query(
-      `UPDATE vehicledetail SET vehiclenumber = $1, vehiclemodel = $2, vehiclecolor = $3, updatedby = $4, updatedat = $5 
-       WHERE vehicledetailid = $6 AND deletedat IS NULL RETURNING *`,
-      [RegistrationNumber, VehicleModel, Color, UpdatedBy, UpdatedAt, id]
+      `UPDATE vehicledetails SET registrationnumber = $1, vehicletype = $2, manufacturer = $3, model = $4, yearofmanufacture = $5, enginenumber = $6, chassisnumber = $7, color = $8, updatedat = $9 
+       WHERE vehicleid = $10 AND deletedat IS NULL RETURNING *`,
+      [registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, UpdatedAt, id]
     );
+    
+    console.log('[VehicleDetail.update] Updated vehicle:', result.rows[0]);
     return result.rows[0];
   }
 
@@ -84,8 +80,8 @@ class VehicleDetail {
     const DeletedAt = new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      `UPDATE vehicledetail SET deletedby = $1, deletedat = $2 WHERE customerid = $3 RETURNING *`,
-      [DeletedBy, DeletedAt, id]
+      `UPDATE vehicledetails SET deletedat = $1 WHERE vehicleid = $2 RETURNING *`,
+      [DeletedAt, id]
     );
     return result.rows[0];
   }
