@@ -32,7 +32,7 @@ class VehicleDetail {
   // Get all vehicle details
   static async getAll() {
     const result = await pool.query(
-      'SELECT * FROM vehicledetail WHERE deletedat IS NULL ORDER BY customerid'
+      'SELECT * FROM vehicledetails WHERE deletedat IS NULL ORDER BY registrationnumber'
     );
     return result.rows;
   }
@@ -40,18 +40,21 @@ class VehicleDetail {
   // Get vehicle detail by ID
   static async getById(id) {
     const result = await pool.query(
-      'SELECT * FROM vehicledetail WHERE customerid = $1 AND deletedat IS NULL',
+      'SELECT * FROM vehicledetails WHERE vehicleid = $1 AND deletedat IS NULL',
       [id]
     );
     return result.rows;
   }
 
-  // Get vehicle details by Customer ID
+  // Get vehicle details by Customer ID (join through invoicemaster)
   static async getByCustomerId(customerId) {
-    const result = await pool.query(
-      'SELECT * FROM vehicledetail WHERE customerid = $1 AND deletedat IS NULL ORDER BY vehiclenumber',
-      [customerId]
-    );
+    const result = await pool.query(`
+      SELECT DISTINCT vd.* 
+      FROM vehicledetails vd
+      INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
+      WHERE im.customerid = $1 AND vd.deletedat IS NULL
+      ORDER BY vd.registrationnumber
+    `, [customerId]);
     return result.rows;
   }
 

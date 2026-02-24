@@ -3,61 +3,65 @@ const pool = require('../config/db');
 class Vehicle {
   static async getAll() {
     const result = await pool.query(
-      'SELECT v.*, vm.ManufacturerName, vm.ModelName FROM vehiclemaster v LEFT JOIN VehicleManufacturer vm ON v.ManufacturerID = vm.ManufacturerID WHERE v.DeletedAt IS NULL ORDER BY v.VehicleID'
+      'SELECT * FROM vehicledetails WHERE deletedat IS NULL ORDER BY registrationnumber'
     );
     return result.rows;
   }
 
   static async getById(id) {
     const result = await pool.query(
-      'SELECT v.*, vm.ManufacturerName, vm.ModelName FROM vehiclemaster v LEFT JOIN VehicleManufacturer vm ON v.ManufacturerID = vm.ManufacturerID WHERE v.VehicleID = $1 AND v.DeletedAt IS NULL',
+      'SELECT * FROM vehicledetails WHERE vehicleid = $1 AND deletedat IS NULL',
       [id]
     );
     return result.rows[0];
   }
 
   static async getByCustomerId(customerId) {
-    const result = await pool.query(
-      'SELECT v.*, vm.ManufacturerName, vm.ModelName FROM vehiclemaster v LEFT JOIN VehicleManufacturer vm ON v.ManufacturerID = vm.ManufacturerID WHERE v.CustomerID = $1 AND v.DeletedAt IS NULL',
-      [customerId]
-    );
+    // Join through invoicemaster to find vehicles associated with a customer
+    const result = await pool.query(`
+      SELECT DISTINCT vd.* 
+      FROM vehicledetails vd
+      INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
+      WHERE im.customerid = $1 AND vd.deletedat IS NULL
+      ORDER BY vd.registrationnumber
+    `, [customerId]);
     return result.rows;
   }
 
   static async create(data) {
-    const { CustomerID, ManufacturerID, RegistrationNumber, Color, ChassisNumber, EngineNumber, ManufacturingYear, PurchaseDate, CreatedBy } = data;
+    const { RegistrationNumber, VehicleType, Manufacturer, Model, YearOfManufacture, EngineNumber, ChassisNumber, Color, CreatedBy } = data;
     const CreatedAt = new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      `INSERT INTO vehiclemaster (CustomerID, ManufacturerID, RegistrationNumber, Color, ChassisNumber, EngineNumber, ManufacturingYear, PurchaseDate, CreatedBy, CreatedAt) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [CustomerID, ManufacturerID, RegistrationNumber, Color, ChassisNumber, EngineNumber, ManufacturingYear, PurchaseDate, CreatedBy, CreatedAt]
+      `INSERT INTO vehicledetails (registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, createdat) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [RegistrationNumber, VehicleType, Manufacturer, Model, YearOfManufacture, EngineNumber, ChassisNumber, Color, CreatedAt]
     );
     return result.rows[0];
   }
 
   static async update(id, data) {
-    const { CustomerID, ManufacturerID, RegistrationNumber, Color, ChassisNumber, EngineNumber, ManufacturingYear, PurchaseDate, UpdatedBy } = data;
+    const { RegistrationNumber, VehicleType, Manufacturer, Model, YearOfManufacture, EngineNumber, ChassisNumber, Color } = data;
     const UpdatedAt = new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      `UPDATE vehiclemaster SET CustomerID = $1, ManufacturerID = $2, RegistrationNumber = $3, Color = $4, ChassisNumber = $5, EngineNumber = $6, ManufacturingYear = $7, PurchaseDate = $8, UpdatedBy = $9, UpdatedAt = $10 
-       WHERE VehicleID = $11 AND DeletedAt IS NULL RETURNING *`,
-      [CustomerID, ManufacturerID, RegistrationNumber, Color, ChassisNumber, EngineNumber, ManufacturingYear, PurchaseDate, UpdatedBy, UpdatedAt, id]
+      `UPDATE vehicledetails SET registrationnumber = $1, vehicletype = $2, manufacturer = $3, model = $4, yearofmanufacture = $5, enginenumber = $6, chassisnumber = $7, color = $8, updatedat = $9
+       WHERE vehicleid = $10 AND deletedat IS NULL RETURNING *`,
+      [RegistrationNumber, VehicleType, Manufacturer, Model, YearOfManufacture, EngineNumber, ChassisNumber, Color, UpdatedAt, id]
     );
     return result.rows[0];
   }
 
   static async getUniqueModels() {
     const result = await pool.query(
-      'SELECT DISTINCT modelname FROM vehiclemaster WHERE deletedat IS NULL AND modelname IS NOT NULL ORDER BY modelname'
+      'SELECT DISTINCT model FROM vehicledetails WHERE deletedat IS NULL AND model IS NOT NULL ORDER BY model'
     );
-    return result.rows.map(row => row.modelname);
+    return result.rows.map(row => row.model);
   }
 
   static async getUniqueColors(model) {
     const result = await pool.query(
-      'SELECT DISTINCT color FROM vehiclemaster WHERE deletedat IS NULL AND color IS NOT NULL AND modelname = $1 ORDER BY color',
+      'SELECT DISTINCT color FROM vehicledetails WHERE deletedat IS NULL AND color IS NOT NULL AND model = $1 ORDER BY color',
       [model]
     );
     return result.rows.map(row => row.color);
