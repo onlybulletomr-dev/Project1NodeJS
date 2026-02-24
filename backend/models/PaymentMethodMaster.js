@@ -62,6 +62,37 @@ class PaymentMethodMaster {
     }
   }
 
+  static async getByBranch(branchId) {
+    try {
+      const query = `
+        SELECT 
+          paymentmethodid,
+          methodname,
+          branchid,
+          isdigital,
+          isactive,
+          transactionfeerate,
+          extravar1,
+          extravar2,
+          extraint1,
+          createdby,
+          createdat,
+          updatedby,
+          updatedat,
+          deletedby,
+          deletedat
+        FROM paymentmethodmaster
+        WHERE branchid = $1 AND deletedby IS NULL
+        ORDER BY methodname
+      `;
+      const result = await pool.query(query, [branchId]);
+      return result.rows;
+    } catch (error) {
+      console.error('Error fetching payment methods by branch:', error);
+      throw error;
+    }
+  }
+
   static async getActive() {
     try {
       const query = `

@@ -4,9 +4,8 @@ async function checkVehicleData() {
   try {
     console.log('\n=== VEHICLEDETAILS DATA ===');
     const vehicleRes = await pool.query(`
-      SELECT vd.vehiclemasterid, vd.registrationnumber, vd.color, vm.modelname, vm.manufacturername
-      FROM vehicledetails vd
-      LEFT JOIN vehiclemaster vm ON vd.vehiclemasterid = vm.vehicleid
+      SELECT vd.vehicledetailid, vd.vehiclenumber, vd.vehiclecolor, vd.vehiclemodel
+      FROM vehicledetail vd
       LIMIT 5
     `);
     console.log(JSON.stringify(vehicleRes.rows, null, 2));

@@ -2,13 +2,59 @@ const InvoiceMaster = require('../models/InvoiceMaster');
 const InvoiceDetail = require('../models/InvoiceDetail');
 const ItemMaster = require('../models/ItemMaster');
 
+// Helper function to generate invoice number in format INVBBBYYMMMXXX
+async function generateInvoiceNumber(pool, branchId) {
+  // Get branch code from CompanyMaster (branchId is CompanyID)
+  const branchQuery = `
+    SELECT ExtraVar1 
+    FROM CompanyMaster 
+    WHERE CompanyID = $1 AND DeletedAt IS NULL
+  `;
+  const branchResult = await pool.query(branchQuery, [branchId]);
+  let branchCode = branchResult.rows.length > 0 && branchResult.rows[0].extravar1 
+    ? branchResult.rows[0].extravar1 
+    : String(branchId).padStart(3, '0');
+  
+  // Ensure branchCode is max 3 characters
+  branchCode = branchCode.substring(0, 3).padStart(3, '0');
+  
+  // Get current date components
+  const now = new Date();
+  const year = String(now.getFullYear()).slice(-2);
+  const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const month = monthNames[now.getMonth()];
+  
+  // Get today's date in YYYY-MM-DD format
+  const today = now.toISOString().split('T')[0];
+  
+  // Count invoices created today for this branch to get sequence number
+  const countQuery = `
+    SELECT COUNT(*) as count FROM invoicemaster 
+    WHERE branchid = $1 AND DATE(createdat) = $2 AND deletedat IS NULL
+  `;
+  const countResult = await pool.query(countQuery, [branchId, today]);
+  const sequenceNumber = (countResult.rows[0].count + 1).toString().padStart(3, '0');
+  
+  const invoiceNumber = `INV${branchCode}${year}${month}${sequenceNumber}`;
+  console.log(`Generated invoice number: ${invoiceNumber} (BranchCode: ${branchCode}, Year: ${year}, Month: ${month}, Seq: ${sequenceNumber})`);
+  return invoiceNumber;
+}
+
 exports.saveInvoice = async (req, res) => {
   try {
     console.log('Invoice save request received:', req.body);
     
-    // Get user details from middleware
-    const userBranchId = req.user?.branchId;
-    const userId = req.user?.userId;
+    // Get user ID from header
+    const userId = req.headers['x-user-id'] || 1;
+
+    // Get user's branch from database
+    const pool = require('../config/db');
+    const userQuery = `
+      SELECT branchid FROM employeemaster 
+      WHERE employeeid = $1 AND deletedat IS NULL
+    `;
+    const userResult = await pool.query(userQuery, [userId]);
+    const userBranchId = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
 
     if (!userBranchId || !userId) {
       return res.status(401).json({
@@ -18,7 +64,6 @@ exports.saveInvoice = async (req, res) => {
     }
     
     const {
-      InvoiceNumber,
       BranchId,
       CustomerId,
       VehicleId,
@@ -46,13 +91,17 @@ exports.saveInvoice = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!InvoiceNumber || !CustomerId || !VehicleId || InvoiceDetails === undefined || !Array.isArray(InvoiceDetails) || InvoiceDetails.length === 0) {
-      console.warn('Validation failed:', { InvoiceNumber, CustomerId, VehicleId, JobCardId });
+    if (!CustomerId || !VehicleId || InvoiceDetails === undefined || !Array.isArray(InvoiceDetails) || InvoiceDetails.length === 0) {
+      console.warn('Validation failed:', { CustomerId, VehicleId, JobCardId });
       return res.status(400).json({
         success: false,
-        message: 'InvoiceNumber, CustomerId, VehicleId, and InvoiceDetails are required',
+        message: 'CustomerId, VehicleId, and InvoiceDetails are required',
       });
     }
+
+    // Generate invoice number automatically
+    const InvoiceNumber = await generateInvoiceNumber(pool, userBranchId);
+    console.log('Generated invoice number:', InvoiceNumber);
 
     // Create invoice master record - FORCE user's branch, use userId as CreatedBy
     const invoiceMasterData = {
@@ -61,7 +110,7 @@ exports.saveInvoice = async (req, res) => {
       CustomerId,
       VehicleId,
       VehicleNumber,
-      JobCardId,
+      JobCardId: JobCardId || 0,
       InvoiceType: 'Service Invoice',
       SubTotal: parseFloat(SubTotal),
       TotalDiscount: parseFloat(TotalDiscount || 0),

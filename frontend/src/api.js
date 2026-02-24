@@ -607,3 +607,13 @@ export const updatePaymentStatus = async (invoiceId, paymentData) => {
     throw error;
   }
 };
+
+export const recordAdvancePayment = async (advancePaymentData) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/payments/advance`, advancePaymentData);
+    return response.data;
+  } catch (error) {
+    console.error('Error recording advance payment:', error);
+    throw error;
+  }
+};
