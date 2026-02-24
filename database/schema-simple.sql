@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS customermaster (
     deletedat TIMESTAMP
 );
 
--- VehicleDetails table
-CREATE TABLE IF NOT EXISTS vehicledetails (
+-- VehicleDetail table (singular)
+CREATE TABLE IF NOT EXISTS vehicledetail (
     vehicleid SERIAL PRIMARY KEY,
     registrationnumber VARCHAR(50) UNIQUE,
     vehicletype VARCHAR(50),
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS invoicemaster (
     invoiceid SERIAL PRIMARY KEY,
     invoicenumber VARCHAR(50) UNIQUE NOT NULL,
     customerId INTEGER REFERENCES customermaster(customerid),
-    vehicleId INTEGER REFERENCES vehicledetails(vehicleid),
+    vehicleId INTEGER REFERENCES vehicledetail(vehicleid),
     vehiclenumber VARCHAR(50),
     invoicedate DATE,
     totalamount DECIMAL(10, 2),
