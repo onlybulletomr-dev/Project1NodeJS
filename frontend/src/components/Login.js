@@ -28,7 +28,7 @@ function Login({ onLoginSuccess }) {
 
       if (response.ok && data.success) {
         // Login successful
-        onLoginSuccess(data.userId, data.userName);
+        onLoginSuccess(data.userId, data.userName, data.branchId);
         setUsername('');
         setPassword('');
       } else {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getUnpaidInvoices, getPaymentSummary, updatePaymentStatus, getPaymentMethods } from '../api';
+import { getUnpaidInvoices, getPaymentSummary, updatePaymentStatus, getPaymentMethods, recordAdvancePayment } from '../api';
 import PaymentModal from './PaymentModal';
 import '../styles/Payment.css';
 
@@ -29,10 +29,10 @@ function Payment() {
         setUnpaidInvoices(result.data || []);
         setError(null);
       } else {
-        setError(result.message || 'Failed to load unpaid invoices');
+        setError(result.message || 'Failed to load invoices');
       }
     } catch (err) {
-      setError('Error fetching unpaid invoices: ' + err.message);
+      setError('Error fetching invoices: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -76,23 +76,99 @@ function Payment() {
   };
 
   const handleProcessPaymentFromModal = async (paymentData) => {
-    if (!selectedInvoiceForPayment) return;
+    if (!paymentData || !paymentData.invoices || paymentData.invoices.length === 0) return;
 
     try {
-      const result = await updatePaymentStatus(selectedInvoiceForPayment.invoiceid, {
-        PaymentStatus: 'Paid',
-        PaymentDate: new Date().toISOString().split('T')[0]
+      // Update all invoices that received payment allocation with payment details
+      const paymentDate = new Date().toISOString().split('T')[0];
+      
+      console.log('[PAYMENT DEBUG] Payment Data:', {
+        totalAmount: paymentData.totalAmount,
+        vehicleId: paymentData.vehicleId,
+        allocations: paymentData.allocations,
+        invoiceCount: paymentData.invoices.length
+      });
+      
+      // Calculate total allocated across all invoices
+      const allocatedTotal = Object.values(paymentData.allocations).reduce(
+        (sum, amt) => sum + (Number(amt) || 0), 0
+      );
+      
+      // Calculate advance amount (if any)
+      const advanceAmount = Math.max(0, paymentData.totalAmount - allocatedTotal);
+      
+      console.log('[PAYMENT DEBUG] Advance Calculation:', {
+        totalAmount: paymentData.totalAmount,
+        allocatedTotal: allocatedTotal,
+        advanceAmount: advanceAmount
       });
 
-      if (result.success) {
-        setSuccess(`Invoice ${selectedInvoiceForPayment.invoicenumber} marked as paid successfully!`);
+      const updatePromises = paymentData.invoices.map(invoice => 
+        updatePaymentStatus(invoice.invoiceid, {
+          PaymentStatus: 'Paid',
+          PaymentDate: paymentDate,
+          // Send the ALLOCATION amount for this specific invoice (not total)
+          PaymentMethodID: paymentData.paymentMethod,
+          Amount: paymentData.allocations[invoice.invoiceid],
+          TransactionReference: paymentData.transactionReference,
+          Notes: paymentData.notes
+        })
+      );
+
+      const results = await Promise.all(updatePromises);
+      console.log('[PAYMENT DEBUG] Invoice update results:', results);
+      
+      // Check if all updates were successful
+      const allSuccessful = results.every(result => result.success);
+      
+      if (allSuccessful) {
+        // If there's an advance amount, create it as a separate record
+        if (advanceAmount > 0) {
+          try {
+            console.log('[PAYMENT DEBUG] Creating advance payment record:', {
+              amount: advanceAmount,
+              paymentmethodid: paymentData.paymentMethod,
+              paymentdate: paymentDate
+            });
+            
+            // Get the first invoice's ID to link to vehicle (ensures valid vehicle ID from database)
+            const firstInvoiceId = paymentData.invoices[0]?.invoiceid || null;
+            
+            const advanceResult = await recordAdvancePayment({
+              invoiceid: firstInvoiceId,  // Use invoice ID to get vehicle ID from database
+              amount: advanceAmount,
+              paymentmethodid: paymentData.paymentMethod,
+              paymentdate: paymentDate,
+              transactionreference: paymentData.transactionReference,
+              notes: `Advance payment from overpayment across ${paymentData.invoices.length} invoice(s)`
+            });
+            
+            console.log('[PAYMENT DEBUG] Advance result:', advanceResult);
+            
+            if (!advanceResult.success) {
+              console.warn('[PAYMENT ERROR] Failed to record advance payment, but invoice payments succeeded');
+            } else {
+              console.log('[PAYMENT DEBUG] Advance payment recorded successfully');
+            }
+          } catch (advError) {
+            console.error('[PAYMENT ERROR] Error creating advance payment:', advError);
+            // Don't fail the entire operation if advance creation fails
+          }
+        } else {
+          console.log('[PAYMENT DEBUG] No advance amount to record');
+        }
+
+        const invoiceCount = paymentData.invoices.length;
+        const advanceText = advanceAmount > 0 ? ` with ₹${advanceAmount.toFixed(2)} advance` : '';
+        setSuccess(`${invoiceCount} invoice(s) marked as paid successfully${advanceText}!`);
+        
         // Refresh the list
         fetchUnpaidInvoices();
         fetchPaymentSummary();
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(null), 3000);
       } else {
-        setError(result.message || 'Failed to update payment status');
+        setError('Some invoices failed to update. Please try again.');
       }
     } catch (err) {
       setError('Error updating payment: ' + err.message);
@@ -123,7 +199,7 @@ function Payment() {
             <p className="amount">{formatCurrency(paymentSummary.paidamount || 0)}</p>
           </div>
           <div className="summary-card unpaid">
-            <h3>Unpaid Invoices</h3>
+            <h3>Pending Invoices</h3>
             <p className="count">{paymentSummary.unpaidcount || 0}</p>
             <p className="amount">{formatCurrency(paymentSummary.unpaidamount || 0)}</p>
           </div>
@@ -144,14 +220,14 @@ function Payment() {
       {success && <div className="alert alert-success">{success}</div>}
 
       {/* Loading State */}
-      {loading && <div className="loading">Loading unpaid invoices...</div>}
+      {loading && <div className="loading">Loading invoices...</div>}
 
-      {/* Unpaid Invoices Table */}
+      {/* Unpaid & Partially Paid Invoices Table */}
       {!loading && (
         <div className="invoices-section">
-          <h3>Unpaid Invoices ({unpaidInvoices.length})</h3>
+          <h3>Pending Invoices ({unpaidInvoices.length})</h3>
           {unpaidInvoices.length === 0 ? (
-            <p className="no-data">No unpaid invoices found.</p>
+            <p className="no-data">No pending invoices found.</p>
           ) : (
             <div className="table-responsive">
               <table className="payment-table">
@@ -162,6 +238,8 @@ function Payment() {
                     <th>Customer Name</th>
                     <th>Phone Number</th>
                     <th>Invoice Amount</th>
+                    <th>Paid</th>
+                    <th>Pending</th>
                     <th>Invoice Date</th>
                     <th>Action</th>
                   </tr>
@@ -174,6 +252,8 @@ function Payment() {
                       <td>{invoice.customername}</td>
                       <td>{invoice.phonenumber}</td>
                       <td className="amount-cell">{formatCurrency(invoice.totalamount)}</td>
+                      <td className="amount-cell amount-paid">{formatCurrency(invoice.amountpaid || 0)}</td>
+                      <td className="amount-cell amount-pending">{formatCurrency(invoice.amounttobepaid || 0)}</td>
                       <td>{formatDate(invoice.createdat)}</td>
                       <td className="action-cell">
                         <button

@@ -1,15 +1,47 @@
 import React, { useState } from 'react';
-import { searchEmployees, searchItems, saveInvoice, getPaymentMethods, getNextInvoiceNumber } from '../api';
+import { searchEmployees, searchItems, saveInvoice, getPaymentMethods, getNextInvoiceNumber, getCustomers, getVehicles, getAllVehicleDetails, getAllEmployees, getAllItems, searchItemsAndServices, getCompanies, getCompanyById, getBranchId } from '../api';
 
-// Placeholder async function to simulate vehicle search from customer master
+// Search all vehicles by vehicle number and return with customer details
 async function searchVehiclesByNumber(query) {
-  // TODO: Replace with real API call
-  // Simulate: [{ VehicleNumber, VehicleModel, VehicleColor, CustomerName, CustomerAddress, MobileNumber1, VehicleID, CustomerID, ... }]
-  if (!query || query.length < 2) return [];
-  return [
-    { VehicleNumber: 'TN01AB1234', VehicleModel: 'Swift', VehicleColor: 'Red', CustomerName: 'Amit Kumar', CustomerAddress: 'Chennai', MobileNumber1: '9876543210', VehicleID: 1, CustomerID: 1 },
-    { VehicleNumber: 'TN01AC5678', VehicleModel: 'i20', VehicleColor: 'Blue', CustomerName: 'Sunita Sharma', CustomerAddress: 'Chennai', MobileNumber1: '9123456780', VehicleID: 2, CustomerID: 2 },
-  ].filter(v => v.VehicleNumber.toLowerCase().includes(query.toLowerCase()));
+  if (!query || query.length < 2) return []; // Require at least 2 characters
+  
+  try {
+    // Fetch all vehicle details and customers
+    const [vehiclesRes, customersRes] = await Promise.all([
+      getAllVehicleDetails(),
+      getCustomers()
+    ]);
+    
+    // Extract arrays from responses
+    const allVehicles = Array.isArray(vehiclesRes) ? vehiclesRes : (vehiclesRes?.data || []);
+    const allCustomers = Array.isArray(customersRes) ? customersRes : (customersRes?.data || []);
+    
+    if (!Array.isArray(allVehicles)) return [];
+    
+    // Create customer lookup map
+    const customerMap = {};
+    allCustomers?.forEach(c => {
+      customerMap[c.CustomerID] = c;
+    });
+    
+    // Filter by vehicle number and enhance with customer data
+    return allVehicles
+      .filter(v => 
+        v.vehiclenumber && v.vehiclenumber.toLowerCase().includes(query.toLowerCase())
+      )
+      .map(v => {
+        const customer = customerMap[v.customerid];
+        return {
+          ...v,
+          customername: customer ? `${customer.firstname || customer.FirstName || ''} ${customer.lastname || customer.LastName || ''}`.trim() : 'N/A',
+          customerfirstname: customer?.firstname || customer?.FirstName || 'N/A',
+          mobilenumber1: customer?.mobilenumber1 || customer?.MobileNumber1 || customer?.phonenumber || customer?.PhoneNumber || '-'
+        };
+      });
+  } catch (error) {
+    console.error('Error searching vehicles:', error);
+    return [];
+  }
 }
 
 export default function InvoiceMaster() {
@@ -35,11 +67,13 @@ export default function InvoiceMaster() {
     // Ref for qty input
     const qtyInputRef = React.useRef(null);
     const itemPopupRef = React.useRef(null);
+    const itemInputRef = React.useRef(null);
     const itemRowRefs = React.useRef({});
     // Invoice grid state
     const [itemInput, setItemInput] = useState('');
     const [itemResults, setItemResults] = useState([]);
     const [showItemPopup, setShowItemPopup] = useState(false);
+    const [itemPopupPosition, setItemPopupPosition] = useState({ top: 0, left: 0 });
     const [qtyInput, setQtyInput] = useState('');
     const [selectedItem, setSelectedItem] = useState(null);
     const [gridRows, setGridRows] = useState([]);
@@ -59,6 +93,9 @@ export default function InvoiceMaster() {
     const [selectedStaff, setSelectedStaff] = useState({
       technician1: null, technician2: null, serviceadvisor: null, deliveryadvisor: null, testdriver: null, cleaner: null, waterwash: null
     });
+    const [allEmployees, setAllEmployees] = useState([]);
+    const [allItems, setAllItems] = useState([]);
+    const [gsChecked, setGsChecked] = useState(false);
     // Discount state
     const [discount, setDiscount] = useState('');
     // Invoice running number state - resets each month AND year
@@ -71,6 +108,12 @@ export default function InvoiceMaster() {
     };
     const [invoiceRunningNumber, setInvoiceRunningNumber] = useState(1);
     const [invoiceYearMonth, setInvoiceYearMonth] = useState(getCurrentYearMonth());
+    // Generated invoice number and date from backend
+    const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState(null);
+    const [previewInvoiceNumber, setPreviewInvoiceNumber] = useState(null);
+    const [invoiceDate, setInvoiceDate] = useState(null);
+    // Branch code from company master
+    const [branchCode, setBranchCode] = useState('');
     // Payment popup state
     const [showPaymentPopup, setShowPaymentPopup] = useState(false);
     const [openInvoices, setOpenInvoices] = useState([]);
@@ -85,10 +128,15 @@ export default function InvoiceMaster() {
       const fetchPaymentMethods = async () => {
         try {
           const response = await getPaymentMethods();
-          setPaymentMethods(response.data || response);
+          const methods = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
+          const formatted = methods.map(method => ({
+            id: method.paymentmethodid,
+            paymentmethodname: method.methodname
+          }));
+          setPaymentMethods(formatted);
         } catch (error) {
           console.error('Error fetching payment methods:', error);
-          // Fallback to mock data if API fails
+          // Fallback to default methods if API fails
           setPaymentMethods([
             { id: 1, paymentmethodname: 'Cash' },
             { id: 2, paymentmethodname: 'Check' },
@@ -102,6 +150,118 @@ export default function InvoiceMaster() {
       };
       fetchPaymentMethods();
     }, []);
+
+    // Load all employees for dropdown selection
+    React.useEffect(() => {
+      const fetchAllEmployees = async () => {
+        try {
+          const employees = await getAllEmployees();
+          console.log('Loaded employees:', employees.length, employees);
+          setAllEmployees(Array.isArray(employees) ? employees : []);
+        } catch (error) {
+          console.error('Error fetching employees:', error);
+          setAllEmployees([]);
+        }
+      };
+      fetchAllEmployees();
+    }, []);
+
+    // Load all items for item dropdown selection
+    React.useEffect(() => {
+      const fetchAllItems = async () => {
+        try {
+          const items = await getAllItems();
+          console.log('Loaded items:', items.length, items);
+          setAllItems(Array.isArray(items) ? items : []);
+        } catch (error) {
+          console.error('Error fetching items:', error);
+          setAllItems([]);
+        }
+      };
+      fetchAllItems();
+    }, []);
+
+    // Fetch the next invoice number on component mount
+    React.useEffect(() => {
+      const fetchNextInvoiceNumber = async () => {
+        try {
+          const { runningNumber, yearMonth } = await getNextInvoiceNumber();
+          console.log('Fetched next invoice number:', runningNumber, yearMonth);
+          setInvoiceRunningNumber(runningNumber);
+          setInvoiceYearMonth(yearMonth);
+        } catch (error) {
+          console.error('Error fetching next invoice number:', error);
+          // Keep default values (1 and current year-month)
+        }
+      };
+      fetchNextInvoiceNumber();
+    }, []);
+
+    // Fetch branch code from company master based on logged-in user's company ID
+    React.useEffect(() => {
+      const fetchBranchCode = async () => {
+        try {
+          const userBranchId = getBranchId();
+          console.log('User Branch ID from localStorage:', userBranchId);
+          
+          if (!userBranchId) {
+            // If no branchId from login, try to fetch from companies list
+            console.log('No branchId found, trying getCompanies...');
+            const companies = await getCompanies();
+            const companyList = Array.isArray(companies) ? companies : (companies?.data || []);
+            console.log('Companies fetched:', companyList);
+            if (companyList.length > 0) {
+              const company = companyList[0];
+              const code = company.ExtraVar1 || company.extravar1 || 'HO';
+              setBranchCode(code.toUpperCase().substring(0, 3));
+              console.log('Branch code from companies list:', code);
+            } else {
+              setBranchCode('HO');
+            }
+            return;
+          }
+          
+          // Fetch the company details for the user's branch
+          try {
+            const companyResponse = await getCompanyById(userBranchId);
+            // Extract the actual company data (API returns {success: true, data: {...}})
+            const company = companyResponse?.data || companyResponse;
+            const code = company?.ExtraVar1 || company?.extravar1 || 'HO';
+            setBranchCode(code.toUpperCase().substring(0, 3));
+            console.log('Branch code fetched for company', userBranchId, ':', code);
+          } catch (companyError) {
+            console.error('Failed to fetch company by ID, trying companies list...', companyError);
+            // Fallback: fetch all companies and find the matching one
+            const companies = await getCompanies();
+            const companyList = Array.isArray(companies) ? companies : (companies?.data || []);
+            console.log('All companies from fallback:', companyList);
+            const matchedCompany = companyList.find(c => c.companyid === userBranchId || c.CompanyID === userBranchId);
+            if (matchedCompany) {
+              const code = matchedCompany.ExtraVar1 || matchedCompany.extravar1 || 'HO';
+              setBranchCode(code.toUpperCase().substring(0, 3));
+              console.log('Branch code from companies list (fallback):', code);
+            } else {
+              setBranchCode('HO');
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching branch code:', error);
+          setBranchCode('HO'); // Default fallback
+        }
+      };
+      fetchBranchCode();
+    }, []);
+
+    // Generate preview invoice number based on invoiceRunningNumber, invoiceYearMonth, and branchCode
+    React.useEffect(() => {
+      if (invoiceRunningNumber && invoiceYearMonth && branchCode) {
+        const year = invoiceYearMonth.substring(0, 2);
+        const month = invoiceYearMonth.substring(2, 5);
+        const running = String(invoiceRunningNumber).padStart(3, '0');
+        const previewNumber = `INV${branchCode}${year}${month}${running}`;
+        setPreviewInvoiceNumber(previewNumber);
+      }
+    }, [invoiceRunningNumber, invoiceYearMonth, branchCode]);
 
     // Auto-allocate payment amount starting from the latest invoice
     React.useEffect(() => {
@@ -217,10 +377,10 @@ export default function InvoiceMaster() {
         const year = yearMonth.substring(0, 2);
         const month = yearMonth.substring(2, 5);
         const running = String(runningNumber).padStart(3, '0');
-        const invoiceNumber = `INV${year}${month}${running}`;
+        const invoiceNumber = `INV${branchCode}${year}${month}${running}`;
         
         console.log('Generated invoice number:', invoiceNumber);
-        console.log('Running number:', runningNumber, 'Year-Month:', yearMonth);
+        console.log('Branch code:', branchCode, 'Running number:', runningNumber, 'Year-Month:', yearMonth);
         
         return invoiceNumber;
       } catch (error) {
@@ -230,18 +390,19 @@ export default function InvoiceMaster() {
         const year = now.getFullYear().toString().slice(-2);
         const month = now.toLocaleString('en-US', { month: 'short' }).toUpperCase();
         const currentYearMonth = `${year}${month}`;
+        const code = branchCode || 'HO';
         
         if (currentYearMonth !== invoiceYearMonth) {
           setInvoiceYearMonth(currentYearMonth);
           setInvoiceRunningNumber(2);
           const running = String(1).padStart(3, '0');
-          const fallbackNumber = `INV${year}${month}${running}`;
+          const fallbackNumber = `INV${code}${year}${month}${running}`;
           console.log('Using fallback invoice number:', fallbackNumber);
           return fallbackNumber;
         } else {
           const running = String(invoiceRunningNumber).padStart(3, '0');
           setInvoiceRunningNumber(prev => prev + 1);
-          const fallbackNumber = `INV${year}${month}${running}`;
+          const fallbackNumber = `INV${code}${year}${month}${running}`;
           console.log('Using fallback invoice number:', fallbackNumber);
           return fallbackNumber;
         }
@@ -257,7 +418,7 @@ export default function InvoiceMaster() {
         }
 
         // Validate required fields
-        if (!selectedVehicle || !selectedVehicle.VehicleNumber) {
+        if (!selectedVehicle || !selectedVehicle.vehiclenumber) {
           alert('Please select a vehicle');
           return;
         }
@@ -274,11 +435,12 @@ export default function InvoiceMaster() {
         const totalAmount = total;
 
         // Prepare invoice data with correct field names for the database schema
+        // Note: InvoiceNumber is auto-generated by the backend with branch code
         const invoiceData = {
-          InvoiceNumber: await generateInvoiceNumberForSave(),
           BranchId: 1, // Default branch
-          CustomerId: selectedVehicle.CustomerID || 1,
-          VehicleId: selectedVehicle.VehicleID || 1, // Would need VehicleID from selected vehicle
+          CustomerId: selectedVehicle.customerid || 1,
+          VehicleId: selectedVehicle.vehicledetailid || 1,
+          VehicleNumber: selectedVehicle.vehiclenumber,
           JobCardId: jobCardInput || 0,
           SubTotal: subTotal,
           TotalDiscount: totalDiscount,
@@ -304,6 +466,7 @@ export default function InvoiceMaster() {
             UnitPrice: row.UnitPrice,
             Discount: row.Discount || 0,
             Total: row.Total,
+            source: row.source || 'item', // Include source field to identify items vs services
           })),
           CreatedBy: 1, // Replace with actual user ID
         };
@@ -314,6 +477,9 @@ export default function InvoiceMaster() {
         const response = await saveInvoice(invoiceData);
 
         if (response.success) {
+          // Store the generated invoice number and date
+          setGeneratedInvoiceNumber(response.data.invoiceMaster.invoicenumber);
+          setInvoiceDate(response.data.invoiceMaster.invoicedate);
           alert('Invoice saved successfully! Invoice Number: ' + response.data.invoiceMaster.invoicenumber);
           // Reset form
           setVehicleInput('');
@@ -348,77 +514,6 @@ export default function InvoiceMaster() {
       }
     };
 
-    // Load test data
-    const handleLoadTestData = async () => {
-      // Select vehicle
-      const testVehicle = { 
-        VehicleNumber: 'TN01AB1234', 
-        VehicleModel: 'Swift', 
-        VehicleColor: 'Red', 
-        CustomerName: 'Amit Kumar',
-        CustomerID: 1,
-        VehicleID: 1,
-        MobileNumber1: '9876543210'
-      };
-      setSelectedVehicle(testVehicle);
-      setVehicleInput(testVehicle.VehicleNumber);
-
-      // JobCard
-      setJobCardInput('jc1');
-
-      // Add item to grid
-      const testItem = { 
-        itemid: 1,
-        partnumber: '888414', 
-        itemname: 'Test Item',
-        mrp: 500,
-        ItemNumber: '888414',
-        Qty: 2,
-        Discount: 1,
-        UnitPrice: 500,
-        Total: 500 * 2 * (1 - 1 / 100)
-      };
-      setGridRows([testItem]);
-
-      // Set notes
-      setNotes('note1');
-
-      // Set staff (search and simulate selection)
-      const staffMap = {
-        technician1: 'murali',
-        technician2: 'murali1',
-        serviceadvisor: 'murali2',
-        deliveryadvisor: 'murali3',
-        testdriver: 'murali4',
-        cleaner: 'Jagatheish',
-        waterwash: 'Jagatheish'
-      };
-
-      // Set staff fields and simulate search results
-      setStaffFields(staffMap);
-      
-      // Create dummy staff objects with searched names
-      const dummyStaffMap = {
-        technician1: { employeeid: 1, firstname: 'murali' },
-        technician2: { employeeid: 2, firstname: 'murali1' },
-        serviceadvisor: { employeeid: 3, firstname: 'murali2' },
-        deliveryadvisor: { employeeid: 4, firstname: 'murali3' },
-        testdriver: { employeeid: 5, firstname: 'murali4' },
-        cleaner: { employeeid: 6, firstname: 'Jagatheish' },
-        waterwash: { employeeid: 7, firstname: 'Jagatheish' }
-      };
-      
-      setSelectedStaff(dummyStaffMap);
-
-      // Set odometer
-      setOdometer('111');
-
-      // Set discount
-      setDiscount('100');
-
-      alert('Test data loaded successfully! Click "Save Invoice" to save.');
-    };
-
     // Handle item input change
     const handleItemInputChange = async (e) => {
       const value = e.target.value;
@@ -426,9 +521,27 @@ export default function InvoiceMaster() {
       setSelectedItem(null);
       setItemPopupIndex(-1);
       if (value.length >= 2) {
-        const results = await searchItems(value);
+        const results = await searchItemsAndServices(value);
         setItemResults(results);
-        setShowItemPopup(results.length > 0);
+        if (results.length > 0 && itemInputRef.current) {
+          const rect = itemInputRef.current.getBoundingClientRect();
+          setItemPopupPosition({
+            top: rect.bottom + 5,
+            left: rect.left
+          });
+          setShowItemPopup(true);
+        }
+      } else if (value.length > 0) {
+        // Show all items if user types any character (even 1 char)
+        if (allItems.length > 0 && itemInputRef.current) {
+          const rect = itemInputRef.current.getBoundingClientRect();
+          setItemPopupPosition({
+            top: rect.bottom + 5,
+            left: rect.left
+          });
+          setShowItemPopup(true);
+        }
+        setItemResults(allItems);
       } else {
         setItemResults([]);
         setShowItemPopup(false);
@@ -474,7 +587,11 @@ export default function InvoiceMaster() {
     // Handle item selection
     const handleSelectItem = (item) => {
       setSelectedItem(item);
-      setItemInput(item.partnumber + ' - ' + item.itemname);
+      // Format display based on source (item or service)
+      const displayText = item.source === 'item' 
+        ? `${item.partnumber} - ${item.itemname}`
+        : `${item.serviceid} - ${item.servicename}`;
+      setItemInput(displayText);
       setShowItemPopup(false);
       setItemPopupIndex(-1);
       itemRowRefs.current = {};
@@ -493,7 +610,31 @@ export default function InvoiceMaster() {
     const addItemToGrid = () => {
       if (selectedItem && qtyInput) {
         setGridRows(prevRows => {
-          const idx = prevRows.findIndex(row => row.partnumber === selectedItem.partnumber);
+          // Create unique key based on source and ID
+          const uniqueKey = selectedItem.source === 'item' 
+            ? `item-${selectedItem.itemid}`
+            : `service-${selectedItem.serviceid}`;
+          
+          // Create item identifier for finding duplicates
+          const itemId = selectedItem.source === 'item' 
+            ? selectedItem.itemid
+            : selectedItem.serviceid;
+          
+          const idx = prevRows.findIndex(row => 
+            row.source === selectedItem.source && 
+            (row.itemid === itemId || row.serviceid === itemId)
+          );
+          
+          // Get unit price based on source
+          const unitPrice = selectedItem.source === 'item' 
+            ? selectedItem.mrp
+            : selectedItem.defaultrate;
+          
+          // Get item name for display
+          const itemName = selectedItem.source === 'item'
+            ? selectedItem.itemname
+            : selectedItem.servicename;
+          
           if (idx !== -1) {
             // Item exists: update qty and total
             return prevRows.map((row, i) =>
@@ -501,7 +642,7 @@ export default function InvoiceMaster() {
                 ? {
                     ...row,
                     Qty: row.Qty + Number(qtyInput),
-                    Total: (row.Qty + Number(qtyInput)) * row.mrp * (1 - (row.Discount || 0) / 100),
+                    Total: (row.Qty + Number(qtyInput)) * unitPrice * (1 - (row.Discount || 0) / 100),
                   }
                 : row
             );
@@ -511,11 +652,12 @@ export default function InvoiceMaster() {
               ...prevRows,
               {
                 ...selectedItem,
-                ItemNumber: selectedItem.partnumber,
+                ItemNumber: selectedItem.source === 'item' ? selectedItem.partnumber : selectedItem.serviceid,
+                ItemName: itemName,
                 Qty: Number(qtyInput),
                 Discount: 0,
-                UnitPrice: selectedItem.mrp,
-                Total: selectedItem.mrp * Number(qtyInput),
+                UnitPrice: unitPrice,
+                Total: unitPrice * Number(qtyInput),
                 isDeleted: false,
               },
             ];
@@ -524,6 +666,54 @@ export default function InvoiceMaster() {
         setItemInput('');
         setQtyInput('');
         setSelectedItem(null);
+        // Focus back to item input for quick entry
+        if (itemInputRef.current) {
+          itemInputRef.current.focus();
+        }
+      }
+    };
+
+    // Handle GS checkbox - add Water Wash, Chemical Charges, General Service
+    const handleGsCheckboxChange = (e) => {
+      const checked = e.target.checked;
+      setGsChecked(checked);
+      
+      if (checked) {
+        // Define the three services to add
+        const gsServices = [
+          { serviceid: 13, servicename: 'Water Wash', defaultrate: 150.00, source: 'service' },
+          { serviceid: 15, servicename: 'Chemical Charges', defaultrate: 180.00, source: 'service' },
+          { serviceid: 14, servicename: 'General Service', defaultrate: 880.00, source: 'service' }
+        ];
+
+        // Add all three services to grid
+        setGridRows(prevRows => {
+          let newRows = [...prevRows];
+          gsServices.forEach(service => {
+            // Check if service already exists
+            const exists = newRows.some(row => row.serviceid === service.serviceid);
+            if (!exists) {
+              newRows.push({
+                ...service,
+                ItemNumber: service.serviceid,
+                ItemName: service.servicename,
+                Qty: 1,
+                Discount: 0,
+                UnitPrice: parseFloat(service.defaultrate),
+                Total: parseFloat(service.defaultrate) * 1,
+                isDeleted: false,
+              });
+            }
+          });
+          return newRows;
+        });
+      } else {
+        // Remove the three GS services from grid when unchecked
+        setGridRows(prevRows =>
+          prevRows.filter(row => 
+            !(row.serviceid === 13 || row.serviceid === 15 || row.serviceid === 14)
+          )
+        );
       }
     };
 
@@ -611,6 +801,7 @@ export default function InvoiceMaster() {
       setSelectedPaymentMethod('');
       setInvoicePaymentAmounts({});
     };
+
   // Vehicle search state
   const [vehicleInput, setVehicleInput] = useState('');
   const [vehicleResults, setVehicleResults] = useState([]);
@@ -618,7 +809,11 @@ export default function InvoiceMaster() {
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vehiclePopupIndex, setVehiclePopupIndex] = useState(-1);
   const vehiclePopupRef = React.useRef(null);
+  const vehicleInputRef = React.useRef(null);
   const vehicleItemRefs = React.useRef({});
+  const [vehiclePopupPosition, setVehiclePopupPosition] = useState({ top: 0, left: 0 });
+
+
 
   // Auto-scroll vehicle popup when navigating with arrow keys
   React.useEffect(() => {
@@ -646,10 +841,18 @@ export default function InvoiceMaster() {
     setVehicleInput(value);
     setSelectedVehicle(null);
     setVehiclePopupIndex(-1);
+    
     if (value.length >= 2) {
       const results = await searchVehiclesByNumber(value);
       setVehicleResults(results);
-      setShowVehiclePopup(results.length > 0);
+      if (results.length > 0 && vehicleInputRef.current) {
+        const rect = vehicleInputRef.current.getBoundingClientRect();
+        setVehiclePopupPosition({
+          top: rect.bottom + 5,
+          left: rect.left
+        });
+        setShowVehiclePopup(true);
+      }
     } else {
       setVehicleResults([]);
       setShowVehiclePopup(false);
@@ -677,196 +880,218 @@ export default function InvoiceMaster() {
   // Handle vehicle selection
   const handleSelectVehicle = (vehicle) => {
     setSelectedVehicle(vehicle);
-    setVehicleInput(vehicle.VehicleNumber);
+    setVehicleInput(vehicle.vehiclenumber);
     setShowVehiclePopup(false);
     setVehiclePopupIndex(-1);
     vehicleItemRefs.current = {};
   };
 
   return (
-    <div style={{ height: '100vh', width: '100vw', background: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
-      {/* Top 20%: Vehicle and Invoice Info */}
-      <div style={{ flex: '0 0 20%', display: 'flex', borderBottom: '1px solid #ddd', background: '#fff' }}>
+    <div style={{ height: '100vh', width: '100vw', background: '#f8f9fa', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Top 18%: Vehicle and Invoice Info */}
+      <div style={{ flex: '0 0 18%', display: 'flex', borderBottom: '1px solid #ddd', background: '#fff', overflow: 'hidden' }}>
         {/* Left: Vehicle Details */}
-        <div style={{ flex: 1, padding: 24, borderRight: '1px solid #eee', minWidth: 0 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Vehicle Details</div>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 8 }}>
-            <div style={{ position: 'relative' }}>
+        <div style={{ flex: 1, padding: '12px 16px', borderRight: '1px solid #eee', minWidth: 0 }}>
+          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>Vehicle Details</div>
+          
+          {/* Vehicle Number and JobCard - Same Line */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 8 }}>
+            {/* Vehicle Number Selection */}
+            <div style={{ position: 'relative', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>Vehicle *:</label>
               <input
+                ref={vehicleInputRef}
                 type="text"
-                placeholder="Enter vehicle number"
+                placeholder="Search vehicle"
                 value={vehicleInput}
                 onChange={handleVehicleInputChange}
                 onKeyDown={handleVehicleInputKeyDown}
-                style={{ width: 220, padding: 6, fontSize: 16 }}
+                onBlur={() => setTimeout(() => setShowVehiclePopup(false), 200)}
+                style={{ width: '140px', padding: 4, fontSize: 14 }}
               />
               {showVehiclePopup && (
-                <div ref={vehiclePopupRef} style={{ position: 'absolute', top: 36, left: 0, zIndex: 10, background: '#fff', border: '1px solid #ccc', width: 260, maxHeight: 200, overflowY: 'auto', boxShadow: '0 2px 8px #0001' }}>
+                <div ref={vehiclePopupRef} style={{ position: 'fixed', top: `${vehiclePopupPosition.top}px`, left: `${vehiclePopupPosition.left}px`, zIndex: 10000, background: '#fff', border: '1px solid #ccc', width: '750px', maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
                   {vehicleResults.map((v, i) => (
                     <div
                       ref={el => vehicleItemRefs.current[i] = el}
-                      key={v.VehicleNumber}
-                      style={{ padding: 8, cursor: 'pointer', borderBottom: '1px solid #eee', background: i === vehiclePopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff') }}
+                      key={v.vehicledetailid || v.vehicleid}
+                      style={{ padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid #eee', background: i === vehiclePopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff'), fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                       onClick={() => handleSelectVehicle(v)}
+                      title={`${v.vehiclenumber} - ${v.vehiclemodel} (${v.vehiclecolor}) | ${v.customername || 'N/A'} | ${v.mobilenumber1 || v.MobileNumber1 || '-'}`}
                     >
-                      {v.VehicleNumber} - {v.VehicleModel} ({v.VehicleColor})
+                      <span style={{ fontWeight: 500 }}>{v.vehiclenumber}</span> - <span>{v.vehiclemodel}</span> (<span>{v.vehiclecolor}</span>) | <span style={{ color: '#666' }}>{v.customername || 'N/A'}</span> | <span style={{ color: '#666' }}>{v.mobilenumber1 || v.MobileNumber1 || '-'}</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-            <div>
-              <label htmlFor="jobCardInput" style={{ fontWeight: 500, marginRight: 6 }}>JobCard:</label>
+
+            {/* JobCard */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label htmlFor="jobCardInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>JobCard:</label>
               <input
                 id="jobCardInput"
                 type="text"
-                placeholder="Enter JobCard number"
+                placeholder="Enter JobCard"
                 value={jobCardInput}
                 onChange={e => setJobCardInput(e.target.value)}
-                style={{ width: 140, padding: 6, fontSize: 16 }}
+                style={{ width: '100px', padding: 4, fontSize: 14 }}
+              />
+            </div>
+
+            {/* KMs (Odometer) */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label htmlFor="odometerInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>KMs:</label>
+              <input
+                id="odometerInput"
+                type="text"
+                placeholder="Enter KMs"
+                value={odometer}
+                onChange={e => setOdometer(e.target.value.replace(/[^0-9]/g, ''))}
+                style={{ width: '70px', padding: 4, fontSize: 14 }}
               />
             </div>
           </div>
-          {/* Vehicle Model and Color */}
-          <div style={{ marginBottom: 4 }}>
-            <span style={{ fontWeight: 500 }}>Model: </span>
-            {selectedVehicle ? selectedVehicle.VehicleModel : <span style={{ color: '#aaa' }}>-</span>}
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <span style={{ fontWeight: 500 }}>Color: </span>
-            {selectedVehicle ? selectedVehicle.VehicleColor : <span style={{ color: '#aaa' }}>-</span>}
-          </div>
-          {/* Customer Name and Phone Number */}
-          <div style={{ fontWeight: 600, marginTop: 12, marginBottom: 4 }}></div>
-          <div style={{ marginBottom: 2 }}>
-            <span style={{ fontWeight: 500 }}>Customer Name: </span>
-            {selectedVehicle ? selectedVehicle.CustomerName : <span style={{ color: '#aaa' }}>-</span>}
-          </div>
-          <div>
-            <span style={{ fontWeight: 500 }}>Phone Number: </span>
-            {selectedVehicle && selectedVehicle.MobileNumber1 ? selectedVehicle.MobileNumber1 : <span style={{ color: '#aaa' }}>-</span>}
-          </div>
+
+          {/* Vehicle and Customer Info - Single Line (when vehicle is selected) */}
+          {selectedVehicle && (
+            <div style={{ fontSize: 14, color: '#333', display: 'flex', gap: 16, alignItems: 'center', padding: '4px 0' }}>
+              <span>{selectedVehicle.customername || 'N/A'}</span>
+              <span>{selectedVehicle.mobilenumber1 || selectedVehicle.MobileNumber1 || '-'}</span>
+              <span>{selectedVehicle.vehiclemodel || '-'}</span>
+              <span>{selectedVehicle.vehiclecolor || '-'}</span>
+            </div>
+          )}
+
+
         </div>
         {/* Right: Invoice Info */}
-        <div style={{ flex: 1, padding: 24, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, marginBottom: 16, textAlign: 'center' }}>
-            Invoice No: {generateInvoiceNumber(invoiceRunningNumber, invoiceYearMonth)}
-          </div>
-          <button
-            onClick={handleLoadTestData}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#2196F3',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 4,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginTop: 'auto'
-            }}
-          >
-            Load Test Data
-          </button>
+        <div style={{ flex: 1, padding: '12px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+          {generatedInvoiceNumber ? (
+            <div style={{ width: 280, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>
+                {generatedInvoiceNumber}
+              </div>
+              <div style={{ fontSize: 13, color: '#999' }}>
+                {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A'}
+              </div>
+            </div>
+          ) : previewInvoiceNumber ? (
+            <div style={{ width: 280, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1a7a08', background: '#f0f8f0', padding: '8px 12px', borderRadius: 4 }}>
+                {previewInvoiceNumber}
+              </div>
+              <div style={{ fontSize: 13, color: '#666' }}>
+                {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 16, color: '#999' }}>Loading invoice number...</div>
+            </div>
+          )}
         </div>
       </div>
-      {/* Bottom 80%: Invoice Grid and Details (placeholder) */}
-      <div style={{ flex: 1, padding: 24, display: 'flex', gap: 24 }}>
-        {/* Left: Notes, Staff, Odometer */}
-        <div style={{ flex: 2, minWidth: 0 }}>
+
+      {/* Bottom 82%: Invoice Grid and Details */}
+      <div style={{ flex: 1, padding: '12px 16px', display: 'flex', gap: 12, overflow: 'hidden' }}>
+        {/* Left: Invoice Grid and Employee Fields */}
+        <div style={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Invoice Grid */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input
-                type="text"
-                placeholder="Enter item number or description"
-                value={itemInput}
-                onChange={handleItemInputChange}
-                onKeyDown={handleItemInputKeyDown}
-                style={{ width: 260, padding: 6, fontSize: 15 }}
-              />
-              {showItemPopup && (
-                <div ref={itemPopupRef} style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: 340, maxHeight: 200, overflowY: 'auto', boxShadow: '0 2px 8px #0001', zIndex: 10 }}>
-                  <table style={{ width: '100%', fontSize: '0.95em' }}>
-                    <thead>
-                      <tr style={{ background: '#e8f0fe' }}>
-                        <th>PartNo</th>
-                        <th>Item Name</th>
-                        <th>UOM</th>
-                        <th>MRP</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {itemResults.map((item, i) => (
-                        <tr
-                          ref={el => itemRowRefs.current[i] = el}
-                          key={item.itemid}
-                          style={{ cursor: 'pointer', background: i === itemPopupIndex ? '#e3f2fd' : undefined }}
-                          onClick={() => handleSelectItem(item)}
-                        >
-                          <td>{item.partnumber}</td>
-                          <td>{item.itemname}</td>
-                          <td>{item.uom}</td>
-                          <td>{item.mrp}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          <div style={{ marginBottom: 4, flex: '0 0 210px', overflow: 'auto' }}>
+            <div style={{ display: 'flex', gap: 3, marginBottom: 2 }}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={itemInputRef}
+                  type="text"
+                  placeholder="Enter item number or description"
+                  value={itemInput}
+                  onChange={handleItemInputChange}
+                  onKeyDown={handleItemInputKeyDown}
+                  onBlur={() => setTimeout(() => setShowItemPopup(false), 200)}
+                  style={{ width: 220, padding: 4, fontSize: 14 }}
+                />
+                {showItemPopup && (
+                  <div ref={itemPopupRef} style={{ position: 'fixed', top: `${itemPopupPosition.top}px`, left: `${itemPopupPosition.left}px`, background: '#fff', border: '1px solid #ccc', width: '700px', maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10000 }}>
+                    {itemResults.map((result, i) => (
+                      <div
+                        ref={el => itemRowRefs.current[i] = el}
+                        key={`${result.source}-${result.itemid || result.serviceid}`}
+                        style={{ padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid #eee', background: i === itemPopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff'), fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        onClick={() => handleSelectItem(result)}
+                        title={`${result.source === 'item' ? result.partnumber : result.serviceid} - ${result.source === 'item' ? result.itemname : result.servicename} - ₹${result.source === 'item' ? result.mrp : result.defaultrate} (${result.source})`}
+                      >
+                        <span style={{ fontWeight: 500 }}>{result.source === 'item' ? result.partnumber : result.serviceid}</span> | <span>{result.source === 'item' ? result.itemname : result.servicename}</span> | <span style={{ color: '#666' }}>₹{result.source === 'item' ? result.mrp : result.defaultrate}</span> | <span style={{ fontSize: '10px', color: '#999' }}>({result.source})</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <input
                 type="text"
                 placeholder="Qty"
                 value={qtyInput}
                 onChange={handleQtyInputChange}
-                style={{ width: 60, textAlign: 'right', fontSize: 15 }}
+                style={{ width: 50, textAlign: 'right', fontSize: 14, padding: 4 }}
                 disabled={!selectedItem}
                 ref={qtyInputRef}
                 onKeyDown={handleQtyKeyDown}
               />
-              <button type="button" onClick={addItemToGrid} disabled={!selectedItem || !qtyInput}>Add</button>
+              <button type="button" onClick={addItemToGrid} disabled={!selectedItem || !qtyInput} style={{ padding: '4px 8px', fontSize: 14 }}>Add</button>
+              <label style={{ marginLeft: '16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: 14 }}>
+                <input 
+                  type="checkbox" 
+                  checked={gsChecked} 
+                  onChange={handleGsCheckboxChange}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '16px', fontWeight: '500' }}>GS</span>
+              </label>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
+            <div style={{ maxHeight: '210px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '2px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', fontSize: '1em' }}>
               <thead>
                 <tr style={{ background: '#f1f3f4' }}>
-                  <th style={{ border: '1px solid #eee', padding: 6 }}>PartNo</th>
-                  <th style={{ border: '1px solid #eee', padding: 6 }}>Item Name</th>
-                  <th style={{ border: '1px solid #eee', padding: 6 }}>Qty</th>
-                  <th style={{ border: '1px solid #eee', padding: 6 }}>Unit Price</th>
-                  <th style={{ border: '1px solid #eee', padding: 6 }}>Discount %</th>
-                  <th style={{ border: '1px solid #eee', padding: 6 }}>Total</th>
-                  <th style={{ border: '1px solid #eee', padding: 6 }}>Action</th>
+                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>PartNo</th>
+                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Item Name</th>
+                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Qty</th>
+                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Unit Price</th>
+                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Discount %</th>
+                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Total</th>
+                  <th style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {activeGridRows.map((row) => {
                   const actualIdx = gridRows.findIndex(r => r === row);
+                  const itemNumber = row.ItemNumber || row.partnumber || row.serviceid;
+                  const itemName = row.ItemName || row.itemname || row.servicename;
                   return (
                   <tr key={actualIdx}>
-                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.partnumber}</td>
-                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.itemname}</td>
-                    <td style={{ border: '1px solid #eee', padding: 6 }}>
+                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{itemNumber}</td>
+                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{itemName}</td>
+                    <td style={{ border: '1px solid #eee', padding: 2 }}>
                       <input
                         type="number"
                         min="1"
                         value={row.Qty}
                         onChange={e => handleGridChange(actualIdx, 'Qty', e.target.value)}
-                        style={{ width: 50, textAlign: 'right' }}
+                        style={{ width: 40, textAlign: 'right', fontSize: '12px', padding: 2 }}
                       />
                     </td>
-                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.UnitPrice}</td>
-                    <td style={{ border: '1px solid #eee', padding: 6 }}>
+                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.UnitPrice}</td>
+                    <td style={{ border: '1px solid #eee', padding: 2 }}>
                       <input
                         type="number"
                         min="0"
                         max="100"
                         value={row.Discount}
                         onChange={e => handleGridChange(actualIdx, 'Discount', e.target.value)}
-                        style={{ width: 50, textAlign: 'right' }}
+                        style={{ width: 40, textAlign: 'right', fontSize: '12px', padding: 2 }}
                       />
                     </td>
-                    <td style={{ border: '1px solid #eee', padding: 6 }}>{row.Total.toFixed(2)}</td>
-                    <td style={{ border: '1px solid #eee', padding: 6, textAlign: 'center' }}>
+                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.Total.toFixed(2)}</td>
+                    <td style={{ border: '1px solid #eee', padding: 3, textAlign: 'center' }}>
                       <button
                         type="button"
                         onClick={() => handleDeleteRow(actualIdx)}
@@ -875,8 +1100,8 @@ export default function InvoiceMaster() {
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
-                          fontSize: 18,
-                          padding: 4,
+                          fontSize: 16,
+                          padding: 2,
                           color: '#d32f2f',
                           transition: 'transform 0.2s',
                           display: 'inline-flex',
@@ -894,231 +1119,131 @@ export default function InvoiceMaster() {
                 })}
                 {activeGridRows.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', color: '#aaa', padding: 12 }}>No items added</td>
+                    <td colSpan={7} style={{ textAlign: 'center', color: '#aaa', padding: 3, fontSize: '12px' }}>No items added</td>
                   </tr>
                 )}
               </tbody>
             </table>
-          </div>
-          {/* Notes, Staff, Odometer */}
-          <div style={{ display: 'flex', gap: 16, marginTop: 24 }}>
-            <div style={{ flex: 2 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>Notes</div>
-              <textarea
-                rows={3}
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                style={{ width: '100%', fontSize: 15, padding: 6, resize: 'vertical' }}
-              />
             </div>
-            <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div>Technician 1</div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={staffFields.technician1}
-                      onChange={e => handleStaffInputChange('technician1', e.target.value)}
-                      style={{ width: '100%' }}
-                      ref={staffInputRefs.technician1}
-                      onKeyDown={e => handleStaffInputKeyDown('technician1', e)}
-                    />
-                    {showStaffPopup.technician1 && (
-                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
-                        {staffResults.technician1?.map((staff, i) => (
-                          <div
-                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
-                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.technician1 ? '#e3f2fd' : undefined }}
-                            onClick={() => handleSelectStaff('technician1', staff)}
-                          >
-                            {staff.employeeid} - {staff.firstname}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div>Technician 2</div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={staffFields.technician2}
-                      onChange={e => handleStaffInputChange('technician2', e.target.value)}
-                      style={{ width: '100%' }}
-                      ref={staffInputRefs.technician2}
-                      onKeyDown={e => handleStaffInputKeyDown('technician2', e)}
-                    />
-                    {showStaffPopup.technician2 && (
-                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
-                        {staffResults.technician2?.map((staff, i) => (
-                          <div
-                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
-                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.technician2 ? '#e3f2fd' : undefined }}
-                            onClick={() => handleSelectStaff('technician2', staff)}
-                          >
-                            {staff.employeeid} - {staff.firstname}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div>Service Advisor</div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={staffFields.serviceadvisor}
-                      onChange={e => handleStaffInputChange('serviceadvisor', e.target.value)}
-                      style={{ width: '100%' }}
-                      ref={staffInputRefs.serviceadvisor}
-                      onKeyDown={e => handleStaffInputKeyDown('serviceadvisor', e)}
-                    />
-                    {showStaffPopup.serviceadvisor && (
-                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
-                        {staffResults.serviceadvisor?.map((staff, i) => (
-                          <div
-                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
-                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.serviceadvisor ? '#e3f2fd' : undefined }}
-                            onClick={() => handleSelectStaff('serviceadvisor', staff)}
-                          >
-                            {staff.employeeid} - {staff.firstname}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div>Delivery Advisor</div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={staffFields.deliveryadvisor}
-                      onChange={e => handleStaffInputChange('deliveryadvisor', e.target.value)}
-                      style={{ width: '100%' }}
-                      ref={staffInputRefs.deliveryadvisor}
-                      onKeyDown={e => handleStaffInputKeyDown('deliveryadvisor', e)}
-                    />
-                    {showStaffPopup.deliveryadvisor && (
-                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
-                        {staffResults.deliveryadvisor?.map((staff, i) => (
-                          <div
-                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
-                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.deliveryadvisor ? '#e3f2fd' : undefined }}
-                            onClick={() => handleSelectStaff('deliveryadvisor', staff)}
-                          >
-                            {staff.employeeid} - {staff.firstname}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div>Test Driver</div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={staffFields.testdriver}
-                      onChange={e => handleStaffInputChange('testdriver', e.target.value)}
-                      style={{ width: '100%' }}
-                      ref={staffInputRefs.testdriver}
-                      onKeyDown={e => handleStaffInputKeyDown('testdriver', e)}
-                    />
-                    {showStaffPopup.testdriver && (
-                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
-                        {staffResults.testdriver?.map((staff, i) => (
-                          <div
-                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
-                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.testdriver ? '#e3f2fd' : undefined }}
-                            onClick={() => handleSelectStaff('testdriver', staff)}
-                          >
-                            {staff.employeeid} - {staff.firstname}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div>Cleaner</div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={staffFields.cleaner}
-                      onChange={e => handleStaffInputChange('cleaner', e.target.value)}
-                      style={{ width: '100%' }}
-                      ref={staffInputRefs.cleaner}
-                      onKeyDown={e => handleStaffInputKeyDown('cleaner', e)}
-                    />
-                    {showStaffPopup.cleaner && (
-                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
-                        {staffResults.cleaner?.map((staff, i) => (
-                          <div
-                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
-                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.cleaner ? '#e3f2fd' : undefined }}
-                            onClick={() => handleSelectStaff('cleaner', staff)}
-                          >
-                            {staff.employeeid} - {staff.firstname}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div>WaterWash</div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={staffFields.waterwash}
-                      onChange={e => handleStaffInputChange('waterwash', e.target.value)}
-                      style={{ width: '100%' }}
-                      ref={staffInputRefs.waterwash}
-                      onKeyDown={e => handleStaffInputKeyDown('waterwash', e)}
-                    />
-                    {showStaffPopup.waterwash && (
-                      <div style={{ position: 'absolute', background: '#fff', border: '1px solid #ccc', width: '100%', maxHeight: 80, overflowY: 'auto', zIndex: 10 }}>
-                        {staffResults.waterwash?.map((staff, i) => (
-                          <div
-                            key={Number.isFinite(staff.employeeid) ? staff.employeeid : (staff.firstname + i)}
-                            style={{ padding: 6, cursor: 'pointer', background: i === staffPopupIndex.waterwash ? '#e3f2fd' : undefined }}
-                            onClick={() => handleSelectStaff('waterwash', staff)}
-                          >
-                            {staff.employeeid} - {staff.firstname}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <div>Odometer Reading</div>
-                <input
-                  type="text"
-                  value={odometer}
-                  onChange={e => setOdometer(e.target.value.replace(/[^0-9]/g, ''))}
-                  style={{ width: 180, fontSize: 15 }}
-                />
-              </div>
+          </div>
+          {/* Employee Fields - Single Row Below Grid - Left Side */}
+          <div style={{ display: 'flex', gap: 3, marginTop: 2, justifyContent: 'flex-start', flexWrap: 'nowrap' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Technician 1</div>
+              <select
+                value={staffFields.technician1}
+                onChange={e => setStaffFields(f => ({ ...f, technician1: e.target.value }))}
+                style={{ width: '100%', padding: 2, fontSize: 11 }}
+              >
+                <option value="">-- Select --</option>
+                {allEmployees.map((emp) => (
+                  <option key={emp.employeeid} value={emp.firstname}>
+                    {emp.firstName || emp.firstname || 'N/A'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Technician 2</div>
+              <select
+                value={staffFields.technician2}
+                onChange={e => setStaffFields(f => ({ ...f, technician2: e.target.value }))}
+                style={{ width: '100%', padding: 2, fontSize: 11 }}
+              >
+                <option value="">-- Select --</option>
+                {allEmployees.map((emp) => (
+                  <option key={emp.employeeid} value={emp.firstname}>
+                    {emp.firstName || emp.firstname || 'N/A'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Service Advisor</div>
+              <select
+                value={staffFields.serviceadvisor}
+                onChange={e => setStaffFields(f => ({ ...f, serviceadvisor: e.target.value }))}
+                style={{ width: '100%', padding: 2, fontSize: 11 }}
+              >
+                <option value="">-- Select --</option>
+                {allEmployees.map((emp) => (
+                  <option key={emp.employeeid} value={emp.firstname}>
+                    {emp.firstName || emp.firstname || 'N/A'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Delivery Advisor</div>
+              <select
+                value={staffFields.deliveryadvisor}
+                onChange={e => setStaffFields(f => ({ ...f, deliveryadvisor: e.target.value }))}
+                style={{ width: '100%', padding: 2, fontSize: 11 }}
+              >
+                <option value="">-- Select --</option>
+                {allEmployees.map((emp) => (
+                  <option key={emp.employeeid} value={emp.firstname}>
+                    {emp.firstName || emp.firstname || 'N/A'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Test Driver</div>
+              <select
+                value={staffFields.testdriver}
+                onChange={e => setStaffFields(f => ({ ...f, testdriver: e.target.value }))}
+                style={{ width: '100%', padding: 2, fontSize: 11 }}
+              >
+                <option value="">-- Select --</option>
+                {allEmployees.map((emp) => (
+                  <option key={emp.employeeid} value={emp.firstname}>
+                    {emp.firstName || emp.firstname || 'N/A'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Cleaner</div>
+              <select
+                value={staffFields.cleaner}
+                onChange={e => setStaffFields(f => ({ ...f, cleaner: e.target.value }))}
+                style={{ width: '100%', padding: 2, fontSize: 11 }}
+              >
+                <option value="">-- Select --</option>
+                {allEmployees.map((emp) => (
+                  <option key={emp.employeeid} value={emp.firstname}>
+                    {emp.firstName || emp.firstname || 'N/A'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>WaterWash</div>
+              <select
+                value={staffFields.waterwash}
+                onChange={e => setStaffFields(f => ({ ...f, waterwash: e.target.value }))}
+                style={{ width: '100%', padding: 2, fontSize: 11 }}
+              >
+                <option value="">-- Select --</option>
+                {allEmployees.map((emp) => (
+                  <option key={emp.employeeid} value={emp.firstname}>
+                    {emp.firstName || emp.firstname || 'N/A'}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
-        {/* Right: Subtotal, Discount, Total */}
-        <div style={{ flex: 1, minWidth: 0, alignSelf: 'flex-start' }}>
-          <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: 24, minWidth: 260, maxWidth: 320 }}>
-            <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 16 }}>Summary</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+        {/* Right: Summary, Payment, Save Button */}
+        <div style={{ flex: 1, minWidth: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 4, padding: 12, minWidth: 220, maxWidth: 280, flex: '0 0 auto' }}>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Summary</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
               <span>Subtotal</span>
               <span>{subtotal.toFixed(2)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
               <span>Discount</span>
               <input
                 type="number"
@@ -1126,24 +1251,39 @@ export default function InvoiceMaster() {
                 max={subtotal}
                 value={discount}
                 onChange={e => setDiscount(e.target.value.replace(/[^0-9.]/g, ''))}
-                style={{ width: 80, textAlign: 'right' }}
+                style={{ width: 50, textAlign: 'right', fontSize: 14, padding: 2 }}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 17, marginTop: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 14, marginTop: 6 }}>
               <span>Total</span>
               <span>{total.toFixed(2)}</span>
             </div>
+            <textarea
+              rows={3}
+              placeholder="Notes"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              style={{
+                width: '100%',
+                marginTop: 7,
+                padding: 6,
+                fontSize: 13,
+                resize: 'none',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+              }}
+            />
             <button
               onClick={handleOpenPaymentPopup}
               style={{
                 width: '100%',
-                marginTop: 10,
-                padding: 10,
+                marginTop: 7,
+                padding: 6,
                 backgroundColor: '#FF9800',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 4,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
@@ -1155,13 +1295,13 @@ export default function InvoiceMaster() {
               disabled={isSaving}
               style={{
                 width: '100%',
-                marginTop: 20,
-                padding: 10,
+                marginTop: 7,
+                padding: 6,
                 backgroundColor: isSaving ? '#ccc' : '#4CAF50',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 4,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: 600,
                 cursor: isSaving ? 'not-allowed' : 'pointer',
               }}

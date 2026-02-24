@@ -22,26 +22,26 @@ class CustomerMaster {
       PostalCode,
       MobileNumber1,
       MobileNumber2,
-      VehicleNumber,
-      VehicleModel,
-      VehicleColor,
       ExtraVar1,
       ExtraVar2,
       ExtraInt1,
       CreatedBy,
-      CreatedAt,
+      CreatedAt: providedCreatedAt,
       BranchID,
     } = data;
+    
+    // Generate CreatedAt if not provided (required field)
+    const CreatedAt = providedCreatedAt || new Date().toISOString().split('T')[0];
 
     const query = `
       INSERT INTO CustomerMaster (
         FirstName, LastName, EmailAddress, GSTNumber, LoyalityPoints,
         IsActive, MarketingConsent, Profession, Gender, DateOfBirth, DateOfMarriage,
         AddressLine1, AddressLine2, City, State, PostalCode,
-        MobileNumber1, MobileNumber2, VehicleNumber, VehicleModel, VehicleColor,
+        MobileNumber1, MobileNumber2,
         ExtraVar1, ExtraVar2, ExtraInt1,
         CreatedBy, CreatedAt, BranchID
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *;
     `;
 
@@ -64,21 +64,23 @@ class CustomerMaster {
       PostalCode || null,
       MobileNumber1 || null, 
       MobileNumber2 || null, 
-      VehicleNumber || null, 
-      VehicleModel || null, 
-      VehicleColor || null,
       ExtraVar1 || null, 
       ExtraVar2 || null, 
       ExtraInt1 ? parseInt(ExtraInt1) : null,
       CreatedBy || 1, 
-      CreatedAt || null, 
+      CreatedAt,
       BranchID || 1,
     ];
 
+    console.log('[CustomerMaster.create] SQL Query:', query);
+    console.log('[CustomerMaster.create] Values:', values);
+
     try {
       const result = await pool.query(query, values);
+      console.log('[CustomerMaster.create] Query result:', result.rows[0]);
       return this.formatRow(result.rows[0]);
     } catch (error) {
+      console.error('[CustomerMaster.create] Query error:', error.message);
       throw error;
     }
   }
@@ -106,9 +108,6 @@ class CustomerMaster {
       PostalCode: row.postalcode,
       MobileNumber1: row.mobilenumber1,
       MobileNumber2: row.mobilenumber2,
-      VehicleNumber: row.vehiclenumber,
-      VehicleModel: row.vehiclemodel,
-      VehicleColor: row.vehiclecolor,
       ExtraVar1: row.extravar1,
       ExtraVar2: row.extravar2,
       ExtraInt1: row.extraint1,

@@ -1,15 +1,49 @@
 const CustomerMaster = require('../models/CustomerMaster');
+const VehicleDetail = require('../models/VehicleDetail');
 
 // Create customer
 exports.createCustomer = async (req, res) => {
   try {
-    const customer = await CustomerMaster.create(req.body);
+    console.log('[CustomerController] Creating customer with data:', JSON.stringify(req.body, null, 2));
+    const customerData = { ...req.body };
+    
+    // Extract vehicle data from the request (if present)
+    const vehicleData = customerData.vehicles ? customerData.vehicles[0] : null;
+    
+    // Remove vehicle-related fields from customer data before creating CustomerMaster
+    delete customerData.vehicles;
+    delete customerData.vehiclenumber;
+    delete customerData.vehiclemodel;
+    delete customerData.vehiclecolor;
+    
+    const customer = await CustomerMaster.create(customerData);
+    console.log('[CustomerController] Customer created successfully:', customer);
+    
+    // Handle vehicle creation if vehicle data exists
+    if (vehicleData) {
+      try {
+        const vehicleCreateData = {
+          CustomerID: customer.customerid || customer.CustomerID,
+          RegistrationNumber: vehicleData.vehiclenumber,
+          VehicleModel: vehicleData.vehiclemodel,
+          Color: vehicleData.vehiclecolor,
+          CreatedBy: customerData.CreatedBy || customerData.createdby || 1,
+        };
+        await VehicleDetail.create(vehicleCreateData);
+      } catch (vehicleError) {
+        console.error('[CustomerController] Error creating vehicle:', vehicleError.message);
+        // Don't fail the entire request if vehicle creation fails, just log it
+      }
+    }
+    
     res.status(201).json({
       success: true,
       message: 'Customer created successfully',
       data: customer,
     });
   } catch (error) {
+    console.error('[CustomerController] Error creating customer:', error.message);
+    console.error('[CustomerController] Full error:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating customer',
@@ -63,13 +97,42 @@ exports.getCustomerById = async (req, res) => {
 exports.updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    const customer = await CustomerMaster.update(id, req.body);
+    const customerData = { ...req.body };
+    
+    // Extract vehicle data from the request (if present)
+    const vehicleData = customerData.vehicles ? customerData.vehicles[0] : null;
+    
+    // Remove vehicle-related fields from customer data before updating CustomerMaster
+    delete customerData.vehicles;
+    delete customerData.vehiclenumber;
+    delete customerData.vehiclemodel;
+    delete customerData.vehiclecolor;
+    
+    // Update customer record
+    const customer = await CustomerMaster.update(id, customerData);
     if (!customer) {
       return res.status(404).json({
         success: false,
         message: 'Customer not found',
       });
     }
+    
+    // Handle vehicle update if vehicle data exists
+    if (vehicleData && vehicleData.vehicledetailid) {
+      try {
+        const vehicleUpdateData = {
+          RegistrationNumber: vehicleData.vehiclenumber,
+          VehicleModel: vehicleData.vehiclemodel,
+          Color: vehicleData.vehiclecolor,
+          UpdatedBy: customerData.UpdatedBy || 1,
+        };
+        await VehicleDetail.update(vehicleData.vehicledetailid, vehicleUpdateData);
+      } catch (vehicleError) {
+        console.error('[CustomerController] Error updating vehicle:', vehicleError.message);
+        // Don't fail the entire request if vehicle update fails, just log it
+      }
+    }
+    
     res.status(200).json({
       success: true,
       message: 'Customer updated successfully',

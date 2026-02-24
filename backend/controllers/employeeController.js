@@ -1,5 +1,15 @@
 const EmployeeMaster = require('../models/EmployeeMaster');
 
+exports.getAllEmployees = async (req, res) => {
+  try {
+    const employees = await EmployeeMaster.getAll();
+    res.json({ data: employees });
+  } catch (err) {
+    console.error('Error fetching all employees:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 exports.searchEmployees = async (req, res) => {
   try {
     const { q } = req.query;

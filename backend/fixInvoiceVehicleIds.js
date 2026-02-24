@@ -6,60 +6,61 @@ async function fixInvoiceVehicleIds() {
     console.log('FIXING INVOICE VEHICLE IDS');
     console.log('========================================\n');
 
-    // Get the first valid vehicle ID
-    const vehicleQuery = 'SELECT vehicledetailid FROM vehicledetail WHERE deletedat IS NULL LIMIT 1';
-    const vehicleResult = await pool.query(vehicleQuery);
-    
-    if (!vehicleResult.rows.length) {
-      console.log('ERROR: No valid vehicles found in database');
-      process.exit(1);
-    }
-
-    const validVehicleId = vehicleResult.rows[0].vehicledetailid;
-    console.log(`Using valid vehicle ID: ${validVehicleId}\n`);
-
-    // Fix invoices with invalid vehicle IDs
-    const checkQuery = 'SELECT DISTINCT vehicleid FROM invoicemaster WHERE deletedat IS NULL';
-    const checkResult = await pool.query(checkQuery);
-    
-    console.log('Current vehicle IDs in invoices:');
-    checkResult.rows.forEach(row => {
-      console.log(`  - ${row.vehicleid}`);
-    });
-
-    // Update invoices with invalid vehicleids
-    const updateQuery = `
-      UPDATE invoicemaster 
-      SET vehicleid = $1 
-      WHERE vehicleid NOT IN (
-        SELECT vehicledetailid FROM vehicledetail WHERE deletedat IS NULL
-      ) AND deletedat IS NULL
+    // Get all invoices with vehicleid = 1 and their vehicle numbers
+    const invoicesQuery = `
+      SELECT 
+        im.invoiceid,
+        im.invoicenumber,
+        im.vehiclenumber,
+        im.customerid,
+        vd.vehicledetailid
+      FROM invoicemaster im
+      LEFT JOIN vehicledetail vd ON im.vehiclenumber = vd.vehiclenumber AND vd.deletedat IS NULL
+      WHERE im.vehicleid = 1 AND im.deletedat IS NULL
+      ORDER BY im.invoiceid
     `;
     
-    const updateResult = await pool.query(updateQuery, [validVehicleId]);
-    console.log(`\nUpdated ${updateResult.rowCount} invoices with invalid vehicle IDs\n`);
-
-    // Verify the fix
-    console.log('After fix:');
-    const verifyResult = await pool.query(`
-      SELECT invoiceid, vehicleid, totalamount, paymentstatus 
-      FROM invoicemaster 
-      WHERE deletedat IS NULL 
-      ORDER BY invoiceid
-    `);
+    const invoicesResult = await pool.query(invoicesQuery);
+    console.log(`Found ${invoicesResult.rows.length} invoices with vehicleid = 1\n`);
     
-    verifyResult.rows.forEach(row => {
-      console.log(`  Invoice ${row.invoiceid}: vehicleid=${row.vehicleid} | ₹${row.totalamount} | ${row.paymentstatus}`);
-    });
-
-    console.log('\n========================================');
-    console.log('✓ FIX COMPLETE');
+    if (invoicesResult.rows.length === 0) {
+      console.log('No invoices to fix.');
+      await pool.end();
+      return;
+    }
+    
+    // Update each invoice with the correct vehicle ID
+    let fixedCount = 0;
+    let unfixedCount = 0;
+    
+    for (const invoice of invoicesResult.rows) {
+      if (invoice.vehicledetailid) {
+        // Update invoice with correct vehicledetailid
+        const updateQuery = `
+          UPDATE invoicemaster 
+          SET vehicleid = $1
+          WHERE invoiceid = $2
+        `;
+        await pool.query(updateQuery, [invoice.vehicledetailid, invoice.invoiceid]);
+        console.log(`✓ Updated invoice ${invoice.invoicenumber} - vehicleid: ${invoice.vehicledetailid}`);
+        fixedCount++;
+      } else {
+        console.log(`✗ Could not find vehicle for invoice ${invoice.invoicenumber} (VehicleNumber: ${invoice.vehiclenumber})`);
+        unfixedCount++;
+      }
+    }
+    
+    console.log(`\n========================================`);
+    console.log(`Fix complete!`);
+    console.log(`Fixed invoices: ${fixedCount}`);
+    console.log(`Unfixed invoices: ${unfixedCount}`);
     console.log('========================================\n');
-
-    process.exit(0);
+    
+    await pool.end();
+    
   } catch (error) {
-    console.error('Error:', error);
-    process.exit(1);
+    console.error('Error fixing invoice vehicle IDs:', error);
+    await pool.end();
   }
 }
 

@@ -1,6 +1,6 @@
 const pool = require('./config/db');
 
-const tables = ['vehiclemaster', 'vehicledetails', 'invoicemaster', 'customermaster'];
+const tables = ['vehiclemaster', 'vehicledetail', 'invoicemaster', 'customermaster'];
 
 async function checkColumns() {
   for (const table of tables) {

@@ -3,14 +3,14 @@ const pool = require('../config/db');
 class VehicleManufacturer {
   static async getAll() {
     const result = await pool.query(
-      'SELECT * FROM VehicleManufacturer WHERE DeletedAt IS NULL ORDER BY ManufacturerName'
+      'SELECT * FROM vehiclemanufacturer WHERE deletedat IS NULL ORDER BY manufacturername'
     );
     return result.rows;
   }
 
   static async getById(id) {
     const result = await pool.query(
-      'SELECT * FROM VehicleManufacturer WHERE ManufacturerID = $1 AND DeletedAt IS NULL',
+      'SELECT * FROM vehiclemanufacturer WHERE manufacturerid = $1 AND deletedat IS NULL',
       [id]
     );
     return result.rows[0];
@@ -20,10 +20,14 @@ class VehicleManufacturer {
     const { ManufacturerName, ModelName, CreatedBy } = data;
     const CreatedAt = new Date().toISOString().split('T')[0];
     
+    console.log('[VehicleManufacturer.create] Creating with:', { ManufacturerName, ModelName, CreatedBy, CreatedAt });
+    
     const result = await pool.query(
-      'INSERT INTO VehicleManufacturer (ManufacturerName, ModelName, CreatedBy, CreatedAt) VALUES ($1, $2, $3, $4) RETURNING *',
+      'INSERT INTO vehiclemanufacturer (manufacturername, modelname, createdby, createdat) VALUES ($1, $2, $3, $4) RETURNING *',
       [ManufacturerName, ModelName, CreatedBy, CreatedAt]
     );
+    
+    console.log('[VehicleManufacturer.create] Result:', result.rows[0]);
     return result.rows[0];
   }
 
@@ -32,7 +36,7 @@ class VehicleManufacturer {
     const UpdatedAt = new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      'UPDATE VehicleManufacturer SET ManufacturerName = $1, ModelName = $2, UpdatedBy = $3, UpdatedAt = $4 WHERE ManufacturerID = $5 AND DeletedAt IS NULL RETURNING *',
+      'UPDATE vehiclemanufacturer SET manufacturername = $1, modelname = $2, updatedby = $3, updatedat = $4 WHERE manufacturerid = $5 AND deletedat IS NULL RETURNING *',
       [ManufacturerName, ModelName, UpdatedBy, UpdatedAt, id]
     );
     return result.rows[0];
@@ -43,7 +47,7 @@ class VehicleManufacturer {
     const DeletedAt = new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      'UPDATE VehicleManufacturer SET DeletedBy = $1, DeletedAt = $2 WHERE ManufacturerID = $3 RETURNING *',
+      'UPDATE vehiclemanufacturer SET deletedby = $1, deletedat = $2 WHERE manufacturerid = $3 RETURNING *',
       [DeletedBy, DeletedAt, id]
     );
     return result.rows[0];
