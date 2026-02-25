@@ -130,6 +130,35 @@ app.post('/admin/init/credentials', async (req, res) => {
   }
 });
 
+// Reset credentials endpoint - drops and recreates the table
+app.post('/admin/reset/credentials', async (req, res) => {
+  try {
+    console.log('[ADMIN] Resetting credentials table...');
+    const pool = require('./config/db');
+    
+    // Drop the table
+    await pool.query('DROP TABLE IF EXISTS employeecredentials CASCADE');
+    console.log('[ADMIN] ✓ Table dropped');
+    
+    // Recreate using the module function
+    await ensureCredentialsTableExists();
+    
+    const result = await pool.query('SELECT COUNT(*) as count FROM employeecredentials;');
+    
+    res.status(200).json({
+      success: true,
+      message: 'Credentials table reset successfully',
+      credential_records: parseInt(result.rows[0].count)
+    });
+  } catch (err) {
+    console.error('[ADMIN] Reset error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
