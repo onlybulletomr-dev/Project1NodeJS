@@ -11,7 +11,8 @@ exports.getAllEmployeesWithRoles = async (req, res) => {
         e.employeeid,
         e.firstname,
         e.lastname,
-        e.role_type,
+        e.role,
+        e.employeetype,
         e.branchid,
         c.companyname as branchname,
         e.isactive,
@@ -72,7 +73,7 @@ exports.getAllBranches = async (req, res) => {
 exports.updateEmployeeRole = async (req, res) => {
   try {
     const { employeeid } = req.params;
-    const { role_type, branchid } = req.body;
+    let { role_type, branchid } = req.body;
 
     // Validate inputs
     if (!role_type || !branchid) {
@@ -82,14 +83,8 @@ exports.updateEmployeeRole = async (req, res) => {
       });
     }
 
-    // Validate role type
-    const validRoles = ['Admin', 'Manager', 'Employee'];
-    if (!validRoles.includes(role_type)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid role. Must be one of: ${validRoles.join(', ')}`
-      });
-    }
+    // Validate role type (false = Employee, true = Admin)
+    const isAdmin = role_type === 'Admin' || role_type === true;
 
     // Get current user ID from header (for audit trail)
     const userId = req.headers['x-user-id'] || null;
@@ -98,15 +93,15 @@ exports.updateEmployeeRole = async (req, res) => {
     const updateQuery = `
       UPDATE employeemaster
       SET 
-        role_type = $1,
+        role = $1,
         branchid = $2,
         updatedby = $3,
         updatedat = CURRENT_DATE
       WHERE employeeid = $4 AND deletedat IS NULL
-      RETURNING employeeid, firstname, lastname, role_type, branchid
+      RETURNING employeeid, firstname, lastname, role, branchid, employeetype
     `;
 
-    const result = await pool.query(updateQuery, [role_type, branchid, userId, employeeid]);
+    const result = await pool.query(updateQuery, [isAdmin, branchid, userId, employeeid]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -116,7 +111,8 @@ exports.updateEmployeeRole = async (req, res) => {
     }
 
     // Log the action
-    console.log(`Role updated: ${result.rows[0].firstname} ${result.rows[0].lastname} → ${role_type} (Branch: ${branchid})`);
+    const roleLabel = isAdmin ? 'Admin' : 'Employee';
+    console.log(`Role updated: ${result.rows[0].firstname} ${result.rows[0].lastname} → ${roleLabel} (Branch: ${branchid})`);
 
     res.status(200).json({
       success: true,
@@ -189,18 +185,19 @@ exports.bulkUpdateRoles = async (req, res) => {
         }
 
         // Update employee role and branch
+        const isAdmin = role_type === 'Admin' || role_type === true;
         const employeeUpdateQuery = `
           UPDATE employeemaster
           SET 
-            role_type = $1,
+            role = $1,
             branchid = $2,
             updatedby = $3,
             updatedat = CURRENT_DATE
           WHERE employeeid = $4 AND deletedat IS NULL
-          RETURNING employeeid, firstname, lastname, role_type, branchid
+          RETURNING employeeid, firstname, lastname, role, branchid, employeetype
         `;
 
-        const empResult = await pool.query(employeeUpdateQuery, [role_type, branchid, userId, employeeid]);
+        const empResult = await pool.query(employeeUpdateQuery, [isAdmin, branchid, userId, employeeid]);
 
         if (empResult.rows.length === 0) {
           errorCount++;
