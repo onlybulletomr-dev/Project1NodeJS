@@ -88,9 +88,10 @@ function RoleManagement() {
 
       const changedEmployees = Object.keys(changes).map(empId => {
         const emp = employees.find(e => e.employeeid === parseInt(empId));
+        const currentRole = changes[empId].role_type || (emp?.role ? 'Admin' : 'Employee');
         const update = {
           employeeid: parseInt(empId),
-          role_type: changes[empId].role_type || emp?.role_type,
+          role_type: currentRole,
           branchid: changes[empId].branchid || emp?.branchid
         };
         // Only include password if it was changed
@@ -144,7 +145,9 @@ function RoleManagement() {
   };
 
   const getDisplayRole = (employeeid) => {
-    return changes[employeeid]?.role_type || employees.find(e => e.employeeid === employeeid)?.role_type || 'Employee';
+    if (changes[employeeid]?.role_type) return changes[employeeid].role_type;
+    const emp = employees.find(e => e.employeeid === employeeid);
+    return emp?.role ? 'Admin' : 'Employee';
   };
 
   const getDisplayBranch = (employeeid) => {
@@ -203,8 +206,8 @@ function RoleManagement() {
                 <td className="employee-name">{emp.firstname} {emp.lastname}</td>
                 <td className="employee-id">E{emp.employeeid}</td>
                 <td className="current-role">
-                  <span className={`role-badge role-${emp.role_type?.toLowerCase()}`}>
-                    {emp.role_type || 'Employee'}
+                  <span className={`role-badge role-${(emp.role ? 'admin' : 'employee')}`}>
+                    {emp.role ? 'Admin' : 'Employee'}
                   </span>
                 </td>
                 <td className="role-assignment">
