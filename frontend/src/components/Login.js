@@ -35,7 +35,16 @@ function Login({ onLoginSuccess }) {
         setPassword('');
       } else {
         // Login failed
-        setError(data.message || 'Invalid username or password');
+        let displayError = data.message || 'Invalid username or password';
+        
+        // Add debug info if available
+        if (data.debug) {
+          displayError += `\n[Debug] ${typeof data.debug === 'string' ? data.debug : JSON.stringify(data.debug)}`;
+          console.log('[LOGIN DEBUG]', data.debug, 'Timestamp:', data.timestamp);
+        }
+        
+        setError(displayError);
+        console.log('[LOGIN RESPONSE]', data);
       }
     } catch (err) {
       console.error('Login error:', err);

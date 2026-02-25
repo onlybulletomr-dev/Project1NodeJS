@@ -17,10 +17,10 @@ exports.login = async (req, res) => {
 
     // Query to find employee by FirstName or LastName (username)
     const query = `
-      SELECT EmployeeID, FirstName, LastName, BranchId
-      FROM EmployeeMaster
-      WHERE (FirstName ILIKE $1 OR LastName ILIKE $1)
-      AND DeletedAt IS NULL
+      SELECT employeeid, firstname, lastname, branchid
+      FROM employeemaster
+      WHERE (firstname ILIKE $1 OR lastname ILIKE $1)
+      AND deletedat IS NULL
       LIMIT 1;
     `;
 
@@ -32,6 +32,8 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
+        debug: `No employee found with name "${username}"`,
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -55,7 +57,13 @@ exports.login = async (req, res) => {
       return res.status(500).json({
         success: false,
         message: 'Authentication system not initialized. Please contact administrator.',
-        error: 'Credentials table error: ' + tableError.message
+        debug: {
+          error: tableError.message,
+          query: 'employeecredentials lookup',
+          employeeId: employeeId,
+          suggestion: 'Run POST /admin/init/credentials to initialize'
+        },
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -78,13 +86,17 @@ exports.login = async (req, res) => {
         
         return res.status(401).json({
           success: false,
-          message: 'Credentials created. Please try logging in again with password: Default@123'
+          message: 'Credentials created. Please try logging in again with password: Default@123',
+          debug: `Auto-created credentials for ${employee.firstname}`,
+          timestamp: new Date().toISOString()
         });
       } catch (insertError) {
         console.error(`[AUTH] Failed to create default credential:`, insertError.message);
         return res.status(401).json({
           success: false,
           message: 'Invalid username or password',
+          debug: insertError.message,
+          timestamp: new Date().toISOString()
         });
       }
     }
@@ -110,13 +122,15 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
+        debug: `Password verification failed for user "${username}"`,
+        timestamp: new Date().toISOString()
       });
     }
 
     // Get branch name from CompanyMaster
     const branchQuery = `
-      SELECT CompanyName FROM CompanyMaster
-      WHERE CompanyID = $1
+      SELECT companyname FROM companymaster
+      WHERE companyid = $1
     `;
     
     console.log(`[AUTH] Querying branch - branchid: ${employee.branchid}`);
@@ -433,9 +447,9 @@ exports.getEmployeeInfo = async (req, res) => {
       const [userId] = decoded.split(':');
 
       const query = `
-        SELECT EmployeeID, FirstName, LastName, Email, Department, BranchId
-        FROM EmployeeMaster
-        WHERE EmployeeID = $1 AND DeletedAt IS NULL
+        SELECT employeeid, firstname, lastname, email, department, branchid
+        FROM employeemaster
+        WHERE employeeid = $1 AND deletedat IS NULL
         LIMIT 1;
       `;
 
@@ -539,10 +553,10 @@ exports.getCurrentUser = async (req, res) => {
     }
 
     const query = `
-      SELECT EmployeeId, FirstName, LastName, BranchId
-      FROM EmployeeMaster
-      WHERE EmployeeId = $1
-      AND DeletedAt IS NULL
+      SELECT employeeid, firstname, lastname, branchid
+      FROM employeemaster
+      WHERE employeeid = $1
+      AND deletedat IS NULL
       LIMIT 1;
     `;
 

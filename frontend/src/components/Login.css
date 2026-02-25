@@ -92,6 +92,10 @@
   font-size: 14px;
   border-left: 4px solid #d32f2f;
   margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Courier New', monospace;
+  line-height: 1.4;
 }
 
 .login-button {
