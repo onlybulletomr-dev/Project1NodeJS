@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './Login.css';
+import { API_BASE_URL } from '../api';
 
 function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
@@ -13,7 +14,7 @@ function Login({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

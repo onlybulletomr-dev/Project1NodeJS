@@ -30,6 +30,9 @@ const getAPIBaseURL = () => {
 
 const API_BASE_URL = getAPIBaseURL();
 
+// Export API_BASE_URL for use in other components
+export { API_BASE_URL };
+
 // Configure axios defaults
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 

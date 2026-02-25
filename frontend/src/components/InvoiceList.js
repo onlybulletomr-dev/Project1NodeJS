@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../api';
 
 const InvoiceList = () => {
   const [invoices, setInvoices] = useState([]);
@@ -14,7 +15,7 @@ const InvoiceList = () => {
       try {
         setLoading(true);
         // Get the next invoice data which also returns all invoices
-        const response = await fetch('http://localhost:5000/api/invoices', {
+        const response = await fetch(`${API_BASE_URL}/invoices`, {
           headers: { 'x-user-id': localStorage.getItem('userId') || '1' },
         });
         

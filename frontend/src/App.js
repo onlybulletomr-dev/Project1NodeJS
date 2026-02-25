@@ -5,7 +5,7 @@ import InvoiceMaster from './components/InvoiceMaster';
 import InvoiceList from './components/InvoiceList';
 import Payment from './components/Payment';
 import Login from './components/Login';
-import { setUserId, clearUserId, getUserId, setBranchId, clearBranchId } from './api';
+import { setUserId, clearUserId, getUserId, setBranchId, clearBranchId, API_BASE_URL } from './api';
 import './App.css';
 
 function App() {
@@ -20,7 +20,7 @@ function App() {
       if (userId) {
         try {
           // Verify userId is still valid with the server
-          const response = await fetch('http://localhost:5000/api/auth/validate', {
+          const response = await fetch(`${API_BASE_URL}/auth/validate`, {
             method: 'GET',
             headers: {
               'x-user-id': userId,
