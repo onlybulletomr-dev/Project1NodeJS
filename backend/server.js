@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const companyRoutes = require('./routes/companyRoutes');
@@ -529,6 +530,65 @@ async function initializeDatabase() {
       }
     } catch (checkErr) {
       console.error('[Startup] Table check error:', checkErr.message);
+    }
+    
+    // Step 3: Ensure EmployeeCredentials table exists and is populated
+    console.log('[Startup] Checking EmployeeCredentials table...');
+    try {
+      // Create table if it doesn't exist
+      const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS employeecredentials (
+          credentialid SERIAL PRIMARY KEY,
+          employeeid INTEGER NOT NULL UNIQUE REFERENCES EmployeeMaster(EmployeeID) ON DELETE CASCADE,
+          passwordhash VARCHAR(255) NOT NULL,
+          lastpasswordchange DATE DEFAULT CURRENT_DATE,
+          passwordattempts INTEGER DEFAULT 0,
+          ispasswordexpired BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `;
+      
+      await client.query(createTableQuery);
+      console.log('[Startup] ✓ EmployeeCredentials table exists');
+      
+      // Create index if it doesn't exist
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_employeecredentials_employeeid 
+        ON employeecredentials(employeeid);
+      `);
+      console.log('[Startup] ✓ Index created');
+      
+      // Get all employees without credentials
+      const employeesQuery = `
+        SELECT em.EmployeeID, em.FirstName 
+        FROM EmployeeMaster em
+        LEFT JOIN employeecredentials ec ON em.EmployeeID = ec.employeeid
+        WHERE ec.credentialid IS NULL
+        AND em.DeletedAt IS NULL;
+      `;
+      
+      const employeesResult = await client.query(employeesQuery);
+      console.log(`[Startup] Found ${employeesResult.rows.length} employees without credentials`);
+      
+      if (employeesResult.rows.length > 0) {
+        // Default password: "Default@123"
+        const defaultPassword = 'Default@123';
+        const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+        
+        for (const employee of employeesResult.rows) {
+          await client.query(`
+            INSERT INTO employeecredentials (employeeid, passwordhash)
+            VALUES ($1, $2)
+            ON CONFLICT (employeeid) DO NOTHING;
+          `, [employee.employeeid, hashedPassword]);
+          console.log(`[Startup] ✓ Created default credentials for ${employee.firstname}`);
+        }
+      }
+      
+      console.log('[Startup] ✅ EmployeeCredentials migration completed successfully!');
+    } catch (credErr) {
+      console.error('[Startup] Credentials table setup error:', credErr.message);
+      console.error('[Startup] Stack:', credErr.stack);
     }
     
     client.release();
