@@ -3,14 +3,14 @@ const pool = require('../config/db');
 class Vehicle {
   static async getAll() {
     const result = await pool.query(
-      'SELECT * FROM vehicledetail WHERE deletedat IS NULL ORDER BY registrationnumber'
+      'SELECT vehicleid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY registrationnumber'
     );
     return result.rows;
   }
 
   static async getById(id) {
     const result = await pool.query(
-      'SELECT * FROM vehicledetail WHERE vehicleid = $1 AND deletedat IS NULL',
+      'SELECT vehicleid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE vehicleid = $1 AND deletedat IS NULL',
       [id]
     );
     return result.rows[0];
@@ -19,7 +19,19 @@ class Vehicle {
   static async getByCustomerId(customerId) {
     // Join through invoicemaster to find vehicles associated with a customer
     const result = await pool.query(`
-      SELECT DISTINCT vd.* 
+      SELECT DISTINCT 
+        vd.vehicleid,
+        vd.registrationnumber as vehiclenumber,
+        vd.vehicletype,
+        vd.manufacturer,
+        vd.model as vehiclemodel,
+        vd.yearofmanufacture,
+        vd.enginenumber,
+        vd.chassisnumber,
+        vd.color as vehiclecolor,
+        vd.createdat,
+        vd.updatedat,
+        vd.deletedat
       FROM vehicledetail vd
       INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
       WHERE im.customerid = $1 AND vd.deletedat IS NULL
