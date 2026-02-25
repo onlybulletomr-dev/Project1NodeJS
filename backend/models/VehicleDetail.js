@@ -23,49 +23,103 @@ class VehicleDetail {
 
   // Get all vehicle details
   static async getAll() {
-    const result = await pool.query(
-      'SELECT vehicledetailid as vehicleid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY vehiclenumber'
-    );
-    return result.rows;
+    try {
+      // Try Render schema first
+      let result = await pool.query(
+        'SELECT vehicleid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY registrationnumber'
+      );
+      return result.rows;
+    } catch (renderError) {
+      // Fall back to local schema
+      try {
+        const result = await pool.query(
+          'SELECT vehicledetailid as vehicleid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY vehiclenumber'
+        );
+        return result.rows;
+      } catch (localError) {
+        throw localError;
+      }
+    }
   }
 
   // Get vehicle detail by ID
   static async getById(id) {
-    const result = await pool.query(
-      'SELECT vehicledetailid as vehicleid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE vehicledetailid = $1 AND deletedat IS NULL',
-      [id]
-    );
-    return result.rows;
+    try {
+      // Try Render schema first
+      let result = await pool.query(
+        'SELECT vehicleid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE vehicleid = $1 AND deletedat IS NULL',
+        [id]
+      );
+      return result.rows;
+    } catch (renderError) {
+      // Fall back to local schema
+      try {
+        const result = await pool.query(
+          'SELECT vehicledetailid as vehicleid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE vehicledetailid = $1 AND deletedat IS NULL',
+          [id]
+        );
+        return result.rows;
+      } catch (localError) {
+        throw localError;
+      }
+    }
   }
 
-  // Get vehicle details by Customer ID (direct relationship)
+  // Get vehicle details by Customer ID (direct relationship, handles both local and Render schemas)
   static async getByCustomerId(customerId) {
     try {
-      const query = `
+      // Try Render schema first (vehicleid, registrationnumber, model, color)
+      let query = `
         SELECT 
-          vehicledetailid as vehicleid,
-          vehiclenumber as vehiclenumber,
-          null as vehicletype,
-          null as manufacturer,
-          vehiclemodel as vehiclemodel,
-          null as yearofmanufacture,
-          null as enginenumber,
-          null as chassisnumber,
-          vehiclecolor as vehiclecolor,
+          vehicleid,
+          registrationnumber as vehiclenumber,
+          vehicletype,
+          manufacturer,
+          model as vehiclemodel,
+          yearofmanufacture,
+          enginenumber,
+          chassisnumber,
+          color as vehiclecolor,
           createdat,
           updatedat,
           deletedat
         FROM vehicledetail
         WHERE customerid = $1 AND deletedat IS NULL
-        ORDER BY vehiclenumber
+        ORDER BY registrationnumber
       `;
-      console.log(`[SQL] Executing query for customer ${customerId}:`, query);
-      const result = await pool.query(query, [customerId]);
-      console.log(`[SQL] Result: ${result.rows.length} vehicles found`);
+      let result = await pool.query(query, [customerId]);
+      console.log(`[SQL] Result: ${result.rows.length} vehicles found (Render schema)`);
       return result.rows;
-    } catch (error) {
-      console.error(`[SQL ERROR] Failed to get vehicles for customer ${customerId}:`, error.message);
-      throw error;
+    } catch (renderError) {
+      // If Render schema fails, try local schema (vehicledetailid, vehiclenumber, vehiclemodel, vehiclecolor)
+      try {
+        console.log('[SQL] Render schema failed, trying local schema...');
+        const query = `
+          SELECT 
+            vehicledetailid as vehicleid,
+            vehiclenumber as vehiclenumber,
+            null as vehicletype,
+            null as manufacturer,
+            vehiclemodel as vehiclemodel,
+            null as yearofmanufacture,
+            null as enginenumber,
+            null as chassisnumber,
+            vehiclecolor as vehiclecolor,
+            createdat,
+            updatedat,
+            deletedat
+          FROM vehicledetail
+          WHERE customerid = $1 AND deletedat IS NULL
+          ORDER BY vehiclenumber
+        `;
+        console.log(`[SQL] Executing query for customer ${customerId} (local schema):`, query);
+        const result = await pool.query(query, [customerId]);
+        console.log(`[SQL] Result: ${result.rows.length} vehicles found (local schema)`);
+        return result.rows;
+      } catch (localError) {
+        console.error(`[SQL ERROR] Both schemas failed for customer ${customerId}`);
+        throw localError;
+      }
     }
   }
 
