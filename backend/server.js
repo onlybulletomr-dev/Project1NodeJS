@@ -459,6 +459,85 @@ app.get('/admin/debug/employee-query/:username', async (req, res) => {
   }
 });
 
+// Comprehensive migration endpoint - Clear bad data and load correct employees  
+app.post('/admin/migrate/fix-employees-render', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    console.log('[MIGRATE] Starting employee data correction...');
+    
+    // Step 1: Clear credentials (depends on employees)
+    console.log('[MIGRATE] Clearing old credentials...');
+    await pool.query('DELETE FROM employeecredentials');
+    console.log('[MIGRATE] ✓ Cleared credentials');
+    
+    // Step 2: Clear old employees
+    console.log('[MIGRATE] Clearing old employees...');
+    await pool.query('DELETE FROM employeemaster');
+    console.log('[MIGRATE] ✓ Cleared employees');
+    
+    // Step 3: Insert correct employees (actual data from local)
+    console.log('[MIGRATE] Inserting correct employees...');
+    const correctEmployees = [
+      { employeeid: 1, firstname: 'Murali', lastname: 'Murali', branchid: 2 },
+      { employeeid: 2, firstname: 'Immanuvel', lastname: 'Immanuvel', branchid: 2 },
+      { employeeid: 3, firstname: 'Manikandan', lastname: 'Manikandan', branchid: 3 },
+      { employeeid: 4, firstname: 'Charles', lastname: 'Charles', branchid: 3 },
+      { employeeid: 5, firstname: 'Baskar', lastname: 'Baskar', branchid: 2 },
+      { employeeid: 6, firstname: 'Dinesh Babu', lastname: 'Dinesh Babu', branchid: 3 },
+      { employeeid: 7, firstname: 'Jagatheish', lastname: 'Jagatheish', branchid: 3 },
+      { employeeid: 8, firstname: 'Suman', lastname: 'Suman', branchid: 2 },
+      { employeeid: 9, firstname: 'Ayub', lastname: 'Ayub', branchid: 2 },
+      { employeeid: 10, firstname: 'Afrith', lastname: 'Afrith', branchid: 2 },
+      { employeeid: 11, firstname: 'Iyyappan', lastname: 'Iyyappan', branchid: 3 },
+      { employeeid: 12, firstname: 'Ashok', lastname: 'Ashok', branchid: 3 },
+      { employeeid: 13, firstname: 'Anand', lastname: 'Anand', branchid: 2 }
+    ];
+    
+    let insertedCount = 0;
+    for (const emp of correctEmployees) {
+      await pool.query(`
+        INSERT INTO employeemaster (employeeid, firstname, lastname, branchid, createdat, updatedat)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `, [emp.employeeid, emp.firstname, emp.lastname, emp.branchid]);
+      insertedCount++;
+    }
+    console.log(`[MIGRATE] ✓ Inserted ${insertedCount} correct employees`);
+    
+    // Step 4: Reinitialize credentials with default password
+    console.log('[MIGRATE] Reinitializing credentials...');
+    await ensureCredentialsTableExists();
+    
+    // Step 5: Verify
+    const empCheck = await pool.query('SELECT COUNT(*) as count FROM employeemaster');
+    const credCheck = await pool.query('SELECT COUNT(*) as count FROM employeecredentials');
+    
+    res.status(200).json({
+      success: true,
+      message: 'Employee data corrected successfully',
+      results: {
+        employees_loaded: parseInt(empCheck.rows[0].count),
+        credentials_initialized: parseInt(credCheck.rows[0].count),
+        default_password: 'Default@123',
+        test_login: 'ashok / Default@123'
+      },
+      next_steps: [
+        'Try login with: ashok / Default@123',
+        'Or with any employee firstname from the list',
+        'All employees have password: Default@123'
+      ],
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error('[MIGRATE] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint - check deletedat values in employeemaster
 app.get('/admin/debug/deletedat-values', async (req, res) => {
   try {
