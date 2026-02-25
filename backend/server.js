@@ -184,6 +184,71 @@ app.get('/admin/check/employeemaster-schema', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint - check employee data and credentials status
+app.get('/admin/check/employee-status', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    
+    // Get employee count and sample data
+    const empResult = await pool.query(`
+      SELECT COUNT(*) as total_employees FROM employeemaster WHERE deletedat IS NULL
+    `);
+    
+    const sampleResult = await pool.query(`
+      SELECT employeeid, firstname, lastname, email, branchid, deletedat 
+      FROM employeemaster 
+      WHERE deletedat IS NULL 
+      ORDER BY employeeid 
+      LIMIT 5
+    `);
+    
+    // Check credentials table
+    const tableExistsResult = await pool.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = 'employeecredentials'
+      ) as exists
+    `);
+    
+    let credCount = 0;
+    let credEmps = [];
+    if (tableExistsResult.rows[0].exists) {
+      const credCountResult = await pool.query(`
+        SELECT COUNT(*) as total FROM employeecredentials
+      `);
+      credCount = parseInt(credCountResult.rows[0].total);
+      
+      const credSampleResult = await pool.query(`
+        SELECT employeeid, passwordhash LIKE '$%' as has_hash FROM employeecredentials LIMIT 5
+      `);
+      credEmps = credSampleResult.rows;
+    }
+    
+    res.status(200).json({
+      success: true,
+      database: process.env.DB_NAME || 'unknown',
+      employees: {
+        total_count: parseInt(empResult.rows[0].total_employees),
+        sample: sampleResult.rows
+      },
+      credentials: {
+        table_exists: tableExistsResult.rows[0].exists,
+        total_count: credCount,
+        sample: credEmps
+      },
+      timestamp: new Date().toISOString(),
+      note: 'If total_employees is 0, data needs to be migrated/seeded to Render'
+    });
+  } catch (err) {
+    console.error('[DIAGNOSTIC] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
