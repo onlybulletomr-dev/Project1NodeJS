@@ -231,6 +231,80 @@ app.post('/admin/migrate/rename-vehicledetails', async (req, res) => {
   }
 });
 
+// Endpoint to add customerid column to vehicledetail and populate from invoices
+app.post('/admin/migrate/add-customerid', async (req, res) => {
+  try {
+    console.log('[Migration Endpoint] Adding customerid column to vehicledetail...');
+    const pool = require('./config/db');
+    const client = await pool.connect();
+    
+    try {
+      // Check if column already exists
+      const checkCol = await client.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name='vehicledetail' AND column_name='customerid'
+      `);
+      
+      if (checkCol.rows.length === 0) {
+        console.log('[Migration] Adding customerid column...');
+        await client.query(`
+          ALTER TABLE vehicledetail ADD COLUMN customerid INTEGER;
+        `);
+        console.log('[Migration] ✓ customerid column added');
+      } else {
+        console.log('[Migration] customerid column already exists');
+      }
+      
+      // Populate customerid from invoicemaster
+      console.log('[Migration] Populating customerid from invoicemaster...');
+      const updateResult = await client.query(`
+        UPDATE vehicledetail vd
+        SET customerid = im.customerid
+        FROM invoicemaster im
+        WHERE vd.vehicleid = im.vehicleid 
+          AND vd.customerid IS NULL
+          AND im.customerid IS NOT NULL
+      `);
+      
+      console.log(`[Migration] ✓ Updated ${updateResult.rowCount} records`);
+      
+      // Check for remaining vehicles without customerid
+      const missingCount = await client.query(`
+        SELECT COUNT(*) as count FROM vehicledetail 
+        WHERE customerid IS NULL AND deletedat IS NULL
+      `);
+      
+      // Get sample data
+      const sample = await client.query(`
+        SELECT vehicleid, registrationnumber, model, color, customerid
+        FROM vehicledetail
+        WHERE customerid IS NOT NULL AND deletedat IS NULL
+        LIMIT 3
+      `);
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Migration completed successfully',
+        data: {
+          action: 'added customerid column to vehicledetail',
+          recordsUpdated: updateResult.rowCount,
+          recordsMissingCustomerId: parseInt(missingCount.rows[0].count),
+          sampleData: sample.rows
+        }
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[Migration Endpoint ERROR]', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Migration failed',
+      error: error.message
+    });
+  }
+});
+
 // Debug endpoint to show available routes
 app.get('/debug/routes', (req, res) => {
   const routes = [];
