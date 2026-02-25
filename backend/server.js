@@ -159,6 +159,45 @@ app.post('/admin/reset/credentials', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint - check employeemaster schema
+app.get('/admin/check/employeemaster-schema', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    
+    // Get column info
+    const columns = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'employeemaster'
+      ORDER BY column_name
+    `);
+    
+    // Get primary keys
+    const pks = await pool.query(`
+      SELECT a.attname
+      FROM pg_index i
+      JOIN pg_attribute a ON a.attrelid = i.indrelid
+           AND a.attnum = ANY(i.indkey)
+      WHERE i.indrelname IN (
+        SELECT constraint_name
+        FROM information_schema.table_constraints
+        WHERE table_name='employeemaster' and constraint_type='PRIMARY KEY'
+      )
+    `);
+    
+    res.status(200).json({
+      success: true,
+      columns: columns.rows,
+      primary_keys: pks.rows
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
