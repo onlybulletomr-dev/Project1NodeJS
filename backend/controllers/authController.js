@@ -13,6 +13,8 @@ exports.login = async (req, res) => {
       });
     }
 
+    console.log(`[AUTH] Login attempt - username: ${username}`);
+
     // Query to find employee by FirstName or LastName (username)
     const query = `
       SELECT EmployeeID, FirstName, LastName, BranchId
@@ -23,8 +25,10 @@ exports.login = async (req, res) => {
     `;
 
     const result = await pool.query(query, [username]);
+    console.log(`[AUTH] Employee lookup result:`, result.rows);
 
     if (result.rows.length === 0) {
+      console.log(`[AUTH] No employee found with username: ${username}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
@@ -33,6 +37,7 @@ exports.login = async (req, res) => {
 
     const employee = result.rows[0];
     const employeeId = employee.employeeid;
+    console.log(`[AUTH] Found employee: ${employee.firstname} (ID: ${employeeId})`);
 
     // Get password hash from EmployeeCredentials table
     const credQuery = `
@@ -41,8 +46,10 @@ exports.login = async (req, res) => {
     `;
 
     const credResult = await pool.query(credQuery, [employeeId]);
+    console.log(`[AUTH] Credential lookup result - rows count:`, credResult.rows.length);
 
     if (credResult.rows.length === 0 || !credResult.rows[0].passwordhash) {
+      console.log(`[AUTH] No password hash found for employee ID: ${employeeId}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
@@ -53,8 +60,10 @@ exports.login = async (req, res) => {
 
     // Compare provided password with stored hash using bcrypt
     const passwordMatch = await bcrypt.compare(password, passwordHash);
+    console.log(`[AUTH] Password match result:`, passwordMatch);
 
     if (!passwordMatch) {
+      console.log(`[AUTH] Password mismatch for employee: ${employee.firstname}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
@@ -67,8 +76,9 @@ exports.login = async (req, res) => {
       WHERE CompanyID = $1
     `;
     
+    console.log(`[AUTH] Querying branch - branchid: ${employee.branchid}`);
     const branchResult = await pool.query(branchQuery, [employee.branchid]);
-    console.log('Branch query result:', branchResult.rows);
+    console.log('[AUTH] Branch query result:', branchResult.rows);
     
     // PostgreSQL returns lowercase column names
     const branchName = branchResult.rows.length > 0 
@@ -78,7 +88,7 @@ exports.login = async (req, res) => {
     // Login successful - PostgreSQL returns lowercase column names
     const firstName = employee.firstname || '';
     
-    console.log(`✓ Login successful for ${firstName} from ${branchName} (ID: ${employeeId})`);
+    console.log(`✓ [AUTH] Login successful for ${firstName} from ${branchName} (ID: ${employeeId})`);
     
     res.status(200).json({
       success: true,
@@ -90,7 +100,8 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('[AUTH] Login error:', error);
+    console.error('[AUTH] Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error during login',
