@@ -249,6 +249,59 @@ app.get('/admin/check/employee-status', async (req, res) => {
   }
 });
 
+// Fix endpoint - ensure employeemaster table has proper constraints for FK
+app.post('/admin/fix/employeemaster-constraints', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    console.log('[FIX] Ensuring employeemaster has proper constraints...');
+    
+    // Check if employeeid is already a primary key
+    const pkCheck = await pool.query(`
+      SELECT constraint_type 
+      FROM information_schema.table_constraints 
+      WHERE table_name = 'employeemaster' 
+      AND constraint_type = 'PRIMARY KEY'
+    `);
+    
+    if (pkCheck.rows.length === 0) {
+      console.log('[FIX] No PK found, adding if employeeid is NOT NULL...');
+      
+      // Check if employeeid column exists and is NOT NULL
+      const colCheck = await pool.query(`
+        SELECT column_name, is_nullable 
+        FROM information_schema.columns 
+        WHERE table_name = 'employeemaster' AND column_name = 'employeeid'
+      `);
+      
+      if (colCheck.rows.length > 0) {
+        // Add PK constraint
+        await pool.query(`ALTER TABLE employeemaster ADD PRIMARY KEY (employeeid)`);
+        console.log('[FIX] ✓ Added PRIMARY KEY constraint to employeeid');
+      }
+    } else {
+      console.log('[FIX] ✓ PRIMARY KEY already exists on employeemaster');
+    }
+    
+    // Now try to create credentials table
+    console.log('[FIX] Now attempting to create credentials table...');
+    await ensureCredentialsTableExists();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Fixed employeemaster constraints and created credentials table',
+      action: 'Try POST /admin/init/credentials again',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[FIX] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
