@@ -33,11 +33,11 @@ async function ensureCredentialsTable() {
 
     // Get all employees without credentials
     const employeesQuery = `
-      SELECT em.EmployeeID, em.FirstName 
-      FROM EmployeeMaster em
-      LEFT JOIN employeecredentials ec ON em.EmployeeID = ec.employeeid
+      SELECT em.employeeid, em.firstname 
+      FROM employeemaster em
+      LEFT JOIN employeecredentials ec ON em.employeeid = ec.employeeid
       WHERE ec.credentialid IS NULL
-      AND em.DeletedAt IS NULL;
+      AND em.deletedat IS NULL;
     `;
 
     const result = await pool.query(employeesQuery);
