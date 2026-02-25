@@ -409,6 +409,56 @@ app.post('/admin/seed/employees-from-source', async (req, res) => {
   }
 });
 
+// Debug endpoint - test employee lookup query with specific username
+app.get('/admin/debug/employee-query/:username', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    const username = req.params.username;
+    
+    console.log(`[DEBUG] Testing employee query for username: ${username}`);
+    
+    // Test exact query used in auth controller
+    const query = `
+      SELECT employeeid, firstname, lastname, branchid
+      FROM employeemaster
+      WHERE (firstname ILIKE $1 OR lastname ILIKE $1)
+      AND deletedat IS NULL
+      LIMIT 1;
+    `;
+    
+    const result = await pool.query(query, [username]);
+    
+    // Also get all employees for comparison
+    const allEmps = await pool.query(`
+      SELECT employeeid, firstname, lastname, deletedat 
+      FROM employeemaster
+      WHERE deletedat IS NULL
+      ORDER BY employeeid
+      LIMIT 20
+    `);
+    
+    res.status(200).json({
+      success: true,
+      debug: {
+        username_searched: username,
+        query_used: 'WHERE (firstname ILIKE $1 OR lastname ILIKE $1) AND deletedat IS NULL',
+        rows_found: result.rows.length,
+        matched_employee: result.rows.length > 0 ? result.rows[0] : null
+      },
+      all_employees: allEmps.rows,
+      timestamp: new Date().toISOString(),
+      note: 'Compare searched username with all_employees to find mismatch'
+    });
+  } catch (err) {
+    console.error('[DEBUG] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
