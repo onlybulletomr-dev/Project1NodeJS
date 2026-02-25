@@ -172,23 +172,9 @@ app.get('/admin/check/employeemaster-schema', async (req, res) => {
       ORDER BY column_name
     `);
     
-    // Get primary keys
-    const pks = await pool.query(`
-      SELECT a.attname
-      FROM pg_index i
-      JOIN pg_attribute a ON a.attrelid = i.indrelid
-           AND a.attnum = ANY(i.indkey)
-      WHERE i.indrelname IN (
-        SELECT constraint_name
-        FROM information_schema.table_constraints
-        WHERE table_name='employeemaster' and constraint_type='PRIMARY KEY'
-      )
-    `);
-    
     res.status(200).json({
       success: true,
-      columns: columns.rows,
-      primary_keys: pks.rows
+      columns: columns.rows
     });
   } catch (err) {
     res.status(500).json({
