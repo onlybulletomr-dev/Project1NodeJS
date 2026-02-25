@@ -47,6 +47,68 @@ app.get('/health', (req, res) => {
   res.status(200).json({ message: 'Server is running' });
 });
 
+// Migration endpoint - populate vehiclemaster from local
+app.post('/admin/migrate/vehiclemaster', async (req, res) => {
+  try {
+    console.log('[Migration] Starting vehiclemaster data import...');
+    const pool = require('./config/db');
+    const client = await pool.connect();
+    
+    // Check if we're trying to populate from scratch (simulate local data)
+    const existingCount = await client.query('SELECT COUNT(*) as cnt FROM vehiclemaster');
+    const count = parseInt(existingCount.rows[0].cnt);
+    
+    if (count > 4) {
+      return res.status(200).json({
+        success: true,
+        message: `vehiclemaster already has ${count} records`,
+        count
+      });
+    }
+    
+    // Insert missing models that should be in vehiclemaster
+    const missingModels = [
+      { modelname: 'Classic 500', manufacturername: 'Royal Enfield', fueltype: 'Petrol', modelsegment: 'Cruiser', enginetype: 'Single Cylinder', color: 'Various' },
+      { modelname: 'Classic 650', manufacturername: 'Royal Enfield', fueltype: 'Petrol', modelsegment: 'Cruiser', enginetype: 'Twin Cylinder', color: 'Various' },
+      { modelname: 'Goan Classic 350', manufacturername: 'Royal Enfield', fueltype: 'Petrol', modelsegment: 'Cruiser', enginetype: 'Single Cylinder', color: 'Various' },
+      { modelname: 'Machismo 500', manufacturername: 'Royal Enfield', fueltype: 'Petrol', modelsegment: 'Cruiser', enginetype: 'Twin Cylinder', color: 'Various' }
+    ];
+    
+    let inserted = 0;
+    for (const model of missingModels) {
+      try {
+        const insert = await client.query(
+          `INSERT INTO vehiclemaster (modelname, manufacturername, fueltype, modelsegment, enginetype, color, createdby, createdat)
+           VALUES ($1, $2, $3, $4, $5, $6, 1, NOW())
+           ON CONFLICT DO NOTHING`,
+          [model.modelname, model.manufacturername, model.fueltype, model.modelsegment, model.enginetype, model.color]
+        );
+        if (insert.rowCount && insert.rowCount > 0) {
+          inserted++;
+        }
+      } catch (err) {
+        console.log(`  Skipped ${model.modelname}: ${err.message.substring(0, 50)}`);
+      }
+    }
+    
+    await client.release();
+    
+    res.status(200).json({
+      success: true,
+      message: `vehiclemaster migration complete - inserted ${inserted} new models`,
+      inserted
+    });
+    
+  } catch (err) {
+    console.error('[Migration Error]', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Migration failed',
+      error: err.message
+    });
+  }
+});
+
 // Migration endpoint - rename vehicledetails to vehicledetail
 app.post('/admin/migrate/rename-vehicledetails', async (req, res) => {
   try {
