@@ -1,0 +1,8 @@
+{
+  "PaymentStatus": "Paid",
+  "PaymentDate": "2026-02-25",
+  "PaymentMethodID": 1,
+  "Amount": 500,
+  "TransactionReference": "TEST003",
+  "Notes": "Test Payment After Fix"
+}

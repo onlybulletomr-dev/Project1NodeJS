@@ -6,7 +6,7 @@ class ServiceMaster {
       const result = await pool.query(
         `SELECT serviceid, servicename, description, defaultrate
          FROM ServiceMaster 
-         WHERE servicename ILIKE $1 OR description ILIKE $1
+         WHERE (servicename ILIKE $1 OR description ILIKE $1)
          AND deletedat IS NULL
          LIMIT 20`,
         [`%${servicename}%`]

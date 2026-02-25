@@ -61,11 +61,14 @@ function Payment() {
   };
 
   const handlePayment = (invoice) => {
+    console.log('[PAYMENT] handlePayment called with invoice:', invoice);
+    console.log('[PAYMENT] Invoice vehicleid:', invoice.vehicleid);
     if (!invoice.vehicleid) {
       setError('Error: Vehicle information not found for this invoice. Cannot process payment.');
       setTimeout(() => setError(null), 4000);
       return;
     }
+    console.log('[PAYMENT] Setting selected invoice and opening modal');
     setSelectedInvoiceForPayment(invoice);
     setShowPaymentModal(true);
   };

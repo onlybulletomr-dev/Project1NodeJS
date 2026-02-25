@@ -16,6 +16,7 @@ const vehicleDetailRoutes = require('./routes/vehicleDetailRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const seedRoutes = require('./routes/seedRoutes');
 const authRoutes = require('./routes/authRoutes');
+const serviceRoutes = require('./routes/serviceRoutes');
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 5000;
@@ -37,6 +38,7 @@ app.use('/api', customerRoutes);
 app.use('/api', employeeRoutes);
 app.use('/api', invoiceRoutes);
 app.use('/api', itemRoutes);
+app.use('/api', serviceRoutes);
 app.use('/api', vehicleRoutes);
 app.use('/api', vehicleDetailRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -277,14 +279,17 @@ app.post('/admin/migrate/add-customerid', async (req, res) => {
       
       // Populate customerid from invoicemaster
       console.log('[Migration] Populating customerid from invoicemaster...');
-      const updateResult = await client.query(`
+      // Use dynamic SQL to handle column name
+      const updateQuery = `
         UPDATE vehicledetail vd
         SET customerid = im.customerid
         FROM invoicemaster im
-        WHERE vd."${pkColumn}" = im.vehicleid 
+        WHERE vd.${pkColumn} = im.vehicleid 
           AND vd.customerid IS NULL
           AND im.customerid IS NOT NULL
-      `);
+      `;
+      console.log('[Migration] Update query:', updateQuery);
+      const updateResult = await client.query(updateQuery);
       
       console.log(`[Migration] ✓ Updated ${updateResult.rowCount} records`);
       
@@ -295,12 +300,13 @@ app.post('/admin/migrate/add-customerid', async (req, res) => {
       `);
       
       // Get sample data
-      const sample = await client.query(`
-        SELECT "${pkColumn}" as vehicleid, registrationnumber, model, color, customerid
+      const sampleQuery = `
+        SELECT ${pkColumn} as vehicleid, registrationnumber, model, color, customerid
         FROM vehicledetail
         WHERE customerid IS NOT NULL AND deletedat IS NULL
         LIMIT 3
-      `);
+      `;
+      const sample = await client.query(sampleQuery);
       
       return res.status(200).json({
         success: true,

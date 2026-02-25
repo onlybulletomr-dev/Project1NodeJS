@@ -5,7 +5,9 @@ const PaymentDetail = require('../models/PaymentDetail');
 // Get all unpaid and partially paid invoices
 exports.getUnpaidInvoices = async (req, res) => {
   try {
+    console.log('=== GET UNPAID INVOICES REQUEST ===');
     const userId = req.headers['x-user-id'] || 1;
+    console.log('User ID:', userId);
 
     // Get user's branch first
     const userQuery = `
@@ -14,6 +16,7 @@ exports.getUnpaidInvoices = async (req, res) => {
     `;
     const userResult = await pool.query(userQuery, [userId]);
     const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
+    console.log('User Branch ID:', userBranchID);
 
     const query = `
       SELECT 
@@ -39,14 +42,22 @@ exports.getUnpaidInvoices = async (req, res) => {
       ORDER BY im.createdat DESC
     `;
     
+    console.log('Executing query with userBranchID:', userBranchID);
     const result = await pool.query(query, [userBranchID]);
+    console.log('Query result rows:', result.rows.length);
+    console.log('[PAYMENT API] Unpaid invoices result:');
+    result.rows.forEach(row => {
+      console.log(`  Invoice: ${row.invoicenumber}, VehicleID: ${row.vehicleid}, VehicleNumber: ${row.vehiclenumber}`);
+    });
     res.status(200).json({
       success: true,
       data: result.rows,
       message: 'Unpaid invoices retrieved successfully'
     });
   } catch (error) {
-    console.error('Error fetching unpaid invoices:', error);
+    console.error('=== ERROR fetching unpaid invoices ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch unpaid invoices',
@@ -78,25 +89,57 @@ exports.getUnpaidInvoicesByVehicle = async (req, res) => {
     const userResult = await pool.query(userQuery, [userId]);
     const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
 
-    // First get vehicle details from vehicledetail table and join with invoice to get customer
-    const vehicleQuery = `
-      SELECT 
-        vd.vehicleid, 
-        vd.registrationnumber as vehiclenumber, 
-        vd.model as vehiclemodel, 
-        vd.color as vehiclecolor,
-        TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')) as customername,
-        cm.mobilenumber1
-      FROM vehicledetail vd
-      INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
-      LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
-      WHERE vd.vehicleid = $1 AND vd.deletedat IS NULL
-      LIMIT 1
-    `;
-    const vehicleResult = await pool.query(vehicleQuery, [vehicleId]);
-    const vehicleData = vehicleResult.rows[0];
+    // First get vehicle details directly from vehicledetail table
+    // Handle both Render schema (vehicleid, registrationnumber) and Local schema (vehicledetailid, vehiclenumber)
+    let vehicleData = null;
     
-    console.log('[PAYMENT API] Vehicle Data from query:', vehicleData);
+    try {
+      // Try Render schema first (vehicleid, registrationnumber, model, color)
+      const vehicleQuery = `
+        SELECT 
+          vehicleid, 
+          registrationnumber as vehiclenumber, 
+          model as vehiclemodel, 
+          color as vehiclecolor
+        FROM vehicledetail
+        WHERE vehicleid = $1 AND deletedat IS NULL
+        LIMIT 1
+      `;
+      console.log('[PAYMENT API] Trying Render schema for vehicleId:', vehicleId);
+      const vehicleResult = await pool.query(vehicleQuery, [vehicleId]);
+      if (vehicleResult.rows.length > 0) {
+        vehicleData = vehicleResult.rows[0];
+        console.log('[PAYMENT API] Found vehicle using Render schema:', vehicleData);
+      } else {
+        throw new Error('Not found in Render schema, trying local schema');
+      }
+    } catch (renderError) {
+      try {
+        // Try local schema (vehicledetailid, vehiclenumber, vehiclemodel, vehiclecolor)
+        const localQuery = `
+          SELECT 
+            vehicledetailid as vehicleid, 
+            vehiclenumber, 
+            vehiclemodel, 
+            vehiclecolor
+          FROM vehicledetail
+          WHERE vehicledetailid = $1 AND deletedat IS NULL
+          LIMIT 1
+        `;
+        console.log('[PAYMENT API] Trying local schema for vehicleId:', vehicleId);
+        const localResult = await pool.query(localQuery, [vehicleId]);
+        if (localResult.rows.length > 0) {
+          vehicleData = localResult.rows[0];
+          console.log('[PAYMENT API] Found vehicle using local schema:', vehicleData);
+        } else {
+          console.log('[PAYMENT API] Vehicle not found in either schema');
+        }
+      } catch (localError) {
+        console.error('[PAYMENT API] Error trying local schema:', localError.message);
+      }
+    }
+    
+    console.log('[PAYMENT API] Final vehicle data being returned:', vehicleData);
 
     // Then get all unpaid and partially paid invoices for this vehicle
     const invoicesQuery = `
@@ -127,11 +170,21 @@ exports.getUnpaidInvoicesByVehicle = async (req, res) => {
     
     console.log('[PAYMENT API] Invoices found:', invoicesResult.rows.length);
     console.log('[PAYMENT API] Response sending - Vehicle data exists:', !!vehicleData);
+    
+    // If vehicle data not found, use first invoice's vehicle info as fallback
+    const finalVehicleData = vehicleData || (invoicesResult.rows.length > 0 ? {
+      vehicleid: invoicesResult.rows[0].vehicleid,
+      vehiclenumber: invoicesResult.rows[0].vehiclenumber,
+      vehiclemodel: 'N/A',
+      vehiclecolor: 'N/A'
+    } : { vehiclenumber: 'N/A' });
+    
+    console.log('[PAYMENT API] Final vehicle data being sent:', finalVehicleData);
 
     res.status(200).json({
       success: true,
       data: {
-        vehicle: vehicleData || { vehiclenumber: 'N/A' },
+        vehicle: finalVehicleData,
         invoices: invoicesResult.rows
       },
       message: 'Unpaid invoices for vehicle retrieved successfully'
@@ -229,7 +282,13 @@ exports.updatePaymentStatus = async (req, res) => {
     const result = await pool.query(query, [finalPaymentStatus, paymentDateValue, updatedAt, userId, InvoiceID]);
 
     // If payment status is "Paid" or "Partial" and we have amount, record payment details
+    console.log('[CONDITION-CHECK] About to check if payment detail should be created:');
+    console.log('[CONDITION-CHECK] finalPaymentStatus:', finalPaymentStatus, '| Is Paid/Partial?', (finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial'));
+    console.log('[CONDITION-CHECK] Amount:', Amount, '| Truthy?', !!Amount);
+    console.log('[CONDITION-CHECK] PaymentMethodID:', PaymentMethodID, '| Truthy?', !!PaymentMethodID);
+    
     if ((finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial') && Amount && PaymentMethodID) {
+      console.log('[CONDITION-PASSED] YES - Creating payment detail record...');
       try {
         // Get user's branch information
         const userQuery = `
@@ -245,18 +304,8 @@ exports.updatePaymentStatus = async (req, res) => {
         console.log('[DEBUG-CALC] Invoice amount from DB:', invoiceAmount, 'Type:', typeof invoiceAmount);
         console.log('[DEBUG-CALC] Total Amount from request:', Amount, 'Type:', typeof Amount);
 
-        // Validate vehicleID exists in vehicledetail table
-        if (vehicleID) {
-          const vehicleCheckQuery = `
-            SELECT vehicleid FROM vehicledetail 
-            WHERE vehicleid = $1 AND deletedat IS NULL
-          `;
-          const vehicleCheckResult = await pool.query(vehicleCheckQuery, [vehicleID]);
-          if (vehicleCheckResult.rows.length === 0) {
-            console.log(`[WARNING] Vehicle ID ${vehicleID} does not exist in vehicledetail table. Setting to NULL.`);
-            vehicleID = null;
-          }
-        }
+        // VehicleID is used directly from invoice (validated by FK constraint)
+        const finalVehicleID = vehicleID || null;
 
         // Calculate the invoice payment amount (capped at invoice amount)
         const invoicePaymentAmount = Math.min(Number(Amount), Number(invoiceAmount));
@@ -265,7 +314,7 @@ exports.updatePaymentStatus = async (req, res) => {
         // Create payment detail record for actual payment against invoice
         const paymentDetailData = {
           invoiceid: InvoiceID,
-          vehicleid: vehicleID,
+          vehicleid: finalVehicleID,
           paymentmethodid: PaymentMethodID,
           processedbyuserid: userId,
           branchid: userBranchID,
@@ -280,9 +329,10 @@ exports.updatePaymentStatus = async (req, res) => {
           createdby: userId
         };
 
-        console.log('[DEBUG] Creating regular payment record with amount:', invoicePaymentAmount);
+        console.log('[DEBUG] Creating regular payment record with amount:', invoicePaymentAmount, 'vehicleID:', finalVehicleID);
         const paymentDetailRecord = await PaymentDetail.create(paymentDetailData);
         console.log('[SUCCESS] Regular payment recorded:', paymentDetailRecord);
+        console.log('[SUCCESS] Payment detail record saved to DB with ID:', paymentDetailRecord.paymentreceivedid || paymentDetailRecord.id);
 
         // Check if payment exceeds invoice amount (overpayment/advance)
         const overpaymentAmount = Number(Amount) - invoicePaymentAmount;
@@ -323,7 +373,7 @@ exports.updatePaymentStatus = async (req, res) => {
             // Record overpayment as advance payment with invoiceid = NULL (null marks advance)
             const advancePaymentData = {
               invoiceid: null,  // NULL marks advance payment (not tied to specific invoice)
-              vehicleid: vehicleID,
+              vehicleid: finalVehicleID,
               paymentmethodid: PaymentMethodID,
               processedbyuserid: userId,
               branchid: userBranchID,
@@ -354,6 +404,11 @@ exports.updatePaymentStatus = async (req, res) => {
         // Don't fail the payment status update if payment detail recording fails
         // Just log the error
       }
+    } else {
+      console.log('[CONDITION-FAILED] NO - Payment detail NOT created. One or more conditions failed:');
+      console.log('[CONDITION-FAILED] finalPaymentStatus is Paid/Partial?', (finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial'));
+      console.log('[CONDITION-FAILED] Amount is truthy?', !!Amount);
+      console.log('[CONDITION-FAILED] PaymentMethodID is truthy?', !!PaymentMethodID);
     }
 
     res.status(200).json({

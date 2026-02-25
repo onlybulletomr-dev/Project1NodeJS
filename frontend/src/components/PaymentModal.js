@@ -32,12 +32,23 @@ function PaymentModal({
     console.log('[PAYMENT MODAL] Fetching invoices for vehicleId:', vehicleId);
     try {
       const result = await getUnpaidInvoicesByVehicle(vehicleId);
-      console.log('[PAYMENT MODAL] API Response:', result);
+      console.log('[PAYMENT MODAL] Full API Response:', result);
+      console.log('[PAYMENT MODAL] Result data:', result.data);
       if (result.success) {
-        console.log('[PAYMENT MODAL] Vehicle Data:', result.data.vehicle);
-        console.log('[PAYMENT MODAL] Invoices:', result.data.invoices);
-        setVehicleData(result.data.vehicle);
-        setInvoices(result.data.invoices || []);
+        const vehicleInfo = result.data?.vehicle;
+        const invoicesList = result.data?.invoices || [];
+        console.log('[PAYMENT MODAL] Vehicle Data:', vehicleInfo);
+        console.log('[PAYMENT MODAL] Invoices:', invoicesList);
+        console.log('[PAYMENT MODAL] Invoices length:', invoicesList.length);
+        
+        // Log first invoice if available
+        if (invoicesList.length > 0) {
+          console.log('[PAYMENT MODAL] First invoice:', invoicesList[0]);
+          console.log('[PAYMENT MODAL] First invoice vehiclenumber:', invoicesList[0].vehiclenumber);
+        }
+        
+        setVehicleData(vehicleInfo || {});
+        setInvoices(invoicesList);
         setError(null);
       } else {
         console.error('[PAYMENT MODAL] API Error:', result.message);
@@ -45,6 +56,8 @@ function PaymentModal({
       }
     } catch (err) {
       console.error('[PAYMENT MODAL] Exception:', err);
+      console.error('[PAYMENT MODAL] Exception message:', err.message);
+      console.error('[PAYMENT MODAL] Exception stack:', err.stack);
       setError('Error fetching invoices: ' + err.message);
     } finally {
       setLoading(false);
@@ -226,15 +239,16 @@ function PaymentModal({
           </div>
         ) : (
           <>
+            {console.log('[PAYMENT MODAL RENDER] vehicleData:', vehicleData, 'invoices:', invoices.length, 'vehicleId prop:', vehicleId)}
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <h2 style={{ margin: 0 }}>💳 Payment</h2>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#333', marginBottom: 8 }}>
-                    Vehicle: <span style={{ color: '#2196F3', fontSize: 16 }}>{vehicleData?.vehiclenumber || invoices[0]?.vehiclenumber || 'N/A'}</span>
+                    | Vehicle: <span style={{ color: '#2196F3', fontSize: 16 }}>{vehicleData?.vehiclenumber || invoices[0]?.vehiclenumber || 'N/A'}</span>
                   </div>
                   <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>
-                    {vehicleData?.vehiclemodel || 'N/A'} {vehicleData?.vehiclecolor && `(${vehicleData.vehiclecolor})`}
+                    <span style={{ color: '#666', fontSize: 13 }}>{invoices[0]?.customername || 'N/A'}, {invoices[0]?.phonenumber || 'N/A'}</span>, {vehicleData?.vehiclemodel ? `${vehicleData.vehiclemodel}${vehicleData?.vehiclecolor ? ` (${vehicleData.vehiclecolor})` : ''}` : 'N/A'}
                   </div>
                 </div>
               </div>
@@ -250,20 +264,22 @@ function PaymentModal({
               </div>
             </div>
             
+            {/* 80% Width Container for Form Fields */}
+            <div style={{ width: '80%', margin: '0 auto' }}>
             {/* Payment Method Dropdown and Amount Input */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 15, alignItems: 'center' }}>
               {/* Payment Method Dropdown */}
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Payment Method:</label>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>Payment Method:</label>
                 <select
                   value={selectedPaymentMethod}
                   onChange={e => setSelectedPaymentMethod(e.target.value)}
                   style={{
-                    width: '100%',
-                    padding: 10,
+                    flex: 1,
+                    padding: 8,
                     border: '1px solid #ddd',
                     borderRadius: 4,
-                    fontSize: 14,
+                    fontSize: 12,
                     backgroundColor: '#fff'
                   }}
                 >
@@ -277,89 +293,95 @@ function PaymentModal({
               </div>
 
               {/* Payment Amount Input */}
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Amount:</label>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>Amount:</label>
                 <input
                   type="number"
                   placeholder="Enter amount"
                   value={paymentAmount}
                   onChange={e => handleTotalAmountChange(e.target.value)}
                   style={{
-                    width: '100%',
-                    padding: 10,
+                    flex: 1,
+                    padding: 8,
                     border: '1px solid #ddd',
                     borderRadius: 4,
-                    fontSize: 14,
+                    fontSize: 12,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
             </div>
 
-            {/* Remaining Balance Display */}
+            {/* Remaining Balance Display + Transaction Reference and Notes */}
             {paymentAmount && (
-              <div style={{ padding: 10, background: '#f5f5f5', borderRadius: 4, marginBottom: 20 }}>
-                <div style={{ marginBottom: 4 }}>Total Amount: <strong>₹{Number(paymentAmount).toFixed(2)}</strong></div>
-                <div>Allocated: <strong>₹{Number(Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
-                <div>Unallocated: <strong style={{ color: Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0) < 0 ? '#d32f2f' : '#666' }}>₹{Number(Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
+              <div style={{ display: 'flex', gap: 20, marginBottom: 15, alignItems: 'flex-start' }}>
+                {/* Left: Balance Display */}
+                <div style={{ flex: 1, padding: 8, background: '#f5f5f5', borderRadius: 4 }}>
+                  <div style={{ marginBottom: 3, fontSize: 11 }}>Total Amount: <strong>₹{Number(paymentAmount).toFixed(2)}</strong></div>
+                  <div style={{ marginBottom: 3, fontSize: 11 }}>Allocated: <strong>₹{Number(Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
+                  <div style={{ fontSize: 11 }}>Unallocated: <strong style={{ color: Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0) < 0 ? '#d32f2f' : '#666' }}>₹{Number(Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
+                </div>
+                
+                {/* Right: Transaction Reference and Notes */}
+                <div style={{ flex: 1.2 }}>
+                  {/* Transaction Reference - Label and Input in Same Line */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <label style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', minWidth: 100 }}>Transaction Ref:</label>
+                    <input
+                      type="text"
+                      placeholder="(Optional) Cheque/Reference number"
+                      value={transactionReference}
+                      onChange={e => setTransactionReference(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: 8,
+                        border: '1px solid #ddd',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        boxSizing: 'border-box',
+                        minHeight: 9
+                      }}
+                    />
+                  </div>
+
+                  {/* Notes - Label and Textarea in Same Line */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <label style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', minWidth: 100, paddingTop: 8 }}>Notes:</label>
+                    <textarea
+                      placeholder="(Optional) Additional payment notes"
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: 8,
+                        border: '1px solid #ddd',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        boxSizing: 'border-box',
+                        minHeight: 7,
+                        fontFamily: 'Arial, sans-serif',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Transaction Reference and Notes */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Transaction Reference:</label>
-                <input
-                  type="text"
-                  placeholder="(Optional) Cheque/Reference number"
-                  value={transactionReference}
-                  onChange={e => setTransactionReference(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 4,
-                    fontSize: 14,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Notes:</label>
-              <textarea
-                placeholder="(Optional) Additional payment notes"
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: 10,
-                  border: '1px solid #ddd',
-                  borderRadius: 4,
-                  fontSize: 14,
-                  boxSizing: 'border-box',
-                  minHeight: 60,
-                  fontFamily: 'Arial, sans-serif'
-                }}
-              />
-            </div>
-
-            <p style={{ marginBottom: 12, color: '#666', fontSize: 14, fontWeight: 600 }}>Allocate payment to invoices:</p>
+            <p style={{ marginBottom: 10, color: '#666', fontSize: 12, fontWeight: 600 }}>Allocate payment to invoices:</p>
             
             {/* Invoices List with Individual Payment Inputs */}
-            <div style={{ marginBottom: 20, border: '1px solid #ddd', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
+            <div style={{ marginBottom: 15, border: '1px solid #ddd', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
               {/* Header Row */}
               <div style={{
-                padding: 10,
+                padding: 8,
                 background: '#f9f9f9',
                 borderBottom: '2px solid #ddd',
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr 1fr',
-                gap: 8,
+                gap: 6,
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: 11,
                 color: '#333'
               }}>
                 <div>Invoice Number</div>
@@ -369,7 +391,7 @@ function PaymentModal({
               
               {/* Data Rows */}
               {invoices.length === 0 ? (
-                <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>
+                  <div style={{ padding: 15, textAlign: 'center', color: '#999', fontSize: 12 }}>
                   No pending invoices for this vehicle
                 </div>
               ) : (
@@ -377,17 +399,17 @@ function PaymentModal({
                   <div
                     key={invoice.invoiceid}
                     style={{
-                      padding: 10,
+                      padding: 8,
                       borderBottom: '1px solid #eee',
                       display: 'grid',
                       gridTemplateColumns: '1fr 1fr 1fr',
-                      gap: 8,
+                      gap: 6,
                       alignItems: 'center',
                       background: '#fff'
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{invoice.invoicenumber}</div>
-                    <div style={{ textAlign: 'right', fontSize: 13, color: '#2196F3', fontWeight: 600 }}>
+                    <div style={{ fontWeight: 600, fontSize: 11 }}>{invoice.invoicenumber}</div>
+                    <div style={{ textAlign: 'right', fontSize: 11, color: '#2196F3', fontWeight: 600 }}>
                       ₹{Number(invoice.amounttobepaid || invoice.totalamount || invoice.amount || 0).toFixed(2)}
                     </div>
                     <input
@@ -397,10 +419,10 @@ function PaymentModal({
                       onChange={e => handlePaymentAmountChange(invoice.invoiceid, e.target.value)}
                       style={{
                         width: '100%',
-                        padding: 6,
+                        padding: 5,
                         border: '1px solid #ddd',
                         borderRadius: 4,
-                        fontSize: 13,
+                        fontSize: 11,
                         boxSizing: 'border-box'
                       }}
                     />
@@ -410,17 +432,17 @@ function PaymentModal({
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={handleClose}
                 style={{
                   flex: 1,
-                  padding: 10,
+                  padding: 8,
                   background: '#999',
                   color: '#fff',
                   border: 'none',
                   borderRadius: 4,
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
@@ -432,18 +454,19 @@ function PaymentModal({
                 disabled={!isPaymentValid}
                 style={{
                   flex: 1,
-                  padding: 10,
+                  padding: 8,
                   background: !isPaymentValid ? '#ccc' : '#4CAF50',
                   color: '#fff',
                   border: 'none',
                   borderRadius: 4,
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: 600,
                   cursor: !isPaymentValid ? 'not-allowed' : 'pointer'
                 }}
               >
                 Process Payment
               </button>
+            </div>
             </div>
           </>
         )}

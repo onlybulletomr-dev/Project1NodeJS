@@ -6,7 +6,7 @@ class ItemMaster {
       const result = await pool.query(
         `SELECT itemid, partnumber, itemname, uom, mrp
          FROM itemmaster 
-         WHERE partnumber ILIKE $1 OR itemname ILIKE $1
+         WHERE (partnumber ILIKE $1 OR itemname ILIKE $1)
          AND deletedat IS NULL
          LIMIT 20`,
         [`%${partnumber}%`]

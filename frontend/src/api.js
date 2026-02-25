@@ -2,16 +2,19 @@ import axios from 'axios';
 
 // Dynamically determine API URL based on environment
 const getAPIBaseURL = () => {
-  // If environment variable is set, use it (for Render deployment)
-  if (process.env.REACT_APP_API_URL) {
-    console.log('[API] Using REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
-    return process.env.REACT_APP_API_URL;
+  console.log('[API] Current hostname:', window.location.hostname);
+  
+  // If running on localhost, use localhost (check this FIRST - highest priority)
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const localURL = 'http://localhost:5000/api';
+    console.log('[API] ✓ Using localhost URL:', localURL);
+    return localURL;
   }
   
-  // If running on localhost, use localhost
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    console.log('[API] Using localhost URL');
-    return 'http://localhost:5000/api';
+  // If environment variable is set, use it (for Render deployment)
+  if (process.env.REACT_APP_API_URL) {
+    console.log('[API] ✓ Using REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+    return process.env.REACT_APP_API_URL;
   }
   
   // For Render or other production domains, construct backend URL
@@ -19,13 +22,14 @@ const getAPIBaseURL = () => {
   if (window.location.hostname.includes('onrender.com')) {
     // Replace 'frontend' with 'backend' in the domain name
     const backendURL = `${window.location.protocol}//${window.location.hostname.replace('frontend', 'backend')}/api`;
-    console.log('[API] Using constructed Render backend URL:', backendURL);
+    console.log('[API] ✓ Using constructed Render backend URL:', backendURL);
     return backendURL;
   }
   
   // Fallback
-  console.log('[API] Using default localhost URL');
-  return 'http://localhost:5000/api';
+  const fallbackURL = 'http://localhost:5000/api';
+  console.log('[API] ✓ Using default localhost URL:', fallbackURL);
+  return fallbackURL;
 };
 
 const API_BASE_URL = getAPIBaseURL();
@@ -651,7 +655,13 @@ export const getPaymentSummary = async () => {
 
 export const updatePaymentStatus = async (invoiceId, paymentData) => {
   try {
+    console.log('[API REQUEST] updatePaymentStatus:', {
+      invoiceId,
+      paymentData,
+      url: `${API_BASE_URL}/payments/${invoiceId}`
+    });
     const response = await axios.put(`${API_BASE_URL}/payments/${invoiceId}`, paymentData);
+    console.log('[API RESPONSE] updatePaymentStatus:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error updating payment status:', error);

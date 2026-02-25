@@ -24,28 +24,35 @@ async function generateInvoiceNumber(pool, branchId) {
   const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const month = monthNames[now.getMonth()];
   
-  // Get today's date in YYYY-MM-DD format
-  const today = now.toISOString().split('T')[0];
+  // Build prefix for pattern matching
+  const prefix = `INV${branchCode}${year}${month}`;
   
-  // Count invoices created today for this branch to get sequence number
-  const countQuery = `
-    SELECT COUNT(*) as count FROM invoicemaster 
-    WHERE branchid = $1 AND DATE(createdat) = $2 AND deletedat IS NULL
+  // Find the maximum sequence number for this prefix (not just today)
+  const maxSeqQuery = `
+    SELECT 
+      CAST(SUBSTRING(invoicenumber, LENGTH($1) + 1) AS INTEGER) as seq
+    FROM invoicemaster 
+    WHERE invoicenumber LIKE $2 AND deletedat IS NULL
+    ORDER BY seq DESC
+    LIMIT 1
   `;
-  const countResult = await pool.query(countQuery, [branchId, today]);
-  const sequenceNumber = (countResult.rows[0].count + 1).toString().padStart(3, '0');
+  const maxSeqResult = await pool.query(maxSeqQuery, [prefix, prefix + '%']);
+  const maxSequence = maxSeqResult.rows.length > 0 ? maxSeqResult.rows[0].seq : 0;
+  const sequenceNumber = (maxSequence + 1).toString().padStart(3, '0');
   
-  const invoiceNumber = `INV${branchCode}${year}${month}${sequenceNumber}`;
-  console.log(`Generated invoice number: ${invoiceNumber} (BranchCode: ${branchCode}, Year: ${year}, Month: ${month}, Seq: ${sequenceNumber})`);
+  const invoiceNumber = `${prefix}${sequenceNumber}`;
+  console.log(`Generated invoice number: ${invoiceNumber} (BranchCode: ${branchCode}, Year: ${year}, Month: ${month}, Seq: ${sequenceNumber}, MaxSeq: ${maxSequence})`);
   return invoiceNumber;
 }
 
 exports.saveInvoice = async (req, res) => {
   try {
-    console.log('Invoice save request received:', req.body);
+    console.log('=== INVOICE SAVE REQUEST ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
     
     // Get user ID from header
     const userId = req.headers['x-user-id'] || 1;
+    console.log('User ID:', userId);
 
     // Get user's branch from database
     const pool = require('../config/db');
@@ -55,6 +62,7 @@ exports.saveInvoice = async (req, res) => {
     `;
     const userResult = await pool.query(userQuery, [userId]);
     const userBranchId = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
+    console.log('User Branch ID:', userBranchId);
 
     if (!userBranchId || !userId) {
       return res.status(401).json({

@@ -1,39 +1,27 @@
 import React, { useState } from 'react';
-import { searchEmployees, searchItems, saveInvoice, getPaymentMethods, getNextInvoiceNumber, getCustomers, getVehicles, getAllVehicleDetails, getAllEmployees, getAllItems, searchItemsAndServices, getCompanies, getCompanyById, getBranchId } from '../api';
+import { searchEmployees, saveInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, getAllItems, searchItemsAndServices, getCompanies, getCompanyById, getBranchId } from '../api';
 
 // Search all vehicles by vehicle number and return with customer details
 async function searchVehiclesByNumber(query) {
   if (!query || query.length < 2) return []; // Require at least 2 characters
   
   try {
-    // Fetch all vehicle details and customers
     const [vehiclesRes, customersRes] = await Promise.all([
       getAllVehicleDetails(),
       getCustomers()
     ]);
     
-    console.log('Vehicle response:', vehiclesRes);
-    console.log('Customers response:', customersRes);
-    
-    // Extract arrays from responses
     const allVehicles = Array.isArray(vehiclesRes) ? vehiclesRes : (vehiclesRes?.data || []);
     const allCustomers = Array.isArray(customersRes) ? customersRes : (customersRes?.data || []);
     
-    console.log('Extracted allVehicles:', allVehicles);
-    console.log('Extracted allCustomers:', allCustomers);
-    
     if (!Array.isArray(allVehicles)) {
-      console.log('allVehicles is not an array, returning []');
       return [];
     }
     
-    // Create customer lookup map
     const customerMap = {};
     allCustomers?.forEach(c => {
       customerMap[c.CustomerID] = c;
     });
-    
-    console.log('Customer map:', customerMap);
     
     // Filter by vehicle number and enhance with customer data
     const results = allVehicles
@@ -59,111 +47,49 @@ async function searchVehiclesByNumber(query) {
 }
 
 export default function InvoiceMaster() {
-  // Item search dropdown navigation state
-  const [itemPopupIndex, setItemPopupIndex] = useState(-1);
-  // JobCard input state
-  const [jobCardInput, setJobCardInput] = useState('');
-  // Staff dropdown navigation state (per field)
-  const [staffPopupIndex, setStaffPopupIndex] = useState({
-    technician1: -1, technician2: -1, serviceadvisor: -1, deliveryadvisor: -1, testdriver: -1, cleaner: -1, waterwash: -1
-  });
-  // Staff input refs (for focus management)
-  const staffInputRefs = {
-    technician1: React.useRef(null),
-    technician2: React.useRef(null),
-    serviceadvisor: React.useRef(null),
-    deliveryadvisor: React.useRef(null),
-    testdriver: React.useRef(null),
-    cleaner: React.useRef(null),
-    waterwash: React.useRef(null)
-  };
-
-    // Ref for qty input
-    const qtyInputRef = React.useRef(null);
-    const itemPopupRef = React.useRef(null);
-    const itemInputRef = React.useRef(null);
-    const itemRowRefs = React.useRef({});
-    // Invoice grid state
-    const [itemInput, setItemInput] = useState('');
-    const [itemResults, setItemResults] = useState([]);
-    const [showItemPopup, setShowItemPopup] = useState(false);
-    const [itemPopupPosition, setItemPopupPosition] = useState({ top: 0, left: 0 });
-    const [qtyInput, setQtyInput] = useState('');
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [gridRows, setGridRows] = useState([]);
-    // Notes, staff, odometer, totals state
-    const [notes, setNotes] = useState('');
-    const [odometer, setOdometer] = useState('');
+    // --- State hooks for all variables used in this component ---
+    const [allEmployees, setAllEmployees] = useState([]);
+    const [allItems, setAllItems] = useState([]);
+    const [invoiceRunningNumber, setInvoiceRunningNumber] = useState(1);
+    const [invoiceYearMonth, setInvoiceYearMonth] = useState('');
+    const [branchCode, setBranchCode] = useState('');
+    const [previewInvoiceNumber, setPreviewInvoiceNumber] = useState('');
+    const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState('');
+    const [invoiceDate, setInvoiceDate] = useState('');
+    const [jobCardInput, setJobCardInput] = useState('');
     const [staffFields, setStaffFields] = useState({
       technician1: '', technician2: '', serviceadvisor: '', deliveryadvisor: '', testdriver: '', cleaner: '', waterwash: ''
     });
-    // Staff search popup/results state
     const [staffResults, setStaffResults] = useState({
       technician1: [], technician2: [], serviceadvisor: [], deliveryadvisor: [], testdriver: [], cleaner: [], waterwash: []
     });
     const [showStaffPopup, setShowStaffPopup] = useState({
       technician1: false, technician2: false, serviceadvisor: false, deliveryadvisor: false, testdriver: false, cleaner: false, waterwash: false
     });
-    const [selectedStaff, setSelectedStaff] = useState({
+    const [, setSelectedStaff] = useState({
       technician1: null, technician2: null, serviceadvisor: null, deliveryadvisor: null, testdriver: null, cleaner: null, waterwash: null
     });
-    const [allEmployees, setAllEmployees] = useState([]);
-    const [allItems, setAllItems] = useState([]);
-    const [gsChecked, setGsChecked] = useState(false);
-    // Discount state
+    const [staffPopupIndex, setStaffPopupIndex] = useState({
+      technician1: -1, technician2: -1, serviceadvisor: -1, deliveryadvisor: -1, testdriver: -1, cleaner: -1, waterwash: -1
+    });
+    const [itemInput, setItemInput] = useState('');
+    const [itemResults, setItemResults] = useState([]);
+    const [showItemPopup, setShowItemPopup] = useState(false);
+    const [itemPopupIndex, setItemPopupIndex] = useState(-1);
+    const [itemPopupPosition, setItemPopupPosition] = useState({ top: 0, left: 0 });
+    const [qtyInput, setQtyInput] = useState('');
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [gridRows, setGridRows] = useState([]);
+    const [notes, setNotes] = useState('');
+    const [odometer, setOdometer] = useState('');
     const [discount, setDiscount] = useState('');
-    // Invoice running number state - resets each month AND year
-    // Tracks YYMMM format (e.g., "26FEB", "27JAN") to detect both month and year changes
-    const getCurrentYearMonth = () => {
-      const now = new Date();
-      const year = now.getFullYear().toString().slice(-2);
-      const month = now.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-      return `${year}${month}`;
-    };
-    const [invoiceRunningNumber, setInvoiceRunningNumber] = useState(1);
-    const [invoiceYearMonth, setInvoiceYearMonth] = useState(getCurrentYearMonth());
-    // Generated invoice number and date from backend
-    const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState(null);
-    const [previewInvoiceNumber, setPreviewInvoiceNumber] = useState(null);
-    const [invoiceDate, setInvoiceDate] = useState(null);
-    // Branch code from company master
-    const [branchCode, setBranchCode] = useState('');
-    // Payment popup state
-    const [showPaymentPopup, setShowPaymentPopup] = useState(false);
-    const [openInvoices, setOpenInvoices] = useState([]);
-    const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
-    const [paymentAmount, setPaymentAmount] = useState('');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
-    const [paymentMethods, setPaymentMethods] = useState([]);
-    const [invoicePaymentAmounts, setInvoicePaymentAmounts] = useState({});
-    
-    // Fetch payment methods on component mount
-    React.useEffect(() => {
-      const fetchPaymentMethods = async () => {
-        try {
-          const response = await getPaymentMethods();
-          const methods = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
-          const formatted = methods.map(method => ({
-            id: method.paymentmethodid,
-            paymentmethodname: method.methodname
-          }));
-          setPaymentMethods(formatted);
-        } catch (error) {
-          console.error('Error fetching payment methods:', error);
-          // Fallback to default methods if API fails
-          setPaymentMethods([
-            { id: 1, paymentmethodname: 'Cash' },
-            { id: 2, paymentmethodname: 'Check' },
-            { id: 3, paymentmethodname: 'Credit Card' },
-            { id: 4, paymentmethodname: 'Debit Card' },
-            { id: 5, paymentmethodname: 'Bank Transfer' },
-            { id: 6, paymentmethodname: 'Online Payment' },
-            { id: 7, paymentmethodname: 'Digital Wallet' }
-          ]);
-        }
-      };
-      fetchPaymentMethods();
-    }, []);
+    const [gsChecked, setGsChecked] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const itemRowRefs = React.useRef({});
+    const qtyInputRef = React.useRef(null);
+    const itemPopupRef = React.useRef(null);
+    const itemInputRef = React.useRef(null);
+
 
     // Load all employees for dropdown selection
     React.useEffect(() => {
@@ -277,26 +203,7 @@ export default function InvoiceMaster() {
       }
     }, [invoiceRunningNumber, invoiceYearMonth, branchCode]);
 
-    // Auto-allocate payment amount starting from the latest invoice
-    React.useEffect(() => {
-      if (!paymentAmount || Number(paymentAmount) <= 0 || openInvoices.length === 0) {
-        setInvoicePaymentAmounts({});
-        return;
-      }
-
-      const newAllocations = {};
-      let remainingAmount = Number(paymentAmount);
-
-      // Iterate from the first invoice to the last (invoices are already sorted with latest first)
-      for (let i = 0; i < openInvoices.length && remainingAmount > 0; i++) {
-        const invoice = openInvoices[i];
-        const allocateAmount = Math.min(remainingAmount, invoice.amount);
-        newAllocations[invoice.invoiceid] = allocateAmount;
-        remainingAmount -= allocateAmount;
-      }
-
-      setInvoicePaymentAmounts(newAllocations);
-    }, [paymentAmount, openInvoices]);
+    // ...existing code...
 
     // Handle Enter key in qty input
     const handleQtyKeyDown = (e) => {
@@ -379,9 +286,6 @@ export default function InvoiceMaster() {
     // Total calculation
     const total = subtotal - validDiscount;
 
-    // Handle save invoice
-    const [isSaving, setIsSaving] = useState(false);
-    
     // Generate invoice number
     const generateInvoiceNumberForSave = async () => {
       try {
@@ -753,68 +657,7 @@ export default function InvoiceMaster() {
       ));
     };
 
-    // Handle payment popup open
-    const handleOpenPaymentPopup = async () => {
-      if (!selectedVehicle) {
-        alert('Please select a vehicle first');
-        return;
-      }
-      // TODO: Replace with real API call to fetch open invoices for this vehicle
-      // For now, mock data
-      const mockInvoices = [
-        { invoiceid: 1, invoicenumber: 'INV26FEB001', vehiclenumber: 'TN01AB1234', amount: 5000, duedate: '2026-03-01' },
-        { invoiceid: 2, invoicenumber: 'INV26FEB002', vehiclenumber: 'TN01AB1234', amount: 3500, duedate: '2026-03-05' },
-        { invoiceid: 3, invoicenumber: 'INV26FEB003', vehiclenumber: 'TN01AB1234', amount: 2000, duedate: '2026-03-10' }
-      ];
-      // Sort invoices by invoiceid in descending order (latest first)
-      const sortedInvoices = mockInvoices.sort((a, b) => b.invoiceid - a.invoiceid);
-      setOpenInvoices(sortedInvoices);
-      setShowPaymentPopup(true);
-      setSelectedInvoiceForPayment(null);
-      setPaymentAmount('');
-      setSelectedPaymentMethod('');
-      setInvoicePaymentAmounts({});
-    };
-
-    // Handle payment
-    const handlePayment = async () => {
-      if (!paymentAmount || Number(paymentAmount) <= 0) {
-        alert('Please enter a valid total payment amount');
-        return;
-      }
-      if (!selectedPaymentMethod) {
-        alert('Please select a payment method');
-        return;
-      }
-      
-      // Calculate sum of individual invoice payments
-      const totalInvoicePayments = Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0);
-      
-      if (totalInvoicePayments === 0) {
-        alert('Please enter payment amount for at least one invoice');
-        return;
-      }
-      
-      if (totalInvoicePayments > Number(paymentAmount)) {
-        alert(`Sum of invoice payments (₹${totalInvoicePayments}) cannot exceed total amount paid (₹${paymentAmount})`);
-        return;
-      }
-
-      // Check if total allocated is less than amount paid
-      if (totalInvoicePayments < Number(paymentAmount)) {
-        alert(`You have allocated ₹${totalInvoicePayments} out of ₹${paymentAmount} paid. Please allocate the remaining ₹${Number(paymentAmount) - totalInvoicePayments} or adjust the payment amount.`);
-        return;
-      }
-      
-      // TODO: Call API to process payments for each invoice
-      const paymentMethod = paymentMethods.find(m => m.id === parseInt(selectedPaymentMethod))?.paymentmethodname;
-      alert(`Payment of ₹${paymentAmount} via ${paymentMethod} processed successfully`);
-      setShowPaymentPopup(false);
-      setPaymentAmount('');
-      setSelectedInvoiceForPayment(null);
-      setSelectedPaymentMethod('');
-      setInvoicePaymentAmounts({});
-    };
+    // ...existing code...
 
   // Vehicle search state
   const [vehicleInput, setVehicleInput] = useState('');
@@ -901,118 +744,118 @@ export default function InvoiceMaster() {
   };
 
   return (
-    <div style={{ height: '100vh', width: '100vw', background: '#f8f9fa', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Top 18%: Vehicle and Invoice Info */}
-      <div style={{ flex: '0 0 18%', display: 'flex', borderBottom: '1px solid #ddd', background: '#fff', overflow: 'hidden' }}>
-        {/* Left: Vehicle Details */}
-        <div style={{ flex: 1, padding: '12px 16px', borderRight: '1px solid #eee', minWidth: 0 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>Vehicle Details</div>
-          
-          {/* Vehicle Number and JobCard - Same Line */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 8 }}>
-            {/* Vehicle Number Selection */}
-            <div style={{ position: 'relative', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>Vehicle *:</label>
-              <input
-                ref={vehicleInputRef}
-                type="text"
-                placeholder="Search vehicle"
-                value={vehicleInput}
-                onChange={handleVehicleInputChange}
-                onKeyDown={handleVehicleInputKeyDown}
-                onBlur={() => setTimeout(() => setShowVehiclePopup(false), 200)}
-                style={{ width: '140px', padding: 4, fontSize: 14 }}
-              />
-              {showVehiclePopup && (
-                <div ref={vehiclePopupRef} style={{ position: 'fixed', top: `${vehiclePopupPosition.top}px`, left: `${vehiclePopupPosition.left}px`, zIndex: 10000, background: '#fff', border: '1px solid #ccc', width: '750px', maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                  {vehicleResults.map((v, i) => (
-                    <div
-                      ref={el => vehicleItemRefs.current[i] = el}
-                      key={v.vehicledetailid || v.vehicleid}
-                      style={{ padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid #eee', background: i === vehiclePopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff'), fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                      onClick={() => handleSelectVehicle(v)}
-                      title={`${v.vehiclenumber} - ${v.vehiclemodel} (${v.vehiclecolor}) | ${v.customername || 'N/A'} | ${v.mobilenumber1 || v.MobileNumber1 || '-'}`}
-                    >
-                      <span style={{ fontWeight: 500 }}>{v.vehiclenumber}</span> - <span>{v.vehiclemodel}</span> (<span>{v.vehiclecolor}</span>) | <span style={{ color: '#666' }}>{v.customername || 'N/A'}</span> | <span style={{ color: '#666' }}>{v.mobilenumber1 || v.MobileNumber1 || '-'}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+    <>
+      <div style={{ height: '100vh', width: '100vw', background: '#f8f9fa', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Top 18%: Vehicle and Invoice Info */}
+        <div style={{ flex: '0 0 auto', display: 'flex', borderBottom: '1px solid #ddd', background: '#fff', overflow: 'hidden' }}>
+          {/* Left: Vehicle Details */}
+          <div style={{ flex: 1, padding: '8px 12px', borderRight: '1px solid #eee', minWidth: 0 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 14 }}>Vehicle Details</div>
+            
+            {/* All inputs on ONE LINE: Vehicle, JobCard, KMs */}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 6 }}>
+              {/* Vehicle Number Selection */}
+              <div style={{ position: 'relative', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <label style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>Vehicle *:</label>
+                <input
+                  ref={vehicleInputRef}
+                  type="text"
+                  placeholder="Search vehicle"
+                  value={vehicleInput}
+                  onChange={handleVehicleInputChange}
+                  onKeyDown={handleVehicleInputKeyDown}
+                  onBlur={() => setTimeout(() => setShowVehiclePopup(false), 200)}
+                  style={{ width: '140px', padding: 4, fontSize: 14 }}
+                />
+                {showVehiclePopup && (
+                  <div ref={vehiclePopupRef} style={{ position: 'fixed', top: `${vehiclePopupPosition.top}px`, left: `${vehiclePopupPosition.left}px`, zIndex: 10000, background: '#fff', border: '1px solid #ccc', width: '750px', maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                    {vehicleResults.map((v, i) => (
+                      <div
+                        ref={el => vehicleItemRefs.current[i] = el}
+                        key={v.vehicledetailid || v.vehicleid}
+                        style={{ padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid #eee', background: i === vehiclePopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff'), fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        onClick={() => handleSelectVehicle(v)}
+                        title={`${v.vehiclenumber} - ${v.vehiclemodel} (${v.vehiclecolor}) | ${v.customername || 'N/A'} | ${v.mobilenumber1 || v.MobileNumber1 || '-'}`}
+                      >
+                        <span style={{ fontWeight: 500 }}>{v.vehiclenumber}</span> - <span>{v.vehiclemodel}</span> (<span>{v.vehiclecolor}</span>) | <span style={{ color: '#666' }}>{v.customername || 'N/A'}</span> | <span style={{ color: '#666' }}>{v.mobilenumber1 || v.MobileNumber1 || '-'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* JobCard */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <label htmlFor="jobCardInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>JobCard:</label>
+                <input
+                  id="jobCardInput"
+                  type="text"
+                  placeholder="Enter JobCard"
+                  value={jobCardInput}
+                  onChange={e => setJobCardInput(e.target.value)}
+                  style={{ width: '100px', padding: 4, fontSize: 14 }}
+                />
+              </div>
+
+              {/* KMs (Odometer) */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <label htmlFor="odometerInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>KMs:</label>
+                <input
+                  id="odometerInput"
+                  type="text"
+                  placeholder="Enter KM"
+                  value={odometer}
+                  onChange={e => setOdometer(e.target.value.replace(/[^0-9]/g, ''))}
+                  style={{ width: '70px', padding: 4, fontSize: 14 }}
+                />
+              </div>
             </div>
 
-            {/* JobCard */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label htmlFor="jobCardInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>JobCard:</label>
-              <input
-                id="jobCardInput"
-                type="text"
-                placeholder="Enter JobCard"
-                value={jobCardInput}
-                onChange={e => setJobCardInput(e.target.value)}
-                style={{ width: '100px', padding: 4, fontSize: 14 }}
-              />
-            </div>
-
-            {/* KMs (Odometer) */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label htmlFor="odometerInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>KMs:</label>
-              <input
-                id="odometerInput"
-                type="text"
-                placeholder="Enter KMs"
-                value={odometer}
-                onChange={e => setOdometer(e.target.value.replace(/[^0-9]/g, ''))}
-                style={{ width: '70px', padding: 4, fontSize: 14 }}
-              />
-            </div>
+            {/* Customer Details - Second Line (when vehicle is selected) */}
+            {selectedVehicle && (
+              <div style={{ fontSize: 12, color: '#555', display: 'flex', gap: 12, alignItems: 'center' }}>
+                <span>{selectedVehicle.customername || 'N/A'}</span>
+                <span>{selectedVehicle.mobilenumber1 || selectedVehicle.MobileNumber1 || '-'}</span>
+                <span>{selectedVehicle.vehiclemodel || '-'}</span>
+                <span>{selectedVehicle.vehiclecolor || '-'}</span>
+              </div>
+            )}
           </div>
 
-          {/* Vehicle and Customer Info - Single Line (when vehicle is selected) */}
-          {selectedVehicle && (
-            <div style={{ fontSize: 14, color: '#333', display: 'flex', gap: 16, alignItems: 'center', padding: '4px 0' }}>
-              <span>{selectedVehicle.customername || 'N/A'}</span>
-              <span>{selectedVehicle.mobilenumber1 || selectedVehicle.MobileNumber1 || '-'}</span>
-              <span>{selectedVehicle.vehiclemodel || '-'}</span>
-              <span>{selectedVehicle.vehiclecolor || '-'}</span>
-            </div>
-          )}
-
-
+          {/* Right: Invoice Info */}
+          <div style={{ flex: 1, padding: '8px 12px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'flex-start', marginRight: '10%' }}>
+            {generatedInvoiceNumber ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>
+                  {generatedInvoiceNumber}
+                </div>
+                <div style={{ fontSize: 13, color: '#999' }}>
+                  {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase() : 'N/A'}
+                </div>
+              </div>
+            ) : previewInvoiceNumber ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#1a7a08', background: '#f0f8f0', padding: '8px 12px', borderRadius: 4 }}>
+                  {previewInvoiceNumber}
+                </div>
+                <div style={{ fontSize: 13, color: '#666' }}>
+                  {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 16, color: '#999' }}>Loading invoice number...</div>
+              </div>
+            )}
+          </div>
         </div>
-        {/* Right: Invoice Info */}
-        <div style={{ flex: 1, padding: '12px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-          {generatedInvoiceNumber ? (
-            <div style={{ width: 280, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>
-                {generatedInvoiceNumber}
-              </div>
-              <div style={{ fontSize: 13, color: '#999' }}>
-                {invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A'}
-              </div>
-            </div>
-          ) : previewInvoiceNumber ? (
-            <div style={{ width: 280, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#1a7a08', background: '#f0f8f0', padding: '8px 12px', borderRadius: 4 }}>
-                {previewInvoiceNumber}
-              </div>
-              <div style={{ fontSize: 13, color: '#666' }}>
-                {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 16, color: '#999' }}>Loading invoice number...</div>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Bottom 82%: Invoice Grid and Details */}
-      <div style={{ flex: 1, padding: '12px 16px', display: 'flex', gap: 12, overflow: 'hidden' }}>
-        {/* Left: Invoice Grid and Employee Fields */}
-        <div style={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Main Content Area - Grid and Employee Fields */}
+        <div style={{ flex: 1, padding: '8px 12px', display: 'flex', gap: 12, overflow: 'hidden' }}>
+          {/* Left: Invoice Grid and Employee Fields */}
+          <div style={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Invoice Grid */}
-          <div style={{ marginBottom: 4, flex: '0 0 210px', overflow: 'auto' }}>
+          <div style={{ marginBottom: 2, flex: '0 0 130px', overflow: 'auto' }}>
             <div style={{ display: 'flex', gap: 3, marginBottom: 2 }}>
               <div style={{ position: 'relative' }}>
                 <input
@@ -1062,7 +905,7 @@ export default function InvoiceMaster() {
                 <span style={{ fontSize: '16px', fontWeight: '500' }}>GS</span>
               </label>
             </div>
-            <div style={{ maxHeight: '210px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '2px' }}>
+            <div style={{ maxHeight: '100px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '2px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', fontSize: '1em' }}>
               <thead>
                 <tr style={{ background: '#f1f3f4' }}>
@@ -1076,14 +919,10 @@ export default function InvoiceMaster() {
                 </tr>
               </thead>
               <tbody>
-                {activeGridRows.map((row) => {
-                  const actualIdx = gridRows.findIndex(r => r === row);
-                  const itemNumber = row.ItemNumber || row.partnumber || row.serviceid;
-                  const itemName = row.ItemName || row.itemname || row.servicename;
-                  return (
+                {activeGridRows.map((row, actualIdx) => (
                   <tr key={actualIdx}>
-                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{itemNumber}</td>
-                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{itemName}</td>
+                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.PartNo}</td>
+                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.ItemName}</td>
                     <td style={{ border: '1px solid #eee', padding: 2 }}>
                       <input
                         type="number"
@@ -1129,8 +968,7 @@ export default function InvoiceMaster() {
                       </button>
                     </td>
                   </tr>
-                  );
-                })}
+                ))}
                 {activeGridRows.length === 0 && (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', color: '#aaa', padding: 3, fontSize: '12px' }}>No items added</td>
@@ -1141,13 +979,13 @@ export default function InvoiceMaster() {
             </div>
           </div>
           {/* Employee Fields - Single Row Below Grid - Left Side */}
-          <div style={{ display: 'flex', gap: 3, marginTop: 2, justifyContent: 'flex-start', flexWrap: 'nowrap' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Technician 1</div>
+          <div style={{ display: 'flex', gap: 2, marginTop: 0, justifyContent: 'flex-start', flexWrap: 'nowrap', overflow: 'auto', flex: '0 0 auto' }}>
+            <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Technician 1</div>
               <select
                 value={staffFields.technician1}
                 onChange={e => setStaffFields(f => ({ ...f, technician1: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
+                style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
                 {allEmployees.map((emp) => (
@@ -1157,12 +995,12 @@ export default function InvoiceMaster() {
                 ))}
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Technician 2</div>
+            <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Technician 2</div>
               <select
                 value={staffFields.technician2}
                 onChange={e => setStaffFields(f => ({ ...f, technician2: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
+                style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
                 {allEmployees.map((emp) => (
@@ -1172,12 +1010,12 @@ export default function InvoiceMaster() {
                 ))}
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Service Advisor</div>
+            <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Service Advisor</div>
               <select
                 value={staffFields.serviceadvisor}
                 onChange={e => setStaffFields(f => ({ ...f, serviceadvisor: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
+                style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
                 {allEmployees.map((emp) => (
@@ -1187,12 +1025,12 @@ export default function InvoiceMaster() {
                 ))}
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Delivery Advisor</div>
+            <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Delivery Advisor</div>
               <select
                 value={staffFields.deliveryadvisor}
                 onChange={e => setStaffFields(f => ({ ...f, deliveryadvisor: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
+                style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
                 {allEmployees.map((emp) => (
@@ -1202,12 +1040,12 @@ export default function InvoiceMaster() {
                 ))}
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Test Driver</div>
+            <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Test Driver</div>
               <select
                 value={staffFields.testdriver}
                 onChange={e => setStaffFields(f => ({ ...f, testdriver: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
+                style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
                 {allEmployees.map((emp) => (
@@ -1217,12 +1055,12 @@ export default function InvoiceMaster() {
                 ))}
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>Cleaner</div>
+            <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Cleaner</div>
               <select
                 value={staffFields.cleaner}
                 onChange={e => setStaffFields(f => ({ ...f, cleaner: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
+                style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
                 {allEmployees.map((emp) => (
@@ -1232,12 +1070,12 @@ export default function InvoiceMaster() {
                 ))}
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, marginBottom: 1, fontWeight: 600 }}>WaterWash</div>
+            <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>WaterWash</div>
               <select
                 value={staffFields.waterwash}
                 onChange={e => setStaffFields(f => ({ ...f, waterwash: e.target.value }))}
-                style={{ width: '100%', padding: 2, fontSize: 11 }}
+                style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
                 {allEmployees.map((emp) => (
@@ -1250,14 +1088,14 @@ export default function InvoiceMaster() {
           </div>
         </div>
         {/* Right: Summary, Payment, Save Button */}
-        <div style={{ flex: 1, minWidth: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 4, padding: 12, minWidth: 220, maxWidth: 280, flex: '0 0 auto' }}>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Summary</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+        <div style={{ flex: 1, minWidth: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', overflow: 'auto', height: '100%' }}>
+          <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 4, padding: 12, minWidth: 220, maxWidth: 320, flex: '0 0 auto' }}>
+            <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Summary</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 13 }}>
               <span>Subtotal</span>
               <span>{subtotal.toFixed(2)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 13 }}>
               <span>Discount</span>
               <input
                 type="number"
@@ -1265,10 +1103,10 @@ export default function InvoiceMaster() {
                 max={subtotal}
                 value={discount}
                 onChange={e => setDiscount(e.target.value.replace(/[^0-9.]/g, ''))}
-                style={{ width: 50, textAlign: 'right', fontSize: 14, padding: 2 }}
+                style={{ width: 50, textAlign: 'right', fontSize: 13, padding: 2 }}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 14, marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 15, marginTop: 6 }}>
               <span>Total</span>
               <span>{total.toFixed(2)}</span>
             </div>
@@ -1279,43 +1117,27 @@ export default function InvoiceMaster() {
               onChange={e => setNotes(e.target.value)}
               style={{
                 width: '100%',
-                marginTop: 7,
+                marginTop: 8,
                 padding: 6,
-                fontSize: 13,
+                fontSize: 12,
                 resize: 'none',
                 border: '1px solid #ddd',
                 borderRadius: 4,
               }}
             />
-            <button
-              onClick={handleOpenPaymentPopup}
-              style={{
-                width: '100%',
-                marginTop: 7,
-                padding: 6,
-                backgroundColor: '#FF9800',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 4,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              💳 Payment
-            </button>
+            {/* Payment button removed as per requirements */}
             <button
               onClick={handleSaveInvoice}
               disabled={isSaving}
               style={{
                 width: '100%',
-                marginTop: 7,
-                padding: 6,
+                marginTop: 8,
+                padding: 7,
                 backgroundColor: isSaving ? '#ccc' : '#4CAF50',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 4,
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: 600,
                 cursor: isSaving ? 'not-allowed' : 'pointer',
               }}
@@ -1324,248 +1146,10 @@ export default function InvoiceMaster() {
             </button>
           </div>
         </div>
-      </div>
-      {/* Payment Popup Modal */}
-      {showPaymentPopup && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: '#fff',
-            borderRadius: 8,
-            padding: 24,
-            width: '90%',
-            maxWidth: 600,
-            maxHeight: '80vh',
-            overflowY: 'auto',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
-          }}>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h2 style={{ margin: 0 }}>💳 Payment</h2>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#333' }}>
-                  Vehicle: <span style={{ color: '#2196F3' }}>{selectedVehicle?.VehicleNumber}</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 20, fontSize: 14, fontWeight: 600, color: '#333' }}>
-                <div>
-                  Total Amount: <span style={{ color: '#4CAF50' }}>₹{openInvoices.reduce((sum, inv) => sum + inv.amount, 0)}</span>
-                </div>
-                <div>
-                  Remaining: <span style={{ color: '#FF9800' }}>₹{openInvoices.reduce((sum, inv) => sum + inv.amount, 0) - (Number(paymentAmount) || 0)}</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Payment Method Dropdown and Amount Input - Top Left */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              {/* Payment Method Dropdown */}
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Payment Method:</label>
-                <select
-                  value={selectedPaymentMethod}
-                  onChange={e => setSelectedPaymentMethod(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 4,
-                    fontSize: 14,
-                    backgroundColor: '#fff'
-                  }}
-                >
-                  <option value="">-- Select Method --</option>
-                  {paymentMethods.map(method => (
-                    <option key={method.id} value={method.id}>{method.paymentmethodname}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Payment Amount Input */}
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8, fontSize: 14 }}>Amount:</label>
-                <input
-                  type="number"
-                  placeholder="Enter amount"
-                  value={paymentAmount}
-                  onChange={e => setPaymentAmount(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 4,
-                    fontSize: 14,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Remaining Balance Display */}
-            {paymentAmount && (
-              <div style={{ padding: 10, background: '#f5f5f5', borderRadius: 4, marginBottom: 20 }}>
-                <div style={{ marginBottom: 4 }}>Total Amount: <strong>₹{paymentAmount}</strong></div>
-                <div>Allocated: <strong>₹{Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)}</strong></div>
-                <div>Unallocated: <strong style={{ color: Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0) < 0 ? '#d32f2f' : '#666' }}>₹{Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)}</strong></div>
-              </div>
-            )}
-
-            <p style={{ marginBottom: 12, color: '#666', fontSize: 14, fontWeight: 600 }}>Allocate payment to invoices:</p>
-            
-            {/* Invoices List with Individual Payment Inputs - Single Line Format */}
-            <div style={{ marginBottom: 20, border: '1px solid #ddd', borderRadius: 4, maxHeight: 300, overflowY: 'auto' }}>
-              {/* Header Row */}
-              <div style={{
-                padding: 10,
-                background: '#f9f9f9',
-                borderBottom: '2px solid #ddd',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr 1fr',
-                gap: 8,
-                fontWeight: 600,
-                fontSize: 13,
-                color: '#333'
-              }}>
-                <div>Invoice Number</div>
-                <div style={{ textAlign: 'right' }}>Invoice Value</div>
-                <div style={{ textAlign: 'right' }}>Amount Allocated</div>
-              </div>
-              
-              {/* Data Rows */}
-              {openInvoices.map(invoice => (
-                <div
-                  key={invoice.invoiceid}
-                  style={{
-                    padding: 10,
-                    borderBottom: '1px solid #eee',
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: 8,
-                    alignItems: 'center',
-                    background: '#fff'
-                  }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{invoice.invoicenumber}</div>
-                  <div style={{ textAlign: 'right', fontSize: 13, color: '#2196F3', fontWeight: 600 }}>₹{invoice.amount}</div>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={invoicePaymentAmounts[invoice.invoiceid] || ''}
-                    onChange={e => {
-                      const enteredValue = e.target.value;
-                      
-                      // Allow clearing the field
-                      if (!enteredValue) {
-                        setInvoicePaymentAmounts(prev => ({
-                          ...prev,
-                          [invoice.invoiceid]: ''
-                        }));
-                        return;
-                      }
-                      
-                      const numValue = Number(enteredValue);
-                      if (isNaN(numValue) || numValue < 0) return;
-                      
-                      // Calculate sum of all other allocated amounts
-                      const otherAllocated = Object.entries(invoicePaymentAmounts)
-                        .reduce((sum, [id, amt]) => {
-                          return id !== String(invoice.invoiceid) ? sum + (Number(amt) || 0) : sum;
-                        }, 0);
-                      
-                      // Constraint 1: Cannot exceed invoice value
-                      const maxByInvoice = invoice.amount;
-                      
-                      // Constraint 2: Cannot exceed remaining paid amount
-                      const maxByPayment = Number(paymentAmount) - otherAllocated;
-                      
-                      // Take the minimum of both constraints
-                      const maxAllowed = Math.min(maxByInvoice, maxByPayment);
-                      
-                      // Cap the value to max allowed
-                      const finalValue = numValue > maxAllowed ? maxAllowed : numValue;
-                      
-                      setInvoicePaymentAmounts(prev => ({
-                        ...prev,
-                        [invoice.invoiceid]: finalValue
-                      }));
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: 6,
-                      border: '1px solid #ddd',
-                      borderRadius: 4,
-                      fontSize: 13,
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setShowPaymentPopup(false)}
-                style={{
-                  flex: 1,
-                  padding: 10,
-                  background: '#999',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 4,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handlePayment}
-                disabled={!paymentAmount || !selectedPaymentMethod || Object.values(invoicePaymentAmounts).every(amt => !amt)}
-                style={{
-                  flex: 1,
-                  padding: 10,
-                  background: !paymentAmount || !selectedPaymentMethod || Object.values(invoicePaymentAmounts).every(amt => !amt) ? '#ccc' : '#4CAF50',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 4,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: !paymentAmount || !selectedPaymentMethod || Object.values(invoicePaymentAmounts).every(amt => !amt) ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Process Payment
-              </button>
-            </div>
-          </div>
         </div>
-      )}
-    </div>
-  );
-
+      </div>
+      </>
+    );
 }
 
-// Helper to generate invoice number in format INVYYMMMXXX
-function generateInvoiceNumber(runningNumber = 1, yearMonth = '') {
-  const now = new Date();
-  const year = now.getFullYear().toString().slice(-2);
-  const month = now.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-  const currentYearMonth = `${year}${month}`;
-  
-  // Use provided yearMonth or current one
-  const displayYearMonth = yearMonth || currentYearMonth;
-  
-  // Use provided running number
-  const running = String(runningNumber).padStart(3, '0');
-  return `INV${displayYearMonth}${running}`;
-}
+
