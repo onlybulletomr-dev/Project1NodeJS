@@ -7,6 +7,8 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
+const { ensureCredentialsTableExists } = require('./migrations/init-credentials');
+
 const companyRoutes = require('./routes/companyRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
@@ -48,8 +50,84 @@ app.use('/api', seedRoutes);
 app.use('/api/roles', roleManagementRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ message: 'Server is running' });
+app.get('/health', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    const result = await pool.query('SELECT 1');
+    res.status(200).json({ 
+      message: 'Server is running',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      message: 'Server running but database error',
+      error: err.message
+    });
+  }
+});
+
+// Credentials diagnostic endpoint
+app.get('/admin/health/credentials', async (req, res) => {
+  try {
+    console.log('[DIAGNOSTIC] Checking credentials table...');
+    const pool = require('./config/db');
+    
+    // Check if table exists
+    const tableExists = await pool.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = 'employeecredentials'
+      ) as exists;
+    `);
+    
+    let credCount = 0;
+    let empCount = 0;
+    
+    if (tableExists.rows[0].exists) {
+      const credResult = await pool.query('SELECT COUNT(*) as count FROM employeecredentials;');
+      credCount = credResult.rows[0].count;
+      
+      const empResult = await pool.query('SELECT COUNT(*) as count FROM EmployeeMaster WHERE DeletedAt IS NULL;');
+      empCount = empResult.rows[0].count;
+    }
+    
+    res.status(200).json({
+      success: true,
+      credentials_table_exists: tableExists.rows[0].exists,
+      credential_records: credCount,
+      employee_records: empCount,
+      action: credCount === 0 ? 'Run POST /admin/init/credentials to populate' : 'Ready for login'
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// Initialize credentials endpoint
+app.post('/admin/init/credentials', async (req, res) => {
+  try {
+    console.log('[ADMIN] Initializing credentials table...');
+    await ensureCredentialsTableExists();
+    
+    const pool = require('./config/db');
+    const result = await pool.query('SELECT COUNT(*) as count FROM employeecredentials;');
+    
+    res.status(200).json({
+      success: true,
+      message: 'Credentials table initialized successfully',
+      credential_records: parseInt(result.rows[0].count)
+    });
+  } catch (err) {
+    console.error('[ADMIN] Initialization error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
 });
 
 // Diagnostic endpoint - check vehiclemaster data
