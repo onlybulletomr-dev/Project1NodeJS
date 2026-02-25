@@ -459,6 +459,50 @@ app.get('/admin/debug/employee-query/:username', async (req, res) => {
   }
 });
 
+// Debug endpoint - check deletedat values in employeemaster
+app.get('/admin/debug/deletedat-values', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    
+    console.log('[DEBUG] Checking deletedat values in employeemaster...');
+    
+    // Check all deletedat values
+    const allRecords = await pool.query(`
+      SELECT 
+        COUNT(*) as total_records,
+        COUNT(CASE WHEN deletedat IS NULL THEN 1 END) as active_count,
+        COUNT(CASE WHEN deletedat IS NOT NULL THEN 1 END) as deleted_count
+      FROM employeemaster
+    `);
+    
+    // Get sample records with their deletedat values
+    const samples = await pool.query(`
+      SELECT employeeid, firstname, lastname, deletedat, 
+        CASE WHEN deletedat IS NULL THEN 'ACTIVE' ELSE 'DELETED' END as status
+      FROM employeemaster
+      ORDER BY employeeid
+      LIMIT 15
+    `);
+    
+    res.status(200).json({
+      success: true,
+      debug: {
+        summary: allRecords.rows[0],
+        samples: samples.rows,
+        note: 'All ACTIVE records should have deletedat = NULL'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[DEBUG] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
