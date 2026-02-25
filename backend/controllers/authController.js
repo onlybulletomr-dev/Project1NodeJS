@@ -45,22 +45,65 @@ exports.login = async (req, res) => {
       WHERE employeeid = $1
     `;
 
-    const credResult = await pool.query(credQuery, [employeeId]);
-    console.log(`[AUTH] Credential lookup result - rows count:`, credResult.rows.length);
-
-    if (credResult.rows.length === 0 || !credResult.rows[0].passwordhash) {
-      console.log(`[AUTH] No password hash found for employee ID: ${employeeId}`);
-      return res.status(401).json({
+    let credResult;
+    try {
+      credResult = await pool.query(credQuery, [employeeId]);
+      console.log(`[AUTH] Credential lookup result - rows count:`, credResult.rows.length);
+    } catch (tableError) {
+      console.error(`[AUTH] Error querying credentials table:`, tableError.message);
+      // If table doesn't exist or there's an issue, return a helpful error
+      return res.status(500).json({
         success: false,
-        message: 'Invalid username or password',
+        message: 'Authentication system not initialized. Please contact administrator.',
+        error: 'Credentials table error: ' + tableError.message
       });
+    }
+
+    if (credResult.rows.length === 0) {
+      console.log(`[AUTH] No password hash found for employee ID: ${employeeId}`);
+      // Try to create a default credential if it doesn't exist
+      try {
+        console.log(`[AUTH] Attempting to create default credential for employee ${employeeId}`);
+        const defaultPassword = 'Default@123';
+        const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+        
+        const insertQuery = `
+          INSERT INTO employeecredentials (employeeid, passwordhash)
+          VALUES ($1, $2)
+          ON CONFLICT (employeeid) DO NOTHING;
+        `;
+        
+        await pool.query(insertQuery, [employeeId, hashedPassword]);
+        console.log(`[AUTH] ✓ Created default credential for employee ${employeeId}`);
+        
+        return res.status(401).json({
+          success: false,
+          message: 'Credentials created. Please try logging in again with password: Default@123'
+        });
+      } catch (insertError) {
+        console.error(`[AUTH] Failed to create default credential:`, insertError.message);
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password',
+        });
+      }
     }
 
     const passwordHash = credResult.rows[0].passwordhash;
 
     // Compare provided password with stored hash using bcrypt
-    const passwordMatch = await bcrypt.compare(password, passwordHash);
-    console.log(`[AUTH] Password match result:`, passwordMatch);
+    let passwordMatch;
+    try {
+      passwordMatch = await bcrypt.compare(password, passwordHash);
+      console.log(`[AUTH] Password match result:`, passwordMatch);
+    } catch (bcryptError) {
+      console.error(`[AUTH] Bcrypt comparison error:`, bcryptError.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Error during password verification',
+        error: bcryptError.message
+      });
+    }
 
     if (!passwordMatch) {
       console.log(`[AUTH] Password mismatch for employee: ${employee.firstname}`);
@@ -77,8 +120,14 @@ exports.login = async (req, res) => {
     `;
     
     console.log(`[AUTH] Querying branch - branchid: ${employee.branchid}`);
-    const branchResult = await pool.query(branchQuery, [employee.branchid]);
-    console.log('[AUTH] Branch query result:', branchResult.rows);
+    let branchResult;
+    try {
+      branchResult = await pool.query(branchQuery, [employee.branchid]);
+      console.log('[AUTH] Branch query result:', branchResult.rows);
+    } catch (branchError) {
+      console.error(`[AUTH] Error querying branch:`, branchError.message);
+      branchResult = { rows: [] };
+    }
     
     // PostgreSQL returns lowercase column names
     const branchName = branchResult.rows.length > 0 
