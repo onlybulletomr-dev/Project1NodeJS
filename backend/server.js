@@ -168,31 +168,39 @@ app.get('/debug/database', async (req, res) => {
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public'
+      ORDER BY table_name
     `);
     
     const tables = tablesRes.rows.map(r => r.table_name);
+    console.log('[Debug] Tables in database:', tables);
+    
+    // Determine which vehicle table exists
+    const vehicleTableName = tables.includes('vehicledetail') ? 'vehicledetail' : 'vehicledetails';
+    console.log('[Debug] Using vehicle table:', vehicleTableName);
     
     // Check data in key tables
     const data = {};
     
-    // Determine which vehicle table exists
-    const vehicleTableName = tables.includes('vehicledetail') ? 'vehicledetail' : 'vehicledetails';
-    
     for (const table of ['customermaster', vehicleTableName, 'invoicemaster']) {
-      if (tables.includes(table)) {
-        const countRes = await pool.query(`SELECT COUNT(*) as count FROM ${table} WHERE deletedat IS NULL`);
-        data[table] = {
-          exists: true,
-          count: countRes.rows[0].count,
-          sample: null
-        };
-        
-        const sampleRes = await pool.query(`SELECT * FROM ${table} WHERE deletedat IS NULL LIMIT 1`);
-        if (sampleRes.rows.length > 0) {
-          data[table].sample = sampleRes.rows[0];
+      try {
+        if (tables.includes(table)) {
+          const countRes = await pool.query(`SELECT COUNT(*) as count FROM ${table} WHERE deletedat IS NULL`);
+          data[table] = {
+            exists: true,
+            count: countRes.rows[0].count,
+            sample: null
+          };
+          
+          const sampleRes = await pool.query(`SELECT * FROM ${table} WHERE deletedat IS NULL LIMIT 1`);
+          if (sampleRes.rows.length > 0) {
+            data[table].sample = sampleRes.rows[0];
+          }
+        } else {
+          data[table] = { exists: false };
         }
-      } else {
-        data[table] = { exists: false };
+      } catch (tableErr) {
+        console.error(`[Debug] Error querying ${table}:`, tableErr.message);
+        data[table] = { exists: false, error: tableErr.message };
       }
     }
     
@@ -201,8 +209,8 @@ app.get('/debug/database', async (req, res) => {
       data,
       vehicleTableInUse: vehicleTableName,
       migration: {
-        needed: tables.includes('vehicledetails'),
-        message: tables.includes('vehicledetails') ? 'Table rename migration pending - call POST /admin/migrate/rename-vehicledetails' : 'Using correct vehicledetail table name'
+        completed: tables.includes('vehicledetail'),
+        message: tables.includes('vehicledetail') ? '✓ Table correctly named vehicledetail' : 'ℹ Table named vehicledetails - run POST /admin/migrate/rename-vehicledetails'
       }
     });
   } catch (error) {
