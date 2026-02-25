@@ -38,27 +38,26 @@ class VehicleDetail {
     return result.rows;
   }
 
-  // Get vehicle details by Customer ID (join through invoicemaster)
+  // Get vehicle details by Customer ID (direct relationship)
   static async getByCustomerId(customerId) {
     try {
       const query = `
         SELECT 
-          vd.vehicleid,
-          vd.registrationnumber as vehiclenumber,
-          vd.vehicletype,
-          vd.manufacturer,
-          vd.model as vehiclemodel,
-          vd.yearofmanufacture,
-          vd.enginenumber,
-          vd.chassisnumber,
-          vd.color as vehiclecolor,
-          vd.createdat,
-          vd.updatedat,
-          vd.deletedat
-        FROM vehicledetail vd
-        INNER JOIN invoicemaster im ON vd.vehicleid = im.vehicleid
-        WHERE im.customerid = $1 AND vd.deletedat IS NULL
-        ORDER BY vd.registrationnumber
+          vehicleid,
+          registrationnumber as vehiclenumber,
+          vehicletype,
+          manufacturer,
+          model as vehiclemodel,
+          yearofmanufacture,
+          enginenumber,
+          chassisnumber,
+          color as vehiclecolor,
+          createdat,
+          updatedat,
+          deletedat
+        FROM vehicledetail
+        WHERE customerid = $1 AND deletedat IS NULL
+        ORDER BY registrationnumber
       `;
       console.log(`[SQL] Executing query for customer ${customerId}:`, query);
       const result = await pool.query(query, [customerId]);

@@ -101,11 +101,12 @@ async function migrateData() {
         try {
           await renderClient.query(
             `INSERT INTO vehicledetail 
-              (vehicleid, registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, createdat, updatedat, deletedat)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              (vehicleid, customerid, registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, createdat, updatedat, deletedat)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              ON CONFLICT (vehicleid) DO UPDATE SET registrationnumber = EXCLUDED.registrationnumber`,
             [
               vehicle.vehicledetailid,        // vehicledetailid -> vehicleid
+              vehicle.customerid,             // customerid (now included!)
               vehicle.vehiclenumber,          // vehiclenumber -> registrationnumber
               null,                            // vehicletype (not in local)
               null,                            // manufacturer (not in local)
