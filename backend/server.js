@@ -50,60 +50,77 @@ app.post('/admin/migrate/rename-vehicledetails', async (req, res) => {
     const client = await pool.connect();
     
     try {
-      // Check if table needs renaming (vehicledetails still exists)
-      const checkRes = await client.query(`
+      // Step 1: Check what tables exist
+      const allTablesRes = await client.query(`
         SELECT table_name FROM information_schema.tables 
-        WHERE table_name = 'vehicledetails' AND table_schema = 'public'
+        WHERE table_schema = 'public' 
+        ORDER BY table_name
       `);
       
-      if (checkRes.rows.length === 0) {
-        return res.status(200).json({
-          success: true,
-          message: 'Table vehicledetail already exists - no migration needed'
+      const allTables = allTablesRes.rows.map(r => r.table_name);
+      const hasVehicledetails = allTables.includes('vehicledetails');
+      const hasVehicledetail = allTables.includes('vehicledetail');
+      
+      console.log('[Migration] All tables:', allTables);
+      console.log('[Migration] vehicledetails exists:', hasVehicledetails);
+      console.log('[Migration] vehicledetail exists:', hasVehicledetail);
+      
+      // If both don't exist, error
+      if (!hasVehicledetails && !hasVehicledetail) {
+        return res.status(400).json({
+          success: false,
+          message: 'Neither vehicledetails nor vehicledetail table found',
+          allTables
         });
       }
       
-      // Step 1: Drop foreign key constraint
-      console.log('[Migration] Dropping foreign key constraint...');
-      await client.query(`
-        ALTER TABLE invoicemaster
-        DROP CONSTRAINT IF EXISTS invoicemaster_vehicleid_fkey
-      `);
+      // If only vehicledetail exists, no migration needed
+      if (!hasVehicledetails && hasVehicledetail) {
+        return res.status(200).json({
+          success: true,
+          message: 'Table already named vehicledetail - no migration needed',
+          allTables
+        });
+      }
       
-      // Step 2: Rename table
-      console.log('[Migration] Renaming table...');
-      await client.query(`
-        ALTER TABLE vehicledetails
-        RENAME TO vehicledetail
-      `);
-      
-      // Step 3: Recreate foreign key
-      console.log('[Migration] Recreating foreign key...');
-      await client.query(`
-        ALTER TABLE invoicemaster
-        ADD CONSTRAINT invoicemaster_vehicleid_fkey
-        FOREIGN KEY (vehicleid) REFERENCES vehicledetail(vehicleid)
-      `);
-      
-      // Step 4: Verify
-      const verifyRes = await client.query(`
-        SELECT table_name FROM information_schema.tables 
-        WHERE table_name IN ('vehicledetail', 'vehicledetails')
-        AND table_schema = 'public'
-      `);
-      
-      const countRes = await client.query('SELECT COUNT(*) as count FROM vehicledetail');
-      
-      console.log('[Migration] ✓ Successfully renamed vehicledetails to vehicledetail');
-      
-      res.status(200).json({
-        success: true,
-        message: 'Migration completed successfully',
-        data: {
-          tablesPresent: verifyRes.rows.map(r => r.table_name),
-          vehicleCount: parseInt(countRes.rows[0].count)
+      // If vehicledetails exists, run migration
+      if (hasVehicledetails) {
+        console.log('[Migration] Dropping foreign key constraint...');
+        try {
+          await client.query(`
+            ALTER TABLE invoicemaster
+            DROP CONSTRAINT IF EXISTS invoicemaster_vehicleid_fkey;
+          `);
+          console.log('[Migration] ✓ Foreign key dropped');
+        } catch (fkErr) {
+          console.log('[Migration] FK drop note:', fkErr.message);
         }
-      });
+        
+        console.log('[Migration] Renaming table...');
+        await client.query(`
+          ALTER TABLE vehicledetails RENAME TO vehicledetail;
+        `);
+        console.log('[Migration] ✓ Table renamed');
+        
+        console.log('[Migration] Recreating foreign key...');
+        await client.query(`
+          ALTER TABLE invoicemaster
+          ADD CONSTRAINT invoicemaster_vehicleid_fkey
+          FOREIGN KEY (vehicleid) REFERENCES vehicledetail(vehicleid);
+        `);
+        console.log('[Migration] ✓ Foreign key recreated');
+        
+        const countRes = await client.query('SELECT COUNT(*) as count FROM vehicledetail');
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Migration completed successfully',
+          data: {
+            action: 'renamed vehicledetails to vehicledetail',
+            vehicleCount: parseInt(countRes.rows[0].count)
+          }
+        });
+      }
     } finally {
       client.release();
     }
