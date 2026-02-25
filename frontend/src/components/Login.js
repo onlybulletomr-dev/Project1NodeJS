@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import './Login.css';
 import { API_BASE_URL } from '../api';
 
@@ -29,7 +30,7 @@ function Login({ onLoginSuccess }) {
 
       if (response.ok && data.success) {
         // Login successful
-        onLoginSuccess(data.userId, data.userName, data.branchId);
+        onLoginSuccess(data.userId, data.userName, data.branchId, data.branchName);
         setUsername('');
         setPassword('');
       } else {
@@ -48,17 +49,16 @@ function Login({ onLoginSuccess }) {
     <div className="login-container">
       <div className="login-box">
         <div className="login-header">
-          <h1>ERP System</h1>
+          <h1>Only Bullet - ERP System</h1>
           <p>Master Data Management</p>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">
-            <label htmlFor="username">Username or Employee ID</label>
             <input
               id="username"
               type="text"
-              placeholder="Enter your username"
+              placeholder="Enter your employee name"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={loading}
@@ -67,7 +67,6 @@ function Login({ onLoginSuccess }) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
@@ -84,12 +83,6 @@ function Login({ onLoginSuccess }) {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
-        <div className="login-footer">
-          <p>Demo Credentials:</p>
-          <p className="demo-cred">Murali (Admin) | Branch 2</p>
-          <p className="demo-cred">Jagatheish (Admin) | Branch 3</p>
-        </div>
       </div>
     </div>
   );

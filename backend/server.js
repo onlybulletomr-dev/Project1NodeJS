@@ -17,6 +17,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const seedRoutes = require('./routes/seedRoutes');
 const authRoutes = require('./routes/authRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
+const roleManagementRoutes = require('./routes/roleManagementRoutes');
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 5000;
@@ -43,6 +44,7 @@ app.use('/api', vehicleRoutes);
 app.use('/api', vehicleDetailRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api', seedRoutes);
+app.use('/api/roles', roleManagementRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

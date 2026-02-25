@@ -1,0 +1,322 @@
+/* Role Management Container */
+.role-management-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.role-management-header {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.role-management-header h1 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.role-management-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Messages */
+.error-message,
+.success-message {
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.error-message {
+  background-color: #ffebee;
+  color: #c62828;
+  border-left: 4px solid #c62828;
+}
+
+.success-message {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-left: 4px solid #2e7d32;
+}
+
+/* Controls */
+.role-management-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.btn-save,
+.btn-reset {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-save {
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-save:hover:not(:disabled) {
+  background-color: #45a049;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+
+.btn-save:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-reset {
+  background-color: #f44336;
+  color: white;
+}
+
+.btn-reset:hover:not(:disabled) {
+  background-color: #da190b;
+  box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+}
+
+.btn-reset:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Table Wrapper */
+.employees-table-wrapper {
+  overflow-x: auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.employees-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: white;
+}
+
+.employees-table thead {
+  background-color: #f5f5f5;
+  border-bottom: 2px solid #ddd;
+}
+
+.employees-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.employees-table tbody tr {
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s ease;
+}
+
+.employees-table tbody tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+.employees-table tbody tr:hover {
+  background-color: #e8f4f8;
+}
+
+.employees-table tbody tr.changed {
+  background-color: #fffacd;
+}
+
+.employees-table tbody tr.changed:nth-child(even) {
+  background-color: #fffef5;
+}
+
+.employees-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #333;
+}
+
+/* Column Styles */
+.employee-name {
+  font-weight: 600;
+  color: #1976d2;
+}
+
+.employee-id {
+  color: #666;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.current-role,
+.current-branch {
+  font-weight: 500;
+  color: #555;
+}
+
+.date {
+  color: #999;
+  font-size: 13px;
+}
+
+/* Role Badges */
+.role-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.role-badge.role-admin {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.role-badge.role-manager {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.role-badge.role-employee {
+  background-color: #f3e5f5;
+  color: #6a1b9a;
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-badge.active {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-badge.inactive {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Dropdowns */
+.role-assignment select,
+.branch-assignment select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.role-assignment select:hover,
+.branch-assignment select:hover {
+  border-color: #999;
+}
+
+.role-assignment select:focus,
+.branch-assignment select:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 4px rgba(25, 118, 210, 0.2);
+}
+
+.role-assignment select.changed,
+.branch-assignment select.changed {
+  background-color: #fffacd;
+  border-color: #ff9800;
+  font-weight: 600;
+}
+
+/* Change Indicator */
+.change-indicator {
+  margin-left: 6px;
+  color: #ff9800;
+  font-weight: bold;
+}
+
+/* Footer */
+.role-management-footer {
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.role-management-footer p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .role-management-container {
+    padding: 10px;
+  }
+
+  .role-management-header h1 {
+    font-size: 22px;
+  }
+
+  .employees-table th,
+  .employees-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .role-management-controls {
+    flex-direction: column;
+  }
+
+  .btn-save,
+  .btn-reset {
+    width: 100%;
+  }
+
+  .employees-table-wrapper {
+    margin-bottom: 15px;
+  }
+
+  .role-management-footer {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+/* Loading State */
+.role-management-container p {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+  font-size: 14px;
+}

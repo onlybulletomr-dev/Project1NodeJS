@@ -1,4 +1,4 @@
-# ERP Master Data Management System
+# Only Bullet - ERP System
 
 This is a full-stack application built with **Node.js/Express** (backend) and **React.js** (frontend) for managing customer and company master data in PostgreSQL.
 
