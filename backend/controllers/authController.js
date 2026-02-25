@@ -32,7 +32,15 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
-        debug: `No employee found with name "${username}"`,
+        debug: {
+          issue: `No employee named "${username}" found in database`,
+          reason: 'Database may be empty or employee doesn\'t exist',
+          solution: 'Contact administrator to seed/migrate employee data',
+          availableEmployees: 'Check /admin/check/employee-status endpoint',
+          step1: 'POST /admin/fix/employeemaster-constraints',
+          step2: 'Seed employee data to production database',
+          step3: 'Then try login again'
+        },
         timestamp: new Date().toISOString()
       });
     }

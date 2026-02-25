@@ -302,6 +302,113 @@ app.post('/admin/fix/employeemaster-constraints', async (req, res) => {
   }
 });
 
+// Seed endpoint - populate Render DB with employee data from production
+app.post('/admin/seed/employees-from-source', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    console.log('[SEED] Starting employee data import from source DB...');
+    
+    // Step 1: Check if employees already exist
+    const existingCheck = await pool.query('SELECT COUNT(*) as count FROM employeemaster WHERE deletedat IS NULL');
+    const existingCount = parseInt(existingCheck.rows[0].count);
+    
+    if (existingCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Database already has ${existingCount} employees. Clear them first if needed.`,
+        help: 'To clear: DELETE FROM employeecredentials; DELETE FROM employeemaster;',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Step 2: Ensure companies exist (hardcode the known companies for now)
+    console.log('[SEED] Ensuring companies exist...');
+    const companies = [
+      { companyid: 1, companyname: 'Admin', status: 'Active' },
+      { companyid: 3, companyname: 'Only Bullet-OMR', status: 'Active' }
+    ];
+    
+    for (const company of companies) {
+      await pool.query(`
+        INSERT INTO companymaster (companyid, companyname, status)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (companyid) DO NOTHING
+      `, [company.companyid, company.companyname, company.status]);
+    }
+    
+    // Step 3: Insert seed employees (13 total - matching local DB)
+    console.log('[SEED] Inserting employee seed data...');
+    const seedEmployees = [
+      { employeeid: 12, firstname: 'Ashok', lastname: 'Ashok', email: 'ashok@onlybullet.com', branchid: 3, department: 'Admin', designation: 'Administrator' },
+      { employeeid: 8, firstname: 'Manager', lastname: 'Test', email: 'manager@onlybullet.com', branchid: 3, department: 'Management', designation: 'Manager' },
+      { employeeid: 1, firstname: 'Employee', lastname: 'One', email: 'emp1@onlybullet.com', branchid: 3, department: 'Operations', designation: 'Staff' },
+      { employeeid: 2, firstname: 'Employee', lastname: 'Two', email: 'emp2@onlybullet.com', branchid: 3, department: 'Operations', designation: 'Staff' },
+      { employeeid: 3, firstname: 'Employee', lastname: 'Three', email: 'emp3@onlybullet.com', branchid: 3, department: 'Operations', designation: 'Staff' },
+      { employeeid: 4, firstname: 'Employee', lastname: 'Four', email: 'emp4@onlybullet.com', branchid: 3, department: 'Operations', designation: 'Staff' },
+      { employeeid: 5, firstname: 'Employee', lastname: 'Five', email: 'emp5@onlybullet.com', branchid: 3, department: 'Operations', designation: 'Staff' },
+      { employeeid: 6, firstname: 'Employee', lastname: 'Six', email: 'emp6@onlybullet.com', branchid: 1, department: 'Admin', designation: 'Staff' },
+      { employeeid: 7, firstname: 'Employee', lastname: 'Seven', email: 'emp7@onlybullet.com', branchid: 1, department: 'Admin', designation: 'Staff' },
+      { employeeid: 9, firstname: 'Employee', lastname: 'Nine', email: 'emp9@onlybullet.com', branchid: 1, department: 'Support', designation: 'Support' },
+      { employeeid: 10, firstname: 'Employee', lastname: 'Ten', email: 'emp10@onlybullet.com', branchid: 1, department: 'Support', designation: 'Support' },
+      { employeeid: 11, firstname: 'Employee', lastname: 'Eleven', email: 'emp11@onlybullet.com', branchid: 3, department: 'Operations', designation: 'Lead' },
+      { employeeid: 13, firstname: 'Employee', lastname: 'Thirteen', email: 'emp13@onlybullet.com', branchid: 3, department: 'Operations', designation: 'Staff' }
+    ];
+    
+    let insertedCount = 0;
+    for (const emp of seedEmployees) {
+      try {
+        await pool.query(`
+          INSERT INTO employeemaster 
+          (employeeid, firstname, lastname, email, branchid, department, designation, createdat, updatedat)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (employeeid) DO NOTHING
+        `, [emp.employeeid, emp.firstname, emp.lastname, emp.email, emp.branchid, emp.department, emp.designation]);
+        insertedCount++;
+      } catch (empError) {
+        console.error(`[SEED] Error inserting employee ${emp.employeeid}:`, empError.message);
+      }
+    }
+    
+    console.log(`[SEED] Inserted ${insertedCount} employees`);
+    
+    // Step 4: Initialize credentials for all employees
+    console.log('[SEED] Initializing credentials...');
+    await ensureCredentialsTableExists();
+    
+    // Step 5: Verify
+    const finalCheck = await pool.query('SELECT COUNT(*) as count FROM employeemaster WHERE deletedat IS NULL');
+    const finalCount = parseInt(finalCheck.rows[0].count);
+    
+    const credCheck = await pool.query('SELECT COUNT(*) as count FROM employeecredentials');
+    const credCount = parseInt(credCheck.rows[0].count);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Employee seeding completed successfully',
+      results: {
+        employees_added: insertedCount,
+        total_employees: finalCount,
+        credentials_created: credCount,
+        default_password: 'Default@123'
+      },
+      next_steps: [
+        '1. Try login with: ashok / Default@123',
+        '2. All 13 employees can login with Default@123',
+        '3. Change passwords after first login'
+      ],
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error('[SEED] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
