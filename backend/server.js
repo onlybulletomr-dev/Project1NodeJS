@@ -617,12 +617,13 @@ async function initializeDatabase() {
       const createTableQuery = `
         CREATE TABLE IF NOT EXISTS employeecredentials (
           credentialid SERIAL PRIMARY KEY,
-          employeeid INTEGER NOT NULL UNIQUE REFERENCES employeemaster(employeeid) ON DELETE CASCADE,
+          employeeid INTEGER NOT NULL REFERENCES employeemaster(employeeid) ON DELETE CASCADE,
           passwordhash VARCHAR(255) NOT NULL,
           lastpasswordchange DATE DEFAULT CURRENT_DATE,
           passwordattempts INTEGER DEFAULT 0,
           ispasswordexpired BOOLEAN DEFAULT FALSE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(employeeid)
         );
       `;
       

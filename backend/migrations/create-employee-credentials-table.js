@@ -19,16 +19,17 @@ async function createCredentialsTable() {
     await pool.query(`
       CREATE TABLE employeecredentials (
         credentialid SERIAL PRIMARY KEY,
-        employeeid INTEGER NOT NULL UNIQUE,
+        employeeid INTEGER NOT NULL,
         passwordhash VARCHAR(255),
         lastpasswordchange DATE,
         passwordattempts INTEGER DEFAULT 0,
         ispasswordexpired BOOLEAN DEFAULT false,
         createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updatedat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (employeeid) REFERENCES employeemaster(employeeid) ON DELETE CASCADE
+        FOREIGN KEY (employeeid) REFERENCES employeemaster(employeeid) ON DELETE CASCADE,
+        UNIQUE(employeeid)
       )
-    `);
+    `)
 
     console.log('✓ EmployeeCredentials table created successfully');
 
