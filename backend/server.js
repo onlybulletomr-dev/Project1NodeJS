@@ -606,6 +606,48 @@ app.get('/admin/debug/deletedat-values', async (req, res) => {
   }
 });
 
+// Debug endpoint - list all employeecredentials records
+app.get('/admin/debug/credentials-table', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    
+    console.log('[DEBUG] Querying employeecredentials table...');
+    
+    // Get count
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM employeecredentials');
+    const count = parseInt(countResult.rows[0].count);
+    
+    // Get all credential records with employee names
+    const credentialsResult = await pool.query(`
+      SELECT 
+        ec.credentialid,
+        ec.employeeid,
+        em.firstname,
+        em.lastname,
+        ec.passwordhash,
+        ec.lastpasswordchange,
+        ec.passwordattempts
+      FROM employeecredentials ec
+      LEFT JOIN employeemaster em ON ec.employeeid = em.employeeid
+      ORDER BY ec.employeeid
+    `);
+    
+    res.status(200).json({
+      success: true,
+      credentials_count: count,
+      records: credentialsResult.rows,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[DEBUG] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Diagnostic endpoint - check vehiclemaster data
 app.get('/admin/check/vehiclemaster', async (req, res) => {
   try {
