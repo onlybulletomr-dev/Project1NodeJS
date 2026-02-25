@@ -465,17 +465,40 @@ app.post('/admin/migrate/fix-employees-render', async (req, res) => {
     const pool = require('./config/db');
     console.log('[MIGRATE] Starting employee data correction...');
     
-    // Step 1: Clear credentials (depends on employees)
+    // Step 1: Clear dependencies first (check if tables exist)
+    console.log('[MIGRATE] Clearing role assignments...');
+    try {
+      await pool.query('DELETE FROM userroles');
+      console.log('[MIGRATE] ✓ Cleared userroles');
+    } catch (err) {
+      console.log('[MIGRATE] Note: userroles error:', err.message.substring(0, 50));
+    }
+    
+    try {
+      await pool.query('DELETE FROM roleassignments');
+      console.log('[MIGRATE] ✓ Cleared roleassignments');
+    } catch (err) {
+      console.log('[MIGRATE] Note: roleassignments error:', err.message.substring(0, 50));
+    }
+
+    try {
+      await pool.query('DELETE FROM userbranchmap');
+      console.log('[MIGRATE] ✓ Cleared userbranchmap');
+    } catch (err) {
+      console.log('[MIGRATE] Note: userbranchmap error:', err.message.substring(0, 50));
+    }
+    
+    // Step 2: Clear credentials (depends on employees)
     console.log('[MIGRATE] Clearing old credentials...');
     await pool.query('DELETE FROM employeecredentials');
     console.log('[MIGRATE] ✓ Cleared credentials');
     
-    // Step 2: Clear old employees
+    // Step 3: Clear old employees
     console.log('[MIGRATE] Clearing old employees...');
-    await pool.query('DELETE FROM employeemaster');
+    await pool.query('DELETE FROM employeemaster WHERE 1=1');  //Force delete all
     console.log('[MIGRATE] ✓ Cleared employees');
     
-    // Step 3: Insert correct employees (actual data from local)
+    // Step 4: Insert correct employees (actual data from local)
     console.log('[MIGRATE] Inserting correct employees...');
     const correctEmployees = [
       { employeeid: 1, firstname: 'Murali', lastname: 'Murali', branchid: 2 },
@@ -496,18 +519,19 @@ app.post('/admin/migrate/fix-employees-render', async (req, res) => {
     let insertedCount = 0;
     for (const emp of correctEmployees) {
       await pool.query(`
-        INSERT INTO employeemaster (employeeid, firstname, lastname, branchid, createdat, updatedat)
-        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO employeemaster 
+        (employeeid, firstname, lastname, branchid, employeetype, role, dateofjoining, createdby, updatedat, createdat)
+        VALUES ($1, $2, $3, $4, 'Employee', false, CURRENT_DATE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `, [emp.employeeid, emp.firstname, emp.lastname, emp.branchid]);
       insertedCount++;
     }
     console.log(`[MIGRATE] ✓ Inserted ${insertedCount} correct employees`);
     
-    // Step 4: Reinitialize credentials with default password
+    // Step 5: Reinitialize credentials with default password
     console.log('[MIGRATE] Reinitializing credentials...');
     await ensureCredentialsTableExists();
     
-    // Step 5: Verify
+    // Step 6: Verify
     const empCheck = await pool.query('SELECT COUNT(*) as count FROM employeemaster');
     const credCheck = await pool.query('SELECT COUNT(*) as count FROM employeecredentials');
     
