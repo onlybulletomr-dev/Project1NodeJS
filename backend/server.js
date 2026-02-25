@@ -239,7 +239,21 @@ app.post('/admin/migrate/add-customerid', async (req, res) => {
     const client = await pool.connect();
     
     try {
-      // Check if column already exists
+      // First, get table schema to identify correct column names
+      const schemaResult = await client.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name='vehicledetail'
+        ORDER BY ordinal_position
+      `);
+      
+      const columns = schemaResult.rows.map(r => r.column_name);
+      console.log('[Migration] vehicledetail columns:', columns);
+      
+      // Identify the primary key column (vehicleid or vehicledetailid)
+      const pkColumn = columns.includes('vehicleid') ? 'vehicleid' : 
+                       columns.includes('vehicledetailid') ? 'vehicledetailid' : 'vehicleid';
+      
+      // Check if customerid already exists
       const checkCol = await client.query(`
         SELECT column_name FROM information_schema.columns 
         WHERE table_name='vehicledetail' AND column_name='customerid'
@@ -255,13 +269,19 @@ app.post('/admin/migrate/add-customerid', async (req, res) => {
         console.log('[Migration] customerid column already exists');
       }
       
+      // Get the foreign key column name for vehicledetail (might be vehicleid or vehicledetailid)
+      const fkResult = await client.query(`
+        SELECT column_name FROM information_schema.constraint_column_usage 
+        WHERE table_name='invoicemaster' AND constraint_name LIKE '%vehicle%'
+      `);
+      
       // Populate customerid from invoicemaster
       console.log('[Migration] Populating customerid from invoicemaster...');
       const updateResult = await client.query(`
         UPDATE vehicledetail vd
         SET customerid = im.customerid
         FROM invoicemaster im
-        WHERE vd.vehicleid = im.vehicleid 
+        WHERE vd."${pkColumn}" = im.vehicleid 
           AND vd.customerid IS NULL
           AND im.customerid IS NOT NULL
       `);
@@ -276,7 +296,7 @@ app.post('/admin/migrate/add-customerid', async (req, res) => {
       
       // Get sample data
       const sample = await client.query(`
-        SELECT vehicleid, registrationnumber, model, color, customerid
+        SELECT "${pkColumn}" as vehicleid, registrationnumber, model, color, customerid
         FROM vehicledetail
         WHERE customerid IS NOT NULL AND deletedat IS NULL
         LIMIT 3
@@ -287,6 +307,7 @@ app.post('/admin/migrate/add-customerid', async (req, res) => {
         message: 'Migration completed successfully',
         data: {
           action: 'added customerid column to vehicledetail',
+          pkColumn: pkColumn,
           recordsUpdated: updateResult.rowCount,
           recordsMissingCustomerId: parseInt(missingCount.rows[0].count),
           sampleData: sample.rows
