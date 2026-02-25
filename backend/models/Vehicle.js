@@ -66,17 +66,17 @@ class Vehicle {
 
   static async getUniqueModels() {
     const result = await pool.query(
-      'SELECT DISTINCT model FROM vehicledetail WHERE deletedat IS NULL AND model IS NOT NULL ORDER BY model'
+      'SELECT DISTINCT vehiclemodel FROM vehicledetail WHERE deletedat IS NULL AND vehiclemodel IS NOT NULL ORDER BY vehiclemodel'
     );
-    return result.rows.map(row => row.model);
+    return result.rows.map(row => row.vehiclemodel);
   }
 
   static async getUniqueColors(model) {
     const result = await pool.query(
-      'SELECT DISTINCT color FROM vehicledetail WHERE deletedat IS NULL AND color IS NOT NULL AND model = $1 ORDER BY color',
+      'SELECT DISTINCT vehiclecolor FROM vehicledetail WHERE deletedat IS NULL AND vehiclecolor IS NOT NULL AND vehiclemodel = $1 ORDER BY vehiclecolor',
       [model]
     );
-    return result.rows.map(row => row.color);
+    return result.rows.map(row => row.vehiclecolor);
   }
 }
 
