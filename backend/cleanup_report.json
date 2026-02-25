@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-02-25T05:24:47.891Z",
+  "status": "SUCCESS",
+  "tables": {
+    "local": 19,
+    "render": 19,
+    "missing": 0,
+    "missingNames": []
+  },
+  "log": [
+    "\n========== STARTING CLEANUP AND CREATION ==========\n",
+    "STEP 1: Removing duplicate rows...\n",
+    "✓ companymaster: No duplicates (3 rows)",
+    "✓ customermaster: No duplicates (5 rows)",
+    "✗ invoicedetail: column \"invoicedetailid\" does not exist",
+    "\nSTEP 2: Identifying missing tables...\n",
+    "Local has 19 tables, Render has 19",
+    "Missing tables (0): \n",
+    "STEP 3: Creating 0 missing tables...\n",
+    "\n========== FINAL STATUS CHECK ==========\n",
+    "Local: 19 tables",
+    "Render: 19 tables",
+    "Sync: 100%\n",
+    "✅ SUCCESS: All tables are now present in Render database!\n"
+  ]
+}

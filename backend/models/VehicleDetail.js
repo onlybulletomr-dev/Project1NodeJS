@@ -26,14 +26,14 @@ class VehicleDetail {
     try {
       // Try Render schema first
       let result = await pool.query(
-        'SELECT vehicleid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY registrationnumber'
+        'SELECT vehicleid, customerid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY registrationnumber'
       );
       return result.rows;
     } catch (renderError) {
       // Fall back to local schema
       try {
         const result = await pool.query(
-          'SELECT vehicledetailid as vehicleid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY vehiclenumber'
+          'SELECT vehicledetailid as vehicleid, customerid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY vehiclenumber'
         );
         return result.rows;
       } catch (localError) {
