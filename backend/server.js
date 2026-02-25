@@ -47,6 +47,36 @@ app.get('/health', (req, res) => {
   res.status(200).json({ message: 'Server is running' });
 });
 
+// Diagnostic endpoint - check vehiclemaster data
+app.get('/admin/check/vehiclemaster', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    const client = await pool.connect();
+    
+    const result = await client.query(
+      'SELECT COUNT(*) as total, COUNT(DISTINCT modelname) as unique_models FROM vehiclemaster WHERE deletedat IS NULL'
+    );
+    
+    const modelsResult = await client.query(
+      'SELECT modelname, COUNT(*) as color_count FROM vehiclemaster WHERE deletedat IS NULL GROUP BY modelname ORDER BY modelname'
+    );
+    
+    await client.release();
+    
+    res.status(200).json({
+      success: true,
+      total_records: result.rows[0].total,
+      unique_models: result.rows[0].unique_models,
+      models: modelsResult.rows
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
 // Migration endpoint - populate vehiclemaster from local
 app.post('/admin/migrate/vehiclemaster', async (req, res) => {
   try {
