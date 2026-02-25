@@ -520,8 +520,8 @@ app.post('/admin/migrate/fix-employees-render', async (req, res) => {
     for (const emp of correctEmployees) {
       await pool.query(`
         INSERT INTO employeemaster 
-        (employeeid, firstname, lastname, branchid, employeetype, role, dateofjoining, createdby, updatedat, createdat)
-        VALUES ($1, $2, $3, $4, 'Employee', false, CURRENT_DATE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        (employeeid, firstname, lastname, branchid, employeetype, role, dateofjoining, createdby, updatedat, createdat, isactive)
+        VALUES ($1, $2, $3, $4, 'Employee', false, CURRENT_DATE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true)
       `, [emp.employeeid, emp.firstname, emp.lastname, emp.branchid]);
       insertedCount++;
     }
