@@ -88,7 +88,7 @@ app.get('/admin/health/credentials', async (req, res) => {
       const credResult = await pool.query('SELECT COUNT(*) as count FROM employeecredentials;');
       credCount = credResult.rows[0].count;
       
-      const empResult = await pool.query('SELECT COUNT(*) as count FROM EmployeeMaster WHERE DeletedAt IS NULL;');
+      const empResult = await pool.query('SELECT COUNT(*) as count FROM employeemaster WHERE deletedat IS NULL;');
       empCount = empResult.rows[0].count;
     }
     
