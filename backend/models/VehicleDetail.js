@@ -24,7 +24,7 @@ class VehicleDetail {
   // Get all vehicle details
   static async getAll() {
     const result = await pool.query(
-      'SELECT vehicleid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY registrationnumber'
+      'SELECT vehicledetailid as vehicleid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE deletedat IS NULL ORDER BY vehiclenumber'
     );
     return result.rows;
   }
@@ -32,7 +32,7 @@ class VehicleDetail {
   // Get vehicle detail by ID
   static async getById(id) {
     const result = await pool.query(
-      'SELECT vehicleid, registrationnumber as vehiclenumber, vehicletype, manufacturer, model as vehiclemodel, yearofmanufacture, enginenumber, chassisnumber, color as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE vehicleid = $1 AND deletedat IS NULL',
+      'SELECT vehicledetailid as vehicleid, vehiclenumber as vehiclenumber, null as vehicletype, null as manufacturer, vehiclemodel as vehiclemodel, null as yearofmanufacture, null as enginenumber, null as chassisnumber, vehiclecolor as vehiclecolor, createdat, updatedat, deletedat FROM vehicledetail WHERE vehicledetailid = $1 AND deletedat IS NULL',
       [id]
     );
     return result.rows;
@@ -43,21 +43,21 @@ class VehicleDetail {
     try {
       const query = `
         SELECT 
-          vehicleid,
-          registrationnumber as vehiclenumber,
-          vehicletype,
-          manufacturer,
-          model as vehiclemodel,
-          yearofmanufacture,
-          enginenumber,
-          chassisnumber,
-          color as vehiclecolor,
+          vehicledetailid as vehicleid,
+          vehiclenumber as vehiclenumber,
+          null as vehicletype,
+          null as manufacturer,
+          vehiclemodel as vehiclemodel,
+          null as yearofmanufacture,
+          null as enginenumber,
+          null as chassisnumber,
+          vehiclecolor as vehiclecolor,
           createdat,
           updatedat,
           deletedat
         FROM vehicledetail
         WHERE customerid = $1 AND deletedat IS NULL
-        ORDER BY registrationnumber
+        ORDER BY vehiclenumber
       `;
       console.log(`[SQL] Executing query for customer ${customerId}:`, query);
       const result = await pool.query(query, [customerId]);
