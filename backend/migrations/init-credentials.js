@@ -9,7 +9,7 @@ async function ensureCredentialsTableExists() {
     const createTableQuery = `
       CREATE TABLE IF NOT EXISTS employeecredentials (
         credentialid SERIAL PRIMARY KEY,
-        employeeid INTEGER NOT NULL UNIQUE REFERENCES EmployeeMaster(EmployeeID) ON DELETE CASCADE,
+        employeeid INTEGER NOT NULL UNIQUE REFERENCES employeemaster(employeeid) ON DELETE CASCADE,
         passwordhash VARCHAR(255) NOT NULL,
         lastpasswordchange DATE DEFAULT CURRENT_DATE,
         passwordattempts INTEGER DEFAULT 0,
@@ -30,11 +30,11 @@ async function ensureCredentialsTableExists() {
 
     // Get employees without credentials
     const employeesQuery = `
-      SELECT em.EmployeeID, em.FirstName 
-      FROM EmployeeMaster em
-      LEFT JOIN employeecredentials ec ON em.EmployeeID = ec.employeeid
+      SELECT em.employeeid, em.firstname 
+      FROM employeemaster em
+      LEFT JOIN employeecredentials ec ON em.employeeid = ec.employeeid
       WHERE ec.credentialid IS NULL
-      AND em.DeletedAt IS NULL;
+      AND em.deletedat IS NULL;
     `;
 
     const employeesResult = await pool.query(employeesQuery);

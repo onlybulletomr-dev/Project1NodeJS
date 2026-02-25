@@ -9,7 +9,7 @@ async function ensureCredentialsTable() {
     const createTableQuery = `
       CREATE TABLE IF NOT EXISTS employeecredentials (
         credentialid SERIAL PRIMARY KEY,
-        employeeid INTEGER NOT NULL UNIQUE REFERENCES EmployeeMaster(EmployeeID) ON DELETE CASCADE,
+        employeeid INTEGER NOT NULL UNIQUE REFERENCES employeemaster(employeeid) ON DELETE CASCADE,
         passwordhash VARCHAR(255) NOT NULL,
         lastpasswordchange DATE DEFAULT CURRENT_DATE,
         passwordattempts INTEGER DEFAULT 0,
