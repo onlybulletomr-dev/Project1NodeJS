@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import CustomerMaster from './components/CustomerMaster';
 import InvoiceMaster from './components/InvoiceMaster';
 import InvoiceList from './components/InvoiceList';
@@ -98,6 +98,7 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/set-password" element={<SetPassword />} />
           <Route path="/" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
     );
