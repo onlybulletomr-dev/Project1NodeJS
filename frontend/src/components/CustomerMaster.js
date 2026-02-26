@@ -270,10 +270,11 @@ function CustomerMaster() {
     try {
       // Prepare customer data ONLY (no vehicle fields)
       const customerData = { ...formData };
+      const isEditMode = !!editingId;
       
       let customerId = null;
 
-      if (editingId) {
+      if (isEditMode) {
         // Updating existing customer (customer data only)
         const updateData = { ...customerData };
         
@@ -295,7 +296,6 @@ function CustomerMaster() {
         if (response && response.success) {
           customerId = editingId;
           setSuccess(response.message || 'Customer updated successfully!');
-          setEditingId(null);
         } else {
           setError(response?.message || 'Failed to update customer.');
           return;
@@ -383,9 +383,11 @@ function CustomerMaster() {
             Color: vehicleData.VehicleColor,
             CreatedBy: 1,
           };
+
+          let vehicleUpdated = false;
           
           // Check if we're updating an existing customer with existing vehicle
-          if (editingId) {
+          if (isEditMode) {
             // Try to find existing vehicle for this customer
             console.log('Checking for existing vehicle for customer:', customerId);
             try {
@@ -414,31 +416,35 @@ function CustomerMaster() {
                 if (updateVehicleResponse && updateVehicleResponse.success) {
                   setSuccess(prev => prev + ` Vehicle "${vehicleData.VehicleNumber}" updated successfully!`);
                   console.log('Vehicle detail updated successfully');
+                  vehicleUpdated = true;
                 } else {
                   const errorMsg = updateVehicleResponse?.message || 'Unknown error';
                   console.warn('Vehicle detail update failed:', errorMsg);
                   setError(`Customer saved, but vehicle update failed: ${errorMsg}`);
+                  return;
                 }
-                return; // Don't try to create if we updated
               }
             } catch (vehicleCheckErr) {
               console.log('No existing vehicle found, will create new one');
             }
           }
           
-          // Create new vehicle detail
-          console.log('Creating vehicle detail with payload:', vehiclePayload);
-          const vehicleResponse = await createVehicleDetail(vehiclePayload);
-          console.log('Vehicle detail response:', vehicleResponse);
-          
-          if (vehicleResponse && vehicleResponse.success) {
-            setSuccess(prev => prev + ` Vehicle "${vehicleData.VehicleNumber}" (${defaultManufacturer}) added successfully!`);
-            console.log('Vehicle detail created successfully');
-          } else {
-            const errorMsg = vehicleResponse?.message || vehicleResponse?.error || 'Unknown error';
-            console.warn('Vehicle detail creation failed:', errorMsg);
-            console.warn('Full response:', vehicleResponse);
-            setError(`Customer saved, but vehicle detail creation failed: ${errorMsg}`);
+          if (!vehicleUpdated) {
+            // Create new vehicle detail
+            console.log('Creating vehicle detail with payload:', vehiclePayload);
+            const vehicleResponse = await createVehicleDetail(vehiclePayload);
+            console.log('Vehicle detail response:', vehicleResponse);
+            
+            if (vehicleResponse && vehicleResponse.success) {
+              setSuccess(prev => prev + ` Vehicle "${vehicleData.VehicleNumber}" (${defaultManufacturer}) added successfully!`);
+              console.log('Vehicle detail created successfully');
+            } else {
+              const errorMsg = vehicleResponse?.message || vehicleResponse?.error || 'Unknown error';
+              console.warn('Vehicle detail creation failed:', errorMsg);
+              console.warn('Full response:', vehicleResponse);
+              setError(`Customer saved, but vehicle detail creation failed: ${errorMsg}`);
+              return;
+            }
           }
         } catch (vehicleErr) {
           console.error('Vehicle detail error - full error object:', vehicleErr);
