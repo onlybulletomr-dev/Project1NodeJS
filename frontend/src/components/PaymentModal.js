@@ -144,6 +144,21 @@ function PaymentModal({
   };
 
   const isPaymentValid = paymentAmount && selectedPaymentMethod && Object.values(invoicePaymentAmounts).some(amt => amt);
+  const totalPendingAmount = Number(
+    invoices.reduce(
+      (sum, inv) => sum + (Number(inv.amounttobepaid) || Number(inv.totalamount) || Number(inv.amount) || 0),
+      0
+    )
+  );
+  const remainingAmount = Number(
+    totalPendingAmount - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)
+  );
+  const upiId = process.env.REACT_APP_UPI_ID || '';
+  const upiPayeeName = process.env.REACT_APP_UPI_PAYEE_NAME || 'Project1NodeJS_Production';
+  const qrPayload = upiId
+    ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiPayeeName)}&am=${totalPendingAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Invoice Payment')}`
+    : `PAY|INR|${totalPendingAmount.toFixed(2)}|Invoice Payment`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrPayload)}`;
 
   if (!isOpen) return null;
 
@@ -254,12 +269,24 @@ function PaymentModal({
               </div>
               
               {/* Total and Pending Amount */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 30, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 8, borderTop: '1px solid #eee' }}>
-                <div>
-                  Total Pending: <span style={{ color: '#FF9800', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.amounttobepaid) || Number(inv.totalamount) || Number(inv.amount) || 0), 0)).toFixed(2)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 8, borderTop: '1px solid #eee' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <img
+                    src={qrImageUrl}
+                    alt="Payment QR"
+                    style={{ width: 92, height: 92, border: '1px solid #ddd', borderRadius: 6, padding: 4, background: '#fff' }}
+                  />
+                  <div style={{ fontSize: 11, color: '#555', lineHeight: 1.4 }}>
+                    <div style={{ fontWeight: 700, color: '#333' }}>Scan to Pay</div>
+                    <div>Amount: ₹{totalPendingAmount.toFixed(2)}</div>
+                    {!upiId && <div style={{ color: '#d97706' }}>Set REACT_APP_UPI_ID for direct UPI app payment</div>}
+                  </div>
                 </div>
                 <div>
-                  Remaining: <span style={{ color: '#2196F3', fontSize: 14 }}>₹{Number(invoices.reduce((sum, inv) => sum + (Number(inv.amounttobepaid) || Number(inv.totalamount) || Number(inv.amount) || 0), 0) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</span>
+                  Total Pending: <span style={{ color: '#FF9800', fontSize: 14 }}>₹{totalPendingAmount.toFixed(2)}</span>
+                </div>
+                <div>
+                  Remaining: <span style={{ color: '#2196F3', fontSize: 14 }}>₹{remainingAmount.toFixed(2)}</span>
                 </div>
               </div>
             </div>
