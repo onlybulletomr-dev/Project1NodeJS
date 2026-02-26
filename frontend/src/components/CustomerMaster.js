@@ -395,7 +395,7 @@ function CustomerMaster() {
               if (existingVehicleList.length > 0) {
                 // Update the first vehicle (or find matching by registration number)
                 const vehicleToUpdate = existingVehicleList[0];
-                const vehicleDetailId = vehicleToUpdate.vehicledetailid;
+                const vehicleDetailId = vehicleToUpdate.vehicleid || vehicleToUpdate.vehicledetailid;
                 
                 console.log('Found existing vehicle:', vehicleDetailId, 'Updating instead of creating');
                 

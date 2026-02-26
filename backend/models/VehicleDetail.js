@@ -125,19 +125,36 @@ class VehicleDetail {
 
   // Update vehicle detail
   static async update(id, data) {
-    const { registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color } = data;
+    const registrationnumber = data.registrationnumber || data.RegistrationNumber || null;
+    const model = data.model || data.VehicleModel || null;
+    const color = data.color || data.Color || null;
     const UpdatedAt = new Date().toISOString().split('T')[0];
     
     console.log('[VehicleDetail.update] Updating vehicle', id, 'with:', { registrationnumber, model });
-    
-    const result = await pool.query(
-      `UPDATE vehicledetail SET registrationnumber = $1, vehicletype = $2, manufacturer = $3, model = $4, yearofmanufacture = $5, enginenumber = $6, chassisnumber = $7, color = $8, updatedat = $9 
-       WHERE vehicleid = $10 AND deletedat IS NULL RETURNING *`,
-      [registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, UpdatedAt, id]
-    );
-    
-    console.log('[VehicleDetail.update] Updated vehicle:', result.rows[0]);
-    return result.rows[0];
+
+    try {
+      const result = await pool.query(
+        `UPDATE vehicledetail
+         SET registrationnumber = $1, model = $2, color = $3, updatedat = $4
+         WHERE vehicleid = $5 AND deletedat IS NULL
+         RETURNING *`,
+        [registrationnumber, model, color, UpdatedAt, id]
+      );
+
+      console.log('[VehicleDetail.update] Updated vehicle (Render schema):', result.rows[0]);
+      return result.rows[0];
+    } catch (renderError) {
+      const result = await pool.query(
+        `UPDATE vehicledetail
+         SET vehiclenumber = $1, vehiclemodel = $2, vehiclecolor = $3, updatedat = $4
+         WHERE vehicledetailid = $5 AND deletedat IS NULL
+         RETURNING *`,
+        [registrationnumber, model, color, UpdatedAt, id]
+      );
+
+      console.log('[VehicleDetail.update] Updated vehicle (local schema):', result.rows[0]);
+      return result.rows[0];
+    }
   }
 
   // Soft delete vehicle detail

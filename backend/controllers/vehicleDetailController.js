@@ -121,14 +121,7 @@ exports.getVehicleDetailsByCustomerId = async (req, res) => {
 exports.updateVehicleDetail = async (req, res) => {
   try {
     const { id } = req.params;
-    const { RegistrationNumber, VehicleModel, Color, UpdatedBy } = req.body;
-
-    const updatedVehicleDetail = await VehicleDetail.update(id, {
-      RegistrationNumber,
-      VehicleModel,
-      Color,
-      UpdatedBy: UpdatedBy || 1,
-    });
+    const updatedVehicleDetail = await VehicleDetail.update(id, req.body);
 
     if (!updatedVehicleDetail) {
       return res.status(404).json({
