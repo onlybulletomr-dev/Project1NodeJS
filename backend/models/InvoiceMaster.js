@@ -145,6 +145,79 @@ class InvoiceMaster {
     return result.rows;
   }
 
+  static async getAllByVehicleNumberWithDetails(vehicleNumber) {
+    const normalizedVehicleNumber = (vehicleNumber || '').trim();
+    try {
+      const renderResult = await pool.query(
+        `SELECT 
+          im.invoiceid,
+          im.invoicenumber,
+          im.invoicedate,
+          im.branchid,
+          im.customerid,
+          im.vehicleid,
+          COALESCE(NULLIF(im.vehiclenumber, ''), vd.resolvedvehiclenumber) as vehiclenumber,
+          im.totalamount,
+          im.paymentstatus,
+          im.paymentdate,
+          COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
+          COALESCE(SUM(pd.amount), 0) as paidamount
+        FROM invoicemaster im
+        LEFT JOIN LATERAL (
+          SELECT v.registrationnumber as resolvedvehiclenumber
+          FROM vehicledetail v
+          WHERE v.vehicleid = im.vehicleid AND v.deletedat IS NULL
+          LIMIT 1
+        ) vd ON TRUE
+        LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
+        LEFT JOIN paymentdetail pd ON im.invoiceid = pd.invoiceid AND pd.deletedat IS NULL
+        WHERE im.deletedat IS NULL
+          AND LOWER(REGEXP_REPLACE(COALESCE(NULLIF(im.vehiclenumber, ''), vd.resolvedvehiclenumber, ''), '\\s+', '', 'g')) LIKE
+              '%' || LOWER(REGEXP_REPLACE($1, '\\s+', '', 'g')) || '%'
+        GROUP BY im.invoiceid, im.invoicenumber, im.invoicedate, im.branchid, im.customerid, im.vehicleid,
+                 im.vehiclenumber, vd.resolvedvehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname
+        ORDER BY im.invoicedate DESC`,
+        [normalizedVehicleNumber]
+      );
+
+      return renderResult.rows;
+    } catch (renderError) {
+      const localResult = await pool.query(
+        `SELECT 
+          im.invoiceid,
+          im.invoicenumber,
+          im.invoicedate,
+          im.branchid,
+          im.customerid,
+          im.vehicleid,
+          COALESCE(NULLIF(im.vehiclenumber, ''), vd.resolvedvehiclenumber) as vehiclenumber,
+          im.totalamount,
+          im.paymentstatus,
+          im.paymentdate,
+          COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
+          COALESCE(SUM(pd.amount), 0) as paidamount
+        FROM invoicemaster im
+        LEFT JOIN LATERAL (
+          SELECT v.vehiclenumber as resolvedvehiclenumber
+          FROM vehicledetail v
+          WHERE v.vehicledetailid = im.vehicleid AND v.deletedat IS NULL
+          LIMIT 1
+        ) vd ON TRUE
+        LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
+        LEFT JOIN paymentdetail pd ON im.invoiceid = pd.invoiceid AND pd.deletedat IS NULL
+        WHERE im.deletedat IS NULL
+          AND LOWER(REGEXP_REPLACE(COALESCE(NULLIF(im.vehiclenumber, ''), vd.resolvedvehiclenumber, ''), '\\s+', '', 'g')) LIKE
+              '%' || LOWER(REGEXP_REPLACE($1, '\\s+', '', 'g')) || '%'
+        GROUP BY im.invoiceid, im.invoicenumber, im.invoicedate, im.branchid, im.customerid, im.vehicleid,
+                 im.vehiclenumber, vd.resolvedvehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname
+        ORDER BY im.invoicedate DESC`,
+        [normalizedVehicleNumber]
+      );
+
+      return localResult.rows;
+    }
+  }
+
   static async update(id, data) {
     const {
       InvoiceNumber,

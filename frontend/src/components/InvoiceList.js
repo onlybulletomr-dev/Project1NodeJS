@@ -4,57 +4,69 @@ import { API_BASE_URL } from '../api';
 const InvoiceList = () => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [vehicleSearchInput, setVehicleSearchInput] = useState('');
+  const [activeVehicleFilter, setActiveVehicleFilter] = useState('');
   const [sortConfig, setSortConfig] = useState({
     key: 'invoicedate',
     direction: 'desc', // default to descending (newest first)
   });
 
-  // Fetch all invoices from API
-  useEffect(() => {
-    const fetchInvoices = async () => {
-      try {
-        setLoading(true);
-        const userId = localStorage.getItem('userId');
-        const branchId = localStorage.getItem('branchId');
+  const fetchInvoices = async (vehicleNumber = '') => {
+    try {
+      setLoading(true);
+      const userId = localStorage.getItem('userId');
 
-        if (!userId) {
-          throw new Error('Session expired. Please login again.');
-        }
-
-        // Get the next invoice data which also returns all invoices
-        const response = await fetch(`${API_BASE_URL}/invoices`, {
-          headers: {
-            'x-user-id': userId,
-            ...(branchId ? { 'x-branch-id': branchId } : {}),
-          },
-        });
-        
-        if (!response.ok) throw new Error('Failed to fetch invoices');
-        
-        const result = await response.json();
-        console.log('Fetched invoices:', result);
-        
-        // Transform data to include due amount and customer/vehicle info
-        const transformedInvoices = (result.data || result || []).map(inv => ({
-          ...inv,
-          dueAmount: (parseFloat(inv.totalamount) || 0) - (parseFloat(inv.paidamount) || 0),
-          invoiceDate: inv.invoicedate ? new Date(inv.invoicedate).toLocaleDateString('en-IN') : '-',
-          totalAmount: parseFloat(inv.totalamount) || 0,
-          paidAmount: parseFloat(inv.paidamount) || 0,
-        }));
-        
-        setInvoices(transformedInvoices);
-      } catch (error) {
-        console.error('Error fetching invoices:', error);
-        setInvoices([]);
-        alert('Failed to load invoices: ' + error.message);
-      } finally {
-        setLoading(false);
+      if (!userId) {
+        throw new Error('Session expired. Please login again.');
       }
-    };
 
-    fetchInvoices();
+      const cleanVehicleNumber = (vehicleNumber || '').trim();
+      const endpoint = cleanVehicleNumber
+        ? `${API_BASE_URL}/invoices?vehicleNumber=${encodeURIComponent(cleanVehicleNumber)}`
+        : `${API_BASE_URL}/invoices`;
+
+      const response = await fetch(endpoint, {
+        headers: {
+          'x-user-id': userId,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch invoices');
+
+      const result = await response.json();
+      console.log('Fetched invoices:', result);
+
+      const transformedInvoices = (result.data || result || []).map(inv => ({
+        ...inv,
+        dueAmount: (parseFloat(inv.totalamount) || 0) - (parseFloat(inv.paidamount) || 0),
+        invoiceDate: inv.invoicedate ? new Date(inv.invoicedate).toLocaleDateString('en-IN') : '-',
+        totalAmount: parseFloat(inv.totalamount) || 0,
+        paidAmount: parseFloat(inv.paidamount) || 0,
+      }));
+
+      setInvoices(transformedInvoices);
+      setActiveVehicleFilter(cleanVehicleNumber);
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+      setInvoices([]);
+      alert('Failed to load invoices: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvoices('');
   }, []);
+
+  const handleVehicleSearch = async () => {
+    await fetchInvoices(vehicleSearchInput);
+  };
+
+  const handleShowAllInvoices = async () => {
+    setVehicleSearchInput('');
+    await fetchInvoices('');
+  };
 
   // Handle column header click for sorting
   const handleSort = (key) => {
@@ -138,7 +150,61 @@ const InvoiceList = () => {
         </h1>
         <p style={{ fontSize: '14px', color: '#6b7280' }}>
           {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} found
+          {activeVehicleFilter ? ` for vehicle ${activeVehicleFilter}` : ''}
         </p>
+      </div>
+
+      <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+        <input
+          type="text"
+          value={vehicleSearchInput}
+          onChange={(e) => setVehicleSearchInput(e.target.value.toUpperCase())}
+          placeholder="Enter Vehicle Number"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleVehicleSearch();
+            }
+          }}
+          style={{
+            width: '260px',
+            padding: '10px 12px',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            fontSize: '14px',
+          }}
+        />
+        <button
+          type="button"
+          onClick={handleVehicleSearch}
+          style={{
+            padding: '10px 16px',
+            border: 'none',
+            borderRadius: '6px',
+            background: '#2563eb',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Search
+        </button>
+        <button
+          type="button"
+          onClick={handleShowAllInvoices}
+          style={{
+            padding: '10px 16px',
+            border: '1px solid #2563eb',
+            borderRadius: '6px',
+            background: '#fff',
+            color: '#2563eb',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          All
+        </button>
       </div>
 
       {/* Loading indicator */}

@@ -268,6 +268,7 @@ exports.getAllInvoices = async (req, res) => {
   try {
     // Get user's branch from middleware
     const userBranchId = req.user?.branchId;
+    const vehicleNumber = (req.query.vehicleNumber || '').trim();
 
     if (!userBranchId) {
       return res.status(401).json({
@@ -276,14 +277,23 @@ exports.getAllInvoices = async (req, res) => {
       });
     }
 
-    // Fetch invoices with customer and vehicle details
-    const invoices = await InvoiceMaster.getAllByBranchWithDetails(userBranchId);
+    let invoices;
+    let message;
+
+    if (vehicleNumber) {
+      invoices = await InvoiceMaster.getAllByVehicleNumberWithDetails(vehicleNumber);
+      message = 'Invoices retrieved successfully for vehicle number across all branches';
+    } else {
+      invoices = await InvoiceMaster.getAllByBranchWithDetails(userBranchId);
+      message = 'Invoices retrieved successfully for your branch';
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Invoices retrieved successfully for your branch',
+      message,
       data: invoices,
       branch: userBranchId,
+      vehicleNumber: vehicleNumber || null,
     });
   } catch (err) {
     console.error('Error retrieving invoices:', err);
