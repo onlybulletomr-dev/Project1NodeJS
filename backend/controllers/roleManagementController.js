@@ -141,6 +141,8 @@ exports.bulkUpdateRoles = async (req, res) => {
       });
     }
 
+    console.log(`[BulkUpdateRoles] Processing ${updates.length} updates:`, JSON.stringify(updates, null, 2));
+
     const userId = req.headers['x-user-id'] || null;
     const results = [];
     let successCount = 0;
@@ -151,13 +153,17 @@ exports.bulkUpdateRoles = async (req, res) => {
       try {
         const { employeeid, role_type, branchid, password } = update;
 
+        console.log(`[Update ${employeeid}] Validating - role: ${role_type}, branch: ${branchid}, hasPassword: ${!!password}`);
+
         // Validate
         if (!employeeid || !role_type || branchid === null || branchid === undefined) {
           errorCount++;
+          const errorMsg = `Missing required fields: empId=${employeeid}, role=${role_type}, branch=${branchid}`;
+          console.log(`[Update ${employeeid}] ✗ Validation failed:`, errorMsg);
           results.push({
             employeeid,
             success: false,
-            error: `Missing required fields: empId=${employeeid}, role=${role_type}, branch=${branchid}`
+            error: errorMsg
           });
           continue;
         }
@@ -174,7 +180,7 @@ exports.bulkUpdateRoles = async (req, res) => {
         }
 
         // Validate password if provided
-        if (password && password.trim().length > 0 && password.length < 6) {
+        if (password && password.trim().length > 0 && password.trim().length < 6) {
           errorCount++;
           results.push({
             employeeid,
@@ -201,6 +207,7 @@ exports.bulkUpdateRoles = async (req, res) => {
 
         if (empResult.rows.length === 0) {
           errorCount++;
+          console.log(`[Update ${employeeid}] ✗ Employee not found in database with deletedat IS NULL`);
           results.push({
             employeeid,
             success: false,
@@ -208,6 +215,8 @@ exports.bulkUpdateRoles = async (req, res) => {
           });
           continue;
         }
+
+        console.log(`[Update ${employeeid}] ✓ Employee role updated - ${empResult.rows[0].firstname} ${empResult.rows[0].lastname}`);
 
         // Update password if provided
         let passwordMsg = '';

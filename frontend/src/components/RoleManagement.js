@@ -88,18 +88,39 @@ function RoleManagement() {
 
       const changedEmployees = Object.keys(changes).map(empId => {
         const emp = employees.find(e => e.employeeid === parseInt(empId));
-        const currentRole = changes[empId].role_type || (emp?.role ? 'Admin' : 'Employee');
+        
+        // If employee not found in list, log error
+        if (!emp) {
+          console.error(`Employee ${empId} not found in loaded employees list`);
+          return null;
+        }
+        
+        // Ensure we have the current role value
+        let roleValue = changes[empId].role_type;
+        if (!roleValue) {
+          roleValue = emp.role ? 'Admin' : 'Employee';
+        }
+        
+        // Ensure branch exists
+        let branchId = changes[empId].branchid;
+        if (branchId === undefined || branchId === null) {
+          branchId = emp.branchid || 1;
+        }
+        
         const update = {
           employeeid: parseInt(empId),
-          role_type: currentRole,
-          branchid: changes[empId].branchid !== undefined ? changes[empId].branchid : (emp?.branchid || 1)
+          role_type: roleValue,
+          branchid: branchId
         };
+        
         // Only include password if it was changed
-        if (changes[empId].password) {
+        if (changes[empId].password && changes[empId].password.trim().length > 0) {
           update.password = changes[empId].password;
         }
+        
+        console.log(`Preparing update for employee ${empId}:`, update);
         return update;
-      });
+      }).filter(u => u !== null);  // Remove any null entries
 
       if (changedEmployees.length === 0) {
         setMessage('No changes to save');
