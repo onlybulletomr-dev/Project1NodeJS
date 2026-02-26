@@ -54,10 +54,12 @@ class InvoiceMaster {
     );
 
     const schemaInfo = schemaResult.rows[0] || {};
+    const hasIdColumn = schemaResult.rows.length > 0;
     const hasAutoId = (schemaInfo.is_identity === 'YES') ||
       (schemaInfo.column_default && schemaInfo.column_default.includes('nextval'));
 
-    if (hasAutoId) {
+    // If ID column is auto-generated OR metadata is unavailable, use standard insert
+    if (hasAutoId || !hasIdColumn) {
       const result = await pool.query(
         `INSERT INTO invoicemaster (
           invoicenumber, branchid, customerid, vehicleid, vehiclenumber, jobcardid,

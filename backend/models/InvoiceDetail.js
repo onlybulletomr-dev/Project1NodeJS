@@ -27,10 +27,12 @@ class InvoiceDetail {
     );
 
     const schemaInfo = schemaResult.rows[0] || {};
+    const hasIdColumn = schemaResult.rows.length > 0;
     const hasAutoId = (schemaInfo.is_identity === 'YES') ||
       (schemaInfo.column_default && schemaInfo.column_default.includes('nextval'));
 
-    if (hasAutoId) {
+    // If ID column is auto-generated OR column doesn't exist in this schema, use standard insert
+    if (hasAutoId || !hasIdColumn) {
       const result = await pool.query(
         `INSERT INTO invoicedetail (
           invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat
