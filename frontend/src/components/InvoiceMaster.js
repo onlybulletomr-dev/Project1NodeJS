@@ -855,7 +855,7 @@ export default function InvoiceMaster() {
           {/* Left: Invoice Grid and Employee Fields */}
           <div style={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Invoice Grid */}
-          <div style={{ marginBottom: 2, flex: '0 0 195px', overflow: 'auto' }}>
+          <div style={{ marginBottom: 2, flex: '0 0 270px', overflow: 'auto' }}>
             <div style={{ display: 'flex', gap: 3, marginBottom: 2 }}>
               <div style={{ position: 'relative' }}>
                 <input
@@ -905,7 +905,7 @@ export default function InvoiceMaster() {
                 <span style={{ fontSize: '16px', fontWeight: '500' }}>GS</span>
               </label>
             </div>
-            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '2px' }}>
+            <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '2px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', fontSize: '1em' }}>
               <thead>
                 <tr style={{ background: '#f1f3f4' }}>
