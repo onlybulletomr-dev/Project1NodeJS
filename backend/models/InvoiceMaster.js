@@ -30,6 +30,7 @@ class InvoiceMaster {
       Odometer,
       Notes,
       Notes1,
+      PaymentStatus,
       CreatedBy,
     } = data;
 
@@ -41,7 +42,7 @@ class InvoiceMaster {
       SubTotal, TotalDiscount || 0, PartsIncome || 0, ServiceIncome || 0, Tax1 || 0, Tax2 || 0, TotalAmount,
       Technicianmain, Technicianassistant, WaterWash, ServiceAdvisorIn, ServiceAdvisorDeliver,
       TestDriver, Cleaner, AdditionalWork,
-      Odometer, Notes, Notes1, CreatedBy, CreatedAt,
+      Odometer, Notes, Notes1, PaymentStatus || 'Pending', CreatedBy, CreatedAt,
     ];
 
     const schemaResult = await pool.query(
@@ -64,8 +65,8 @@ class InvoiceMaster {
           subtotal, totaldiscount, partsincome, serviceincome, tax1, tax2, totalamount,
           technicianmain, technicianassistant, waterwash, serviceadvisorin, serviceadvisordeliver,
           testdriver, cleaner, additionalwork,
-          odometer, notes, notes1, createdby, createdat
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+          odometer, notes, notes1, paymentstatus, createdby, createdat
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
         RETURNING *`,
         insertValues
       );
@@ -83,8 +84,8 @@ class InvoiceMaster {
         subtotal, totaldiscount, partsincome, serviceincome, tax1, tax2, totalamount,
         technicianmain, technicianassistant, waterwash, serviceadvisorin, serviceadvisordeliver,
         testdriver, cleaner, additionalwork,
-        odometer, notes, notes1, createdby, createdat
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+        odometer, notes, notes1, paymentstatus, createdby, createdat
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
       RETURNING *`,
       [nextInvoiceId, ...insertValues]
     );
