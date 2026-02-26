@@ -36,40 +36,94 @@ class VehicleDetail {
     const CreatedAt = new Date().toISOString().split('T')[0];
     const needsExplicitId = await VehicleDetail.requiresExplicitVehicleDetailId();
     const nextVehicleDetailId = needsExplicitId ? await VehicleDetail.getNextVehicleDetailId() : null;
+    const isVehicleDetailIdNullError = (error) =>
+      error &&
+      typeof error.message === 'string' &&
+      error.message.includes('null value in column "vehicledetailid"');
+
+    const insertRenderSchema = async (withExplicitId) => {
+      if (withExplicitId) {
+        const explicitId = await VehicleDetail.getNextVehicleDetailId();
+        return pool.query(
+          `INSERT INTO vehicledetail (vehicledetailid, customerid, registrationnumber, model, color, createdat, createdby)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [explicitId, customerid, registrationnumber, model, color, CreatedAt, createdby]
+        );
+      }
+
+      if (needsExplicitId) {
+        return pool.query(
+          `INSERT INTO vehicledetail (vehicledetailid, customerid, registrationnumber, model, color, createdat, createdby)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [nextVehicleDetailId, customerid, registrationnumber, model, color, CreatedAt, createdby]
+        );
+      }
+
+      return pool.query(
+        `INSERT INTO vehicledetail (customerid, registrationnumber, model, color, createdat, createdby)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [customerid, registrationnumber, model, color, CreatedAt, createdby]
+      );
+    };
+
+    const insertLocalSchema = async (withExplicitId) => {
+      if (withExplicitId) {
+        const explicitId = await VehicleDetail.getNextVehicleDetailId();
+        return pool.query(
+          `INSERT INTO vehicledetail (vehicledetailid, customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [explicitId, customerid, registrationnumber, model, color, CreatedAt, createdby]
+        );
+      }
+
+      if (needsExplicitId) {
+        return pool.query(
+          `INSERT INTO vehicledetail (vehicledetailid, customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [nextVehicleDetailId, customerid, registrationnumber, model, color, CreatedAt, createdby]
+        );
+      }
+
+      return pool.query(
+        `INSERT INTO vehicledetail (customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [customerid, registrationnumber, model, color, CreatedAt, createdby]
+      );
+    };
     
     console.log('[VehicleDetail.create] Creating vehicle:', { customerid, registrationnumber, model, color });
 
     try {
-      const result = needsExplicitId
-        ? await pool.query(
-            `INSERT INTO vehicledetail (vehicledetailid, customerid, registrationnumber, model, color, createdat, createdby)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING *`,
-            [nextVehicleDetailId, customerid, registrationnumber, model, color, CreatedAt, createdby]
-          )
-        : await pool.query(
-            `INSERT INTO vehicledetail (customerid, registrationnumber, model, color, createdat, createdby)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING *`,
-            [customerid, registrationnumber, model, color, CreatedAt, createdby]
-          );
+      let result;
+      try {
+        result = await insertRenderSchema(false);
+      } catch (renderInsertError) {
+        if (!needsExplicitId && isVehicleDetailIdNullError(renderInsertError)) {
+          result = await insertRenderSchema(true);
+        } else {
+          throw renderInsertError;
+        }
+      }
 
       console.log('[VehicleDetail.create] Created vehicle (Render schema):', result.rows[0]);
       return result.rows[0];
     } catch (renderError) {
-      const result = needsExplicitId
-        ? await pool.query(
-            `INSERT INTO vehicledetail (vehicledetailid, customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING *`,
-            [nextVehicleDetailId, customerid, registrationnumber, model, color, CreatedAt, createdby]
-          )
-        : await pool.query(
-            `INSERT INTO vehicledetail (customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING *`,
-            [customerid, registrationnumber, model, color, CreatedAt, createdby]
-          );
+      let result;
+      try {
+        result = await insertLocalSchema(false);
+      } catch (localInsertError) {
+        if (!needsExplicitId && isVehicleDetailIdNullError(localInsertError)) {
+          result = await insertLocalSchema(true);
+        } else {
+          throw localInsertError;
+        }
+      }
 
       console.log('[VehicleDetail.create] Created vehicle (local schema):', result.rows[0]);
       return result.rows[0];
