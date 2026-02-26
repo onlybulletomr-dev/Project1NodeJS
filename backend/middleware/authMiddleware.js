@@ -40,10 +40,7 @@ async function getUserDetails(userId) {
         em.lastname,
         em.employeeid,
         em.branchid,
-        CASE
-          WHEN em.role = TRUE THEN 'Admin'
-          ELSE COALESCE(em.employeetype, 'Employee')
-        END as rolename
+        'Employee'::text as rolename
       FROM employeemaster em
       WHERE em.employeeid = $1
         AND em.deletedat IS NULL
