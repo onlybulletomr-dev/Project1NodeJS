@@ -92,7 +92,7 @@ function RoleManagement() {
         const update = {
           employeeid: parseInt(empId),
           role_type: currentRole,
-          branchid: changes[empId].branchid || emp?.branchid
+          branchid: changes[empId].branchid !== undefined ? changes[empId].branchid : (emp?.branchid || 1)
         };
         // Only include password if it was changed
         if (changes[empId].password) {

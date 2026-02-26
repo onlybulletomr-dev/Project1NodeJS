@@ -152,12 +152,12 @@ exports.bulkUpdateRoles = async (req, res) => {
         const { employeeid, role_type, branchid, password } = update;
 
         // Validate
-        if (!employeeid || !role_type || !branchid) {
+        if (!employeeid || !role_type || branchid === null || branchid === undefined) {
           errorCount++;
           results.push({
             employeeid,
             success: false,
-            error: 'Missing required fields'
+            error: `Missing required fields: empId=${employeeid}, role=${role_type}, branch=${branchid}`
           });
           continue;
         }
