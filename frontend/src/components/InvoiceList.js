@@ -14,9 +14,19 @@ const InvoiceList = () => {
     const fetchInvoices = async () => {
       try {
         setLoading(true);
+        const userId = localStorage.getItem('userId');
+        const branchId = localStorage.getItem('branchId');
+
+        if (!userId) {
+          throw new Error('Session expired. Please login again.');
+        }
+
         // Get the next invoice data which also returns all invoices
         const response = await fetch(`${API_BASE_URL}/invoices`, {
-          headers: { 'x-user-id': localStorage.getItem('userId') || '1' },
+          headers: {
+            'x-user-id': userId,
+            ...(branchId ? { 'x-branch-id': branchId } : {}),
+          },
         });
         
         if (!response.ok) throw new Error('Failed to fetch invoices');

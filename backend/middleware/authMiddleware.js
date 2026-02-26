@@ -28,7 +28,30 @@ async function getUserDetails(userId) {
     `;
     
     const result = await pool.query(query, [userId]);
-    return result.rows[0] || null;
+    if (result.rows.length > 0) {
+      return result.rows[0];
+    }
+
+    // Fallback for environments where UserRoles/UserBranchMap data is not seeded
+    const fallbackQuery = `
+      SELECT
+        em.employeeid as userid,
+        em.firstname,
+        em.lastname,
+        em.employeeid,
+        em.branchid,
+        CASE
+          WHEN em.role = TRUE THEN 'Admin'
+          ELSE COALESCE(em.employeetype, 'Employee')
+        END as rolename
+      FROM employeemaster em
+      WHERE em.employeeid = $1
+        AND em.deletedat IS NULL
+      LIMIT 1
+    `;
+
+    const fallbackResult = await pool.query(fallbackQuery, [userId]);
+    return fallbackResult.rows[0] || null;
   } catch (error) {
     console.error('Error fetching user details:', error);
     return null;
