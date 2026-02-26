@@ -61,7 +61,8 @@ class InvoiceMaster {
       return result.rows[0];
     } catch (error) {
       // Render compatibility: some DBs may not auto-generate invoiceid
-      if (error.message && error.message.includes('null value in column "invoiceid"')) {
+      const isInvoiceIdNullError = /null value in column\s+"?invoiceid"?/i.test(error.message || '');
+      if (isInvoiceIdNullError) {
         const idResult = await pool.query('SELECT COALESCE(MAX(invoiceid), 0) + 1 AS nextid FROM invoicemaster');
         const nextInvoiceId = idResult.rows[0].nextid;
 

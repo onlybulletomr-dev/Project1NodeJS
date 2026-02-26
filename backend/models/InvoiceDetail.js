@@ -30,7 +30,8 @@ class InvoiceDetail {
       return result.rows[0];
     } catch (error) {
       // Render compatibility: some DBs may not auto-generate invoicedetailid
-      if (error.message && error.message.includes('null value in column "invoicedetailid"')) {
+      const isInvoiceDetailIdNullError = /null value in column\s+"?invoicedetailid"?/i.test(error.message || '');
+      if (isInvoiceDetailIdNullError) {
         const idResult = await pool.query('SELECT COALESCE(MAX(invoicedetailid), 0) + 1 AS nextid FROM invoicedetail');
         const nextInvoiceDetailId = idResult.rows[0].nextid;
 
