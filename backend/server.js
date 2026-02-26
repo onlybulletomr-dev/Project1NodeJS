@@ -162,69 +162,43 @@ app.post('/admin/reset/credentials', async (req, res) => {
 // Admin cleanup endpoint - delete all customers and invoices data (Render support)
 app.post('/admin/cleanup/customers-invoices', async (req, res) => {
   const pool = require('./config/db');
-  const client = await pool.connect();
+  const countSql = `
+    SELECT
+      (SELECT COUNT(*)::int FROM paymentdetail) AS paymentdetail,
+      (SELECT COUNT(*)::int FROM invoicedetail) AS invoicedetail,
+      (SELECT COUNT(*)::int FROM invoicemaster) AS invoicemaster,
+      (SELECT COUNT(*)::int FROM vehicledetail) AS vehicledetail,
+      (SELECT COUNT(*)::int FROM customermaster) AS customermaster
+  `;
 
   try {
-    await client.query('BEGIN');
+    const beforeResult = await pool.query(countSql);
 
-    const beforeCounts = {};
-    const countQueries = {
-      paymentdetail: 'SELECT COUNT(*)::int AS count FROM paymentdetail',
-      invoicedetail: 'SELECT COUNT(*)::int AS count FROM invoicedetail',
-      invoicemaster: 'SELECT COUNT(*)::int AS count FROM invoicemaster',
-      vehicledetail: 'SELECT COUNT(*)::int AS count FROM vehicledetail',
-      customermaster: 'SELECT COUNT(*)::int AS count FROM customermaster',
-    };
+    await pool.query(`
+      TRUNCATE TABLE
+        paymentdetail,
+        invoicedetail,
+        invoicemaster,
+        vehicledetail,
+        customermaster
+      RESTART IDENTITY CASCADE
+    `);
 
-    for (const [table, sql] of Object.entries(countQueries)) {
-      try {
-        const result = await client.query(sql);
-        beforeCounts[table] = result.rows[0].count;
-      } catch (err) {
-        beforeCounts[table] = null;
-      }
-    }
-
-    try { await client.query('DELETE FROM paymentdetail'); } catch (err) {}
-    try { await client.query('DELETE FROM invoicedetail'); } catch (err) {}
-    try { await client.query('DELETE FROM invoicemaster'); } catch (err) {}
-    try { await client.query('DELETE FROM vehicledetail'); } catch (err) {}
-    try { await client.query('DELETE FROM customermaster'); } catch (err) {}
-
-    try { await client.query('ALTER SEQUENCE customermaster_customerid_seq RESTART WITH 1'); } catch (err) {}
-    try { await client.query('ALTER SEQUENCE invoicemaster_invoiceid_seq RESTART WITH 1'); } catch (err) {}
-    try { await client.query('ALTER SEQUENCE vehicledetail_vehicleid_seq RESTART WITH 1'); } catch (err) {}
-    try { await client.query('ALTER SEQUENCE invoicedetail_invoicedetailid_seq RESTART WITH 1'); } catch (err) {}
-    try { await client.query('ALTER SEQUENCE paymentdetail_paymentid_seq RESTART WITH 1'); } catch (err) {}
-
-    const afterCounts = {};
-    for (const [table, sql] of Object.entries(countQueries)) {
-      try {
-        const result = await client.query(sql);
-        afterCounts[table] = result.rows[0].count;
-      } catch (err) {
-        afterCounts[table] = null;
-      }
-    }
-
-    await client.query('COMMIT');
+    const afterResult = await pool.query(countSql);
 
     res.status(200).json({
       success: true,
       message: 'All customers and invoices data deleted successfully',
-      before: beforeCounts,
-      after: afterCounts,
+      before: beforeResult.rows[0],
+      after: afterResult.rows[0],
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    await client.query('ROLLBACK');
     res.status(500).json({
       success: false,
       message: 'Cleanup failed',
       error: err.message,
     });
-  } finally {
-    client.release();
   }
 });
 
