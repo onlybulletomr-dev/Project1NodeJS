@@ -44,7 +44,19 @@ class InvoiceMaster {
       Odometer, Notes, Notes1, CreatedBy, CreatedAt,
     ];
 
-    try {
+    const schemaResult = await pool.query(
+      `SELECT is_identity, column_default
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'invoicemaster'
+         AND column_name = 'invoiceid'`
+    );
+
+    const schemaInfo = schemaResult.rows[0] || {};
+    const hasAutoId = (schemaInfo.is_identity === 'YES') ||
+      (schemaInfo.column_default && schemaInfo.column_default.includes('nextval'));
+
+    if (hasAutoId) {
       const result = await pool.query(
         `INSERT INTO invoicemaster (
           invoicenumber, branchid, customerid, vehicleid, vehiclenumber, jobcardid,
@@ -59,31 +71,25 @@ class InvoiceMaster {
       );
 
       return result.rows[0];
-    } catch (error) {
-      // Render compatibility: some DBs may not auto-generate invoiceid
-      const isInvoiceIdNullError = /null value in column\s+"?invoiceid"?/i.test(error.message || '');
-      if (isInvoiceIdNullError) {
-        const idResult = await pool.query('SELECT COALESCE(MAX(invoiceid), 0) + 1 AS nextid FROM invoicemaster');
-        const nextInvoiceId = idResult.rows[0].nextid;
-
-        const fallbackResult = await pool.query(
-          `INSERT INTO invoicemaster (
-            invoiceid, invoicenumber, branchid, customerid, vehicleid, vehiclenumber, jobcardid,
-            invoicedate, duedate, invoicetype,
-            subtotal, totaldiscount, partsincome, serviceincome, tax1, tax2, totalamount,
-            technicianmain, technicianassistant, waterwash, serviceadvisorin, serviceadvisordeliver,
-            testdriver, cleaner, additionalwork,
-            odometer, notes, notes1, createdby, createdat
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
-          RETURNING *`,
-          [nextInvoiceId, ...insertValues]
-        );
-
-        return fallbackResult.rows[0];
-      }
-
-      throw error;
     }
+
+    const idResult = await pool.query('SELECT COALESCE(MAX(invoiceid), 0) + 1 AS nextid FROM invoicemaster');
+    const nextInvoiceId = idResult.rows[0].nextid;
+
+    const fallbackResult = await pool.query(
+      `INSERT INTO invoicemaster (
+        invoiceid, invoicenumber, branchid, customerid, vehicleid, vehiclenumber, jobcardid,
+        invoicedate, duedate, invoicetype,
+        subtotal, totaldiscount, partsincome, serviceincome, tax1, tax2, totalamount,
+        technicianmain, technicianassistant, waterwash, serviceadvisorin, serviceadvisordeliver,
+        testdriver, cleaner, additionalwork,
+        odometer, notes, notes1, createdby, createdat
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+      RETURNING *`,
+      [nextInvoiceId, ...insertValues]
+    );
+
+    return fallbackResult.rows[0];
   }
 
   static async getById(id) {

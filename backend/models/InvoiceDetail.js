@@ -18,7 +18,19 @@ class InvoiceDetail {
 
     const insertValues = [InvoiceID, ItemID, Qty, UnitPrice, LineDiscount, LineTotal, LineItemTax1 || 0, LineItemTax2 || 0, CreatedBy, CreatedAt];
 
-    try {
+    const schemaResult = await pool.query(
+      `SELECT is_identity, column_default
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'invoicedetail'
+         AND column_name = 'invoicedetailid'`
+    );
+
+    const schemaInfo = schemaResult.rows[0] || {};
+    const hasAutoId = (schemaInfo.is_identity === 'YES') ||
+      (schemaInfo.column_default && schemaInfo.column_default.includes('nextval'));
+
+    if (hasAutoId) {
       const result = await pool.query(
         `INSERT INTO invoicedetail (
           invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat
@@ -28,26 +40,20 @@ class InvoiceDetail {
       );
 
       return result.rows[0];
-    } catch (error) {
-      // Render compatibility: some DBs may not auto-generate invoicedetailid
-      const isInvoiceDetailIdNullError = /null value in column\s+"?invoicedetailid"?/i.test(error.message || '');
-      if (isInvoiceDetailIdNullError) {
-        const idResult = await pool.query('SELECT COALESCE(MAX(invoicedetailid), 0) + 1 AS nextid FROM invoicedetail');
-        const nextInvoiceDetailId = idResult.rows[0].nextid;
-
-        const fallbackResult = await pool.query(
-          `INSERT INTO invoicedetail (
-            invoicedetailid, invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          RETURNING *`,
-          [nextInvoiceDetailId, ...insertValues]
-        );
-
-        return fallbackResult.rows[0];
-      }
-
-      throw error;
     }
+
+    const idResult = await pool.query('SELECT COALESCE(MAX(invoicedetailid), 0) + 1 AS nextid FROM invoicedetail');
+    const nextInvoiceDetailId = idResult.rows[0].nextid;
+
+    const fallbackResult = await pool.query(
+      `INSERT INTO invoicedetail (
+        invoicedetailid, invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *`,
+      [nextInvoiceDetailId, ...insertValues]
+    );
+
+    return fallbackResult.rows[0];
   }
 
   static async getByInvoiceId(invoiceId) {
