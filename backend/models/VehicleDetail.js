@@ -1,6 +1,31 @@
 const pool = require('../config/db');
 
 class VehicleDetail {
+  static async requiresExplicitVehicleDetailId() {
+    const result = await pool.query(
+      `SELECT is_nullable, column_default
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'vehicledetail'
+         AND column_name = 'vehicledetailid'`
+    );
+
+    if (!result.rows.length) {
+      return false;
+    }
+
+    const column = result.rows[0];
+    return column.is_nullable === 'NO' && !column.column_default;
+  }
+
+  static async getNextVehicleDetailId() {
+    const result = await pool.query(
+      `SELECT COALESCE(MAX(vehicledetailid), 0) + 1 AS nextid
+       FROM vehicledetail`
+    );
+    return result.rows[0].nextid;
+  }
+
   // Create a new vehicle detail
   static async create(data) {
     const customerid = data.customerid || data.CustomerID || null;
@@ -9,26 +34,42 @@ class VehicleDetail {
     const color = data.color || data.Color || data.vehiclecolor || data.VehicleColor || null;
     const createdby = data.createdby || data.CreatedBy || 1;
     const CreatedAt = new Date().toISOString().split('T')[0];
+    const needsExplicitId = await VehicleDetail.requiresExplicitVehicleDetailId();
+    const nextVehicleDetailId = needsExplicitId ? await VehicleDetail.getNextVehicleDetailId() : null;
     
     console.log('[VehicleDetail.create] Creating vehicle:', { customerid, registrationnumber, model, color });
 
     try {
-      const result = await pool.query(
-        `INSERT INTO vehicledetail (customerid, registrationnumber, model, color, createdat, createdby)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [customerid, registrationnumber, model, color, CreatedAt, createdby]
-      );
+      const result = needsExplicitId
+        ? await pool.query(
+            `INSERT INTO vehicledetail (vehicledetailid, customerid, registrationnumber, model, color, createdat, createdby)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING *`,
+            [nextVehicleDetailId, customerid, registrationnumber, model, color, CreatedAt, createdby]
+          )
+        : await pool.query(
+            `INSERT INTO vehicledetail (customerid, registrationnumber, model, color, createdat, createdby)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING *`,
+            [customerid, registrationnumber, model, color, CreatedAt, createdby]
+          );
 
       console.log('[VehicleDetail.create] Created vehicle (Render schema):', result.rows[0]);
       return result.rows[0];
     } catch (renderError) {
-      const result = await pool.query(
-        `INSERT INTO vehicledetail (customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [customerid, registrationnumber, model, color, CreatedAt, createdby]
-      );
+      const result = needsExplicitId
+        ? await pool.query(
+            `INSERT INTO vehicledetail (vehicledetailid, customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING *`,
+            [nextVehicleDetailId, customerid, registrationnumber, model, color, CreatedAt, createdby]
+          )
+        : await pool.query(
+            `INSERT INTO vehicledetail (customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING *`,
+            [customerid, registrationnumber, model, color, CreatedAt, createdby]
+          );
 
       console.log('[VehicleDetail.create] Created vehicle (local schema):', result.rows[0]);
       return result.rows[0];
