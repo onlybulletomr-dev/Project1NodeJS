@@ -3,22 +3,36 @@ const pool = require('../config/db');
 class VehicleDetail {
   // Create a new vehicle detail
   static async create(data) {
-    const { registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color } = data;
+    const customerid = data.customerid || data.CustomerID || null;
+    const registrationnumber = data.registrationnumber || data.RegistrationNumber || data.vehiclenumber || data.VehicleNumber || null;
+    const model = data.model || data.VehicleModel || data.vehiclemodel || null;
+    const color = data.color || data.Color || data.vehiclecolor || data.VehicleColor || null;
+    const createdby = data.createdby || data.CreatedBy || 1;
     const CreatedAt = new Date().toISOString().split('T')[0];
     
-    console.log('[VehicleDetail.create] Creating vehicle:', { registrationnumber, vehicletype, manufacturer, model });
-    
-    const queryText = `INSERT INTO vehicledetail (registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, createdat) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
-    
-    const values = [registrationnumber, vehicletype, manufacturer, model, yearofmanufacture, enginenumber, chassisnumber, color, CreatedAt];
-    
-    console.log('[VehicleDetail.create] Query:', queryText);
-    
-    const result = await pool.query(queryText, values);
-    
-    console.log('[VehicleDetail.create] Created vehicle:', result.rows[0]);
-    return result.rows[0];
+    console.log('[VehicleDetail.create] Creating vehicle:', { customerid, registrationnumber, model, color });
+
+    try {
+      const result = await pool.query(
+        `INSERT INTO vehicledetail (customerid, registrationnumber, model, color, createdat, createdby)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [customerid, registrationnumber, model, color, CreatedAt, createdby]
+      );
+
+      console.log('[VehicleDetail.create] Created vehicle (Render schema):', result.rows[0]);
+      return result.rows[0];
+    } catch (renderError) {
+      const result = await pool.query(
+        `INSERT INTO vehicledetail (customerid, vehiclenumber, vehiclemodel, vehiclecolor, createdat, createdby)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [customerid, registrationnumber, model, color, CreatedAt, createdby]
+      );
+
+      console.log('[VehicleDetail.create] Created vehicle (local schema):', result.rows[0]);
+      return result.rows[0];
+    }
   }
 
   // Get all vehicle details
