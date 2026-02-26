@@ -223,15 +223,25 @@ exports.bulkUpdateRoles = async (req, res) => {
         if (password && password.trim().length > 0) {
           try {
             const passwordHash = await bcrypt.hash(password, 10);
-            
-            // Update or create credential record
-            await pool.query(
-              `INSERT INTO employeecredentials (employeeid, passwordhash, lastpasswordchange, updatedat)
-               VALUES ($1, $2, CURRENT_DATE, CURRENT_TIMESTAMP)
-               ON CONFLICT(employeeid) 
-               DO UPDATE SET passwordhash = $2, lastpasswordchange = CURRENT_DATE, updatedat = CURRENT_TIMESTAMP`,
+
+            // Update password using only stable columns to support schema differences across environments
+            const passwordUpdateResult = await pool.query(
+              `UPDATE employeecredentials
+               SET passwordhash = $2
+               WHERE employeeid = $1`,
               [employeeid, passwordHash]
             );
+
+            // If credential row doesn't exist, create it
+            if (passwordUpdateResult.rowCount === 0) {
+              await pool.query(
+                `INSERT INTO employeecredentials (employeeid, passwordhash)
+                 VALUES ($1, $2)
+                 ON CONFLICT (employeeid) DO UPDATE
+                 SET passwordhash = EXCLUDED.passwordhash`,
+                [employeeid, passwordHash]
+              );
+            }
             
             passwordMsg = ', Password: Updated';
           } catch (hashErr) {
@@ -239,7 +249,7 @@ exports.bulkUpdateRoles = async (req, res) => {
             results.push({
               employeeid,
               success: false,
-              error: 'Error saving password'
+              error: `Error saving password: ${hashErr.message}`
             });
             continue;
           }
