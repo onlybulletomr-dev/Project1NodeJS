@@ -72,42 +72,33 @@ class CustomerMaster {
       RETURNING *;
     `;
 
+    const fallbackInsertQuery = `
+      INSERT INTO CustomerMaster (
+        CustomerID,
+        FirstName, LastName, EmailAddress, GSTNumber, LoyalityPoints,
+        IsActive, MarketingConsent, Profession, Gender, DateOfBirth, DateOfMarriage,
+        AddressLine1, AddressLine2, City, State, PostalCode,
+        MobileNumber1, MobileNumber2,
+        ExtraVar1, ExtraVar2, ExtraInt1,
+        CreatedBy, CreatedAt, BranchID
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      RETURNING *;
+    `;
+
     try {
-      const schemaResult = await pool.query(
-        `SELECT is_identity, column_default
-         FROM information_schema.columns
-         WHERE table_schema = 'public'
-           AND table_name = 'customermaster'
-           AND column_name = 'customerid'`
-      );
-
-      const schemaInfo = schemaResult.rows[0] || {};
-      const hasIdColumn = schemaResult.rows.length > 0;
-      const hasAutoId = (schemaInfo.is_identity === 'YES') ||
-        (schemaInfo.column_default && schemaInfo.column_default.includes('nextval'));
-
-      console.log('[CustomerMaster.create] hasAutoId:', hasAutoId, 'hasIdColumn:', hasIdColumn);
-
       let result;
-      if (hasAutoId || !hasIdColumn) {
+
+      try {
         result = await pool.query(standardInsertQuery, values);
-      } else {
+      } catch (insertError) {
+        const nullCustomerIdError = insertError.message && insertError.message.includes('null value in column "customerid"');
+        if (!nullCustomerIdError) {
+          throw insertError;
+        }
+
+        console.log('[CustomerMaster.create] Retrying insert with explicit CustomerID due to null customerid error');
         const idResult = await pool.query('SELECT COALESCE(MAX(customerid), 0) + 1 AS nextid FROM customermaster');
         const nextCustomerId = idResult.rows[0].nextid;
-
-        const fallbackInsertQuery = `
-          INSERT INTO CustomerMaster (
-            CustomerID,
-            FirstName, LastName, EmailAddress, GSTNumber, LoyalityPoints,
-            IsActive, MarketingConsent, Profession, Gender, DateOfBirth, DateOfMarriage,
-            AddressLine1, AddressLine2, City, State, PostalCode,
-            MobileNumber1, MobileNumber2,
-            ExtraVar1, ExtraVar2, ExtraInt1,
-            CreatedBy, CreatedAt, BranchID
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
-          RETURNING *;
-        `;
-
         result = await pool.query(fallbackInsertQuery, [nextCustomerId, ...values]);
       }
 
