@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { searchEmployees, saveInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, getAllItems, searchItemsAndServices, getCompanies, getCompanyById, getBranchId } from '../api';
 
 // Search all vehicles by vehicle number and return with customer details
@@ -47,6 +48,7 @@ async function searchVehiclesByNumber(query) {
 }
 
 export default function InvoiceMaster() {
+  const location = useLocation();
     // --- State hooks for all variables used in this component ---
     const [allEmployees, setAllEmployees] = useState([]);
     const [allItems, setAllItems] = useState([]);
@@ -667,7 +669,9 @@ export default function InvoiceMaster() {
   const [vehiclePopupIndex, setVehiclePopupIndex] = useState(-1);
   const vehiclePopupRef = React.useRef(null);
   const vehicleInputRef = React.useRef(null);
+  const jobCardInputRef = React.useRef(null);
   const vehicleItemRefs = React.useRef({});
+  const lastAppliedVehicleRef = React.useRef('');
   const [vehiclePopupPosition, setVehiclePopupPosition] = useState({ top: 0, left: 0 });
 
 
@@ -743,6 +747,49 @@ export default function InvoiceMaster() {
     vehicleItemRefs.current = {};
   };
 
+  React.useEffect(() => {
+    const prefillVehicleNumber = location.state?.prefillVehicleNumber;
+    const prefillCustomerId = location.state?.prefillCustomerId;
+
+    if (!prefillVehicleNumber || lastAppliedVehicleRef.current === prefillVehicleNumber) {
+      return;
+    }
+
+    lastAppliedVehicleRef.current = prefillVehicleNumber;
+    setVehicleInput(prefillVehicleNumber);
+
+    const applyVehiclePrefill = async () => {
+      try {
+        const results = await searchVehiclesByNumber(prefillVehicleNumber);
+        if (!Array.isArray(results) || results.length === 0) {
+          return;
+        }
+
+        const exactMatchByCustomer = results.find(
+          (vehicle) =>
+            String(vehicle.customerid) === String(prefillCustomerId) &&
+            String(vehicle.vehiclenumber).toLowerCase() === String(prefillVehicleNumber).toLowerCase()
+        );
+
+        const exactMatchByNumber = results.find(
+          (vehicle) => String(vehicle.vehiclenumber).toLowerCase() === String(prefillVehicleNumber).toLowerCase()
+        );
+
+        handleSelectVehicle(exactMatchByCustomer || exactMatchByNumber || results[0]);
+      } catch (error) {
+        console.error('Error applying vehicle prefill:', error);
+      }
+    };
+
+    applyVehiclePrefill();
+
+    setTimeout(() => {
+      if (jobCardInputRef.current) {
+        jobCardInputRef.current.focus();
+      }
+    }, 0);
+  }, [location.state]);
+
   return (
     <>
       <div style={{ height: '100vh', width: '100vw', background: '#f8f9fa', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -788,6 +835,7 @@ export default function InvoiceMaster() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <label htmlFor="jobCardInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>JobCard:</label>
                 <input
+                  ref={jobCardInputRef}
                   id="jobCardInput"
                   type="text"
                   placeholder="Enter JobCard"

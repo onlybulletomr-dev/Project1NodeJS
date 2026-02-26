@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer, getUniqueVehicleModels, getUniqueVehicleColors, createVehicleDetail, getVehicleDetailsByCustomerId, updateVehicleDetail } from '../api';
 import '../styles/CustomerMaster.css';
 
 function CustomerMaster() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [uniqueModels, setUniqueModels] = useState([]);
   const [uniqueColors, setUniqueColors] = useState([]);
@@ -543,6 +545,23 @@ function CustomerMaster() {
     setEditingId(customer.CustomerID || customer.customerid);
   };
 
+  const handleCreateInvoice = (customer) => {
+    const customerId = customer.CustomerID || customer.customerid;
+    const vehicleNumber = customer?.vehicles?.[0]?.vehiclenumber || customer.VehicleNumber || customer.vehiclenumber || '';
+
+    if (!vehicleNumber) {
+      setError('No vehicle found for this customer to create invoice.');
+      return;
+    }
+
+    navigate('/invoices', {
+      state: {
+        prefillVehicleNumber: vehicleNumber,
+        prefillCustomerId: customerId,
+      },
+    });
+  };
+
   const resetForm = () => {
     setFormData({
       FirstName: '',
@@ -819,10 +838,10 @@ function CustomerMaster() {
                     </button>
                     <button 
                       className="btn-delete" 
-                      onClick={() => handleDelete(customerId)}
-                      title="Delete customer"
+                      onClick={() => handleCreateInvoice(customer)}
+                      title="Create invoice"
                     >
-                      Delete
+                      Invoice
                     </button>
                   </div>
                 </div>

@@ -88,6 +88,28 @@ function App() {
     setBranchName('');
   };
 
+  useEffect(() => {
+    const syncActiveMenuWithRoute = () => {
+      const hash = window.location.hash || '';
+
+      if (hash.includes('/invoices')) {
+        setActiveMenu('invoice');
+      } else if (hash.includes('/invoice-list')) {
+        setActiveMenu('invoicelist');
+      } else if (hash.includes('/payments')) {
+        setActiveMenu('payment');
+      } else if (hash.includes('/role-management')) {
+        setActiveMenu('roles');
+      } else if (hash.includes('/customers') || hash === '#/' || hash === '' || hash === '#') {
+        setActiveMenu('customer');
+      }
+    };
+
+    syncActiveMenuWithRoute();
+    window.addEventListener('hashchange', syncActiveMenuWithRoute);
+    return () => window.removeEventListener('hashchange', syncActiveMenuWithRoute);
+  }, []);
+
   // Show login screen if not authenticated
   if (!isAuthenticated) {
     return (
