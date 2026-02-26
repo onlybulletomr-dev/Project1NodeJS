@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import CustomerMaster from './components/CustomerMaster';
 import InvoiceMaster from './components/InvoiceMaster';
 import InvoiceList from './components/InvoiceList';
