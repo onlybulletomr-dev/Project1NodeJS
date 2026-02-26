@@ -43,7 +43,6 @@ async function getUserDetails(userId) {
         'Employee'::text as rolename
       FROM employeemaster em
       WHERE em.employeeid = $1
-        AND em.deletedat IS NULL
       LIMIT 1
     `;
 
