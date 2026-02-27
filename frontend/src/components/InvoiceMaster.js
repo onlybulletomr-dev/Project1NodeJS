@@ -51,6 +51,15 @@ async function searchVehiclesByNumber(query) {
 
 export default function InvoiceMaster() {
   const location = useLocation();
+    const buildDefaultStaffFields = (defaultEmployeeName = '') => ({
+      technician1: defaultEmployeeName || '',
+      technician2: 'N/A',
+      serviceadvisor: defaultEmployeeName || '',
+      deliveryadvisor: defaultEmployeeName || '',
+      testdriver: 'N/A',
+      cleaner: 'N/A',
+      waterwash: 'N/A'
+    });
     // --- State hooks for all variables used in this component ---
     const [allEmployees, setAllEmployees] = useState([]);
     const [allItems, setAllItems] = useState([]);
@@ -62,9 +71,7 @@ export default function InvoiceMaster() {
     const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState('');
     const [invoiceDate, setInvoiceDate] = useState('');
     const [jobCardInput, setJobCardInput] = useState('');
-    const [staffFields, setStaffFields] = useState({
-      technician1: '', technician2: '', serviceadvisor: '', deliveryadvisor: '', testdriver: '', cleaner: '', waterwash: ''
-    });
+    const [staffFields, setStaffFields] = useState(buildDefaultStaffFields());
     const [staffResults, setStaffResults] = useState({
       technician1: [], technician2: [], serviceadvisor: [], deliveryadvisor: [], testdriver: [], cleaner: [], waterwash: []
     });
@@ -108,14 +115,15 @@ export default function InvoiceMaster() {
           if (normalizedEmployees.length > 0) {
             const defaultName = normalizedEmployees[0].firstName || normalizedEmployees[0].firstname || '';
             if (defaultName) {
+              const defaultFields = buildDefaultStaffFields(defaultName);
               setStaffFields(prev => ({
-                technician1: prev.technician1 || defaultName,
-                technician2: prev.technician2 || defaultName,
-                serviceadvisor: prev.serviceadvisor || defaultName,
-                deliveryadvisor: prev.deliveryadvisor || defaultName,
-                testdriver: prev.testdriver || defaultName,
-                cleaner: prev.cleaner || defaultName,
-                waterwash: prev.waterwash || defaultName,
+                technician1: prev.technician1 || defaultFields.technician1,
+                technician2: prev.technician2 || defaultFields.technician2,
+                serviceadvisor: prev.serviceadvisor || defaultFields.serviceadvisor,
+                deliveryadvisor: prev.deliveryadvisor || defaultFields.deliveryadvisor,
+                testdriver: prev.testdriver || defaultFields.testdriver,
+                cleaner: prev.cleaner || defaultFields.cleaner,
+                waterwash: prev.waterwash || defaultFields.waterwash,
               }));
             }
           }
@@ -353,6 +361,34 @@ export default function InvoiceMaster() {
         }
       }
     };
+
+    const validateMandatoryFields = () => {
+      if (!selectedVehicle || !selectedVehicle.vehiclenumber) {
+        alert('Please select a vehicle');
+        return false;
+      }
+      if (!jobCardInput.trim()) {
+        alert('Please enter the Job Card number');
+        return false;
+      }
+      if (!odometer.trim()) {
+        alert('Please enter KMs');
+        return false;
+      }
+      if (!String(staffFields.technician1 || '').trim()) {
+        alert('Please select Technician');
+        return false;
+      }
+      if (!String(staffFields.serviceadvisor || '').trim()) {
+        alert('Please select Service Advisor');
+        return false;
+      }
+      if (activeGridRows.length === 0) {
+        alert('Please add at least one item to the invoice');
+        return false;
+      }
+      return true;
+    };
     
     const handleSaveInvoice = async () => {
       try {
@@ -362,21 +398,7 @@ export default function InvoiceMaster() {
           return;
         }
 
-        // Validate required fields
-        if (!selectedVehicle || !selectedVehicle.vehiclenumber) {
-          alert('Please select a vehicle');
-          return;
-        }
-        if (!jobCardInput.trim()) {
-          alert('Please enter the Job Card number');
-          return;
-        }
-        if (!odometer.trim()) {
-          alert('Please enter KMs');
-          return;
-        }
-        if (activeGridRows.length === 0) {
-          alert('Please add at least one item to the invoice');
+        if (!validateMandatoryFields()) {
           return;
         }
 
@@ -440,9 +462,8 @@ export default function InvoiceMaster() {
           setJobCardInput('');
           setGridRows([]);
           setNotes('');
-          setStaffFields({
-            technician1: '', technician2: '', serviceadvisor: '', deliveryadvisor: '', testdriver: '', cleaner: '', waterwash: ''
-          });
+          const resetDefaultName = allEmployees[0]?.firstName || allEmployees[0]?.firstname || '';
+          setStaffFields(buildDefaultStaffFields(resetDefaultName));
           setSelectedStaff({
             technician1: null, technician2: null, serviceadvisor: null, deliveryadvisor: null, testdriver: null, cleaner: null, waterwash: null
           });
@@ -468,13 +489,7 @@ export default function InvoiceMaster() {
     };
 
     const getInvoiceDocumentData = (mode = 'print') => {
-      if (!selectedVehicle) {
-        alert('Please select a vehicle before printing invoice.');
-        return null;
-      }
-
-      if (activeGridRows.length === 0) {
-        alert('Please add at least one invoice item before printing.');
+      if (!validateMandatoryFields()) {
         return null;
       }
 
@@ -1452,6 +1467,7 @@ A/c Type          : Current Account
                 style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
+                <option value="N/A">N/A</option>
                 {allEmployees.map((emp) => (
                   <option key={emp.employeeid} value={emp.firstname}>
                     {emp.firstName || emp.firstname || 'N/A'}
@@ -1497,6 +1513,7 @@ A/c Type          : Current Account
                 style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
+                <option value="N/A">N/A</option>
                 {allEmployees.map((emp) => (
                   <option key={emp.employeeid} value={emp.firstname}>
                     {emp.firstName || emp.firstname || 'N/A'}
@@ -1512,6 +1529,7 @@ A/c Type          : Current Account
                 style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
+                <option value="N/A">N/A</option>
                 {allEmployees.map((emp) => (
                   <option key={emp.employeeid} value={emp.firstname}>
                     {emp.firstName || emp.firstname || 'N/A'}
@@ -1527,6 +1545,7 @@ A/c Type          : Current Account
                 style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
+                <option value="N/A">N/A</option>
                 <option value="Outside">Outside</option>
                 {allEmployees.map((emp) => (
                   <option key={emp.employeeid} value={emp.firstname}>
