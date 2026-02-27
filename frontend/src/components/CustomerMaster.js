@@ -68,12 +68,12 @@ function CustomerMaster() {
 
   // Fetch colors when vehicle model changes (as a backup/sync)
   useEffect(() => {
-    if (formData.VehicleModel) {
-      fetchUniqueColors(formData.VehicleModel);
+    if (vehicleData.VehicleModel) {
+      fetchUniqueColors(vehicleData.VehicleModel);
     } else {
       setUniqueColors([]);
     }
-  }, [formData.VehicleModel]);
+  }, [vehicleData.VehicleModel]);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -206,13 +206,23 @@ function CustomerMaster() {
 
     // Check if this is a vehicle field
     if (['VehicleNumber', 'VehicleModel', 'VehicleColor'].includes(name)) {
-      setVehicleData({
-        ...vehicleData,
-        [name]: processedValue,
+      setVehicleData(prev => {
+        if (name === 'VehicleModel') {
+          return {
+            ...prev,
+            VehicleModel: processedValue,
+            VehicleColor: '',
+          };
+        }
+
+        return {
+          ...prev,
+          [name]: processedValue,
+        };
       });
+
       // If vehicle model changes, reload colors with the new model value
       if (name === 'VehicleModel') {
-        setVehicleData(prev => ({ ...prev, VehicleColor: '' }));
         fetchUniqueColors(processedValue); // Pass the new model value directly
       }
     } else {
@@ -534,11 +544,18 @@ function CustomerMaster() {
     // Set vehicle data if available
     if (customer.vehicles && customer.vehicles.length > 0) {
       const firstVehicle = customer.vehicles[0];
+      const editVehicleModel = firstVehicle.vehiclemodel || firstVehicle.model || firstVehicle.VehicleModel || '';
+      const editVehicleColor = firstVehicle.vehiclecolor || firstVehicle.color || firstVehicle.VehicleColor || firstVehicle.Color || '';
+
       setVehicleData({
         VehicleNumber: firstVehicle.vehiclenumber || '',
-        VehicleModel: firstVehicle.vehiclemodel || '',
-        VehicleColor: firstVehicle.vehiclecolor || '',
+        VehicleModel: editVehicleModel,
+        VehicleColor: editVehicleColor,
       });
+
+      if (editVehicleModel) {
+        fetchUniqueColors(editVehicleModel);
+      }
     }
     
     setFormData(cleanCustomer);
@@ -769,11 +786,16 @@ function CustomerMaster() {
                         : 'Select Color'}
                   </option>
                   {uniqueColors.length > 0 ? (
-                    uniqueColors.map((color, index) => (
-                      <option key={index} value={color}>
-                        {color}
-                      </option>
-                    ))
+                    <>
+                      {vehicleData.VehicleColor && !uniqueColors.includes(vehicleData.VehicleColor) && (
+                        <option value={vehicleData.VehicleColor}>{vehicleData.VehicleColor}</option>
+                      )}
+                      {uniqueColors.map((color, index) => (
+                        <option key={index} value={color}>
+                          {color}
+                        </option>
+                      ))}
+                    </>
                   ) : (
                     <option disabled>No colors found</option>
                   )}
