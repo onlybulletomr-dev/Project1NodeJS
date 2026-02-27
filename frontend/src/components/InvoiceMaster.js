@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { searchEmployees, saveInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, getAllItems, searchItemsAndServices, getCompanies, getCompanyById, getBranchId } from '../api';
 
 // Search all vehicles by vehicle number and return with customer details
@@ -431,6 +433,338 @@ export default function InvoiceMaster() {
         }
       } finally {
         setIsSaving(false);
+      }
+    };
+
+    const getInvoiceDocumentData = (mode = 'print') => {
+      if (!selectedVehicle) {
+        alert('Please select a vehicle before printing invoice.');
+        return null;
+      }
+
+      if (activeGridRows.length === 0) {
+        alert('Please add at least one invoice item before printing.');
+        return null;
+      }
+
+      const safe = (value) => (value ?? '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const printableInvoiceNumber = generatedInvoiceNumber || previewInvoiceNumber || 'DRAFT';
+      const printableDate = invoiceDate
+        ? new Date(invoiceDate).toLocaleDateString('en-GB')
+        : new Date().toLocaleDateString('en-GB');
+
+      const rowsHtml = activeGridRows.map((row) => `
+        <tr>
+          <td>${safe(row.ItemNumber || row.partnumber || row.serviceid || '')}</td>
+          <td>${safe(row.ItemName || row.itemname || row.servicename || '')}</td>
+          <td style="text-align:right;">${Number(row.Qty || 0).toFixed(0)}</td>
+          <td style="text-align:right;">₹${Number(row.UnitPrice || 0).toFixed(0)}</td>
+          <td style="text-align:right;">₹${Number(row.Total || 0).toFixed(0)}</td>
+        </tr>
+      `).join('');
+
+      const blankRowsHtml = Array.from({ length: Math.max(0, 18 - activeGridRows.length) })
+        .map(() => '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>')
+        .join('');
+
+      const staffSummary = [
+        staffFields.technician1 && `Technician 1: ${staffFields.technician1}`,
+        staffFields.technician2 && `Technician 2: ${staffFields.technician2}`,
+        staffFields.serviceadvisor && `Service Advisor: ${staffFields.serviceadvisor}`,
+        staffFields.deliveryadvisor && `Delivery Advisor: ${staffFields.deliveryadvisor}`,
+        staffFields.testdriver && `Test Driver: ${staffFields.testdriver}`,
+        staffFields.cleaner && `Cleaner: ${staffFields.cleaner}`,
+        staffFields.waterwash && `WaterWash: ${staffFields.waterwash}`,
+      ].filter(Boolean).join(' | ');
+
+      const totalAmountValue = Number(total || 0);
+      const upiId = process.env.REACT_APP_UPI_ID || '';
+      const upiPayeeName = process.env.REACT_APP_UPI_PAYEE_NAME || 'ONLY BULLET';
+      const qrPayload = upiId
+        ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiPayeeName)}&am=${totalAmountValue.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${printableInvoiceNumber}`)}`
+        : `PAY|INR|${totalAmountValue.toFixed(2)}|${printableInvoiceNumber}`;
+      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(qrPayload)}`;
+
+      const previewToolbarHtml = mode === 'preview'
+        ? `
+            <div class="preview-toolbar">
+              <button type="button" onclick="window.print()">Print</button>
+              <button type="button" onclick="window.close()">Close</button>
+            </div>
+          `
+        : '';
+
+      const html = `
+        <html>
+          <head>
+            <title>Invoice ${safe(printableInvoiceNumber)}</title>
+            <style>
+              @page { size: A4; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; background: #ebebeb; color: #111; }
+              .preview-toolbar { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px 0; }
+              .preview-toolbar button { border: 1px solid #666; background: #fff; color: #111; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; }
+              .sheet { width: 760px; min-height: 1080px; margin: 12px auto; background: #fff; border: 2px solid #7a7a7a; padding: 14px 16px; box-sizing: border-box; }
+              .top { display: flex; justify-content: space-between; margin-bottom: 10px; }
+              .company { width: 52%; font-size: 12px; line-height: 1.3; }
+              .brand { font-weight: 700; font-size: 24px; margin-bottom: 4px; letter-spacing: 0.3px; }
+              .meta { width: 45%; font-size: 12px; }
+              .meta-row { display: flex; margin-bottom: 2px; }
+              .meta-label { width: 98px; }
+              .customer { margin-top: 8px; margin-left: 10px; line-height: 1.3; }
+              table { width: 100%; border-collapse: collapse; margin-top: 12px; table-layout: fixed; }
+              th, td { border-left: 2px solid #666; border-right: 2px solid #666; padding: 3px 5px; font-size: 11px; }
+              thead th { background: #6a6a6a; color: #fff; border-top: 2px solid #666; border-bottom: 2px solid #666; text-align: left; }
+              tbody tr:last-child td { border-bottom: 2px solid #666; }
+              .col-item { width: 13%; }
+              .col-desc { width: 48%; }
+              .col-qty { width: 8%; text-align: right; }
+              .col-rate { width: 15%; text-align: right; }
+              .col-total { width: 16%; text-align: right; }
+              .totals { display: flex; justify-content: flex-end; margin-top: 8px; }
+              .totals-box { width: 260px; font-size: 14px; font-weight: 700; }
+              .totals-line { display: flex; justify-content: space-between; margin-bottom: 4px; }
+              .bottom { margin-top: 12px; display: flex; justify-content: space-between; gap: 16px; }
+              .notes-bank { flex: 1; font-size: 12px; line-height: 1.3; white-space: pre-line; }
+              .qr-area { width: 180px; text-align: center; }
+              .qr-area img { width: 130px; height: 130px; border: 1px solid #999; padding: 4px; }
+              .tech { margin-top: 10px; font-size: 13px; font-weight: 700; }
+              @media print {
+                .preview-toolbar { display: none; }
+                body { background: #fff; }
+              }
+            </style>
+          </head>
+          <body>
+            ${previewToolbarHtml}
+            <div class="sheet">
+              <div class="top">
+                <div class="company">
+                  <div class="brand">ONLY BULLET</div>
+                  <div>OMR - 9962 285538</div>
+                  <div>190, Ponniyaman Kovil 2nd St,</div>
+                  <div>Behind South Indian Bank, &amp;</div>
+                  <div>Sholinganallur,</div>
+                  <div>onlybulletomr@gmail.com</div>
+                </div>
+                <div class="meta">
+                  <div class="meta-row"><div class="meta-label">Date:</div><div>${safe(printableDate)}</div></div>
+                  <div class="meta-row"><div class="meta-label">Invoice No :</div><div>${safe(printableInvoiceNumber)}</div></div>
+                  <div class="meta-row"><div class="meta-label">Vehicle No:</div><div>${safe(selectedVehicle.vehiclenumber || '-')}</div></div>
+                  <div class="meta-row"><div class="meta-label">PO No:</div><div>${safe(jobCardInput || '-')}</div></div>
+
+                  <div class="customer">
+                    <div>${safe(selectedVehicle.customername || 'N/A')}</div>
+                    <div>${safe(selectedVehicle.vehiclemodel || '')} ${safe(selectedVehicle.vehiclecolor || '')}</div>
+                  </div>
+                </div>
+              </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-item">Item</th>
+                  <th class="col-desc">Description</th>
+                  <th class="col-qty">Qty</th>
+                  <th class="col-rate">Unit Price</th>
+                  <th class="col-total">Total</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}${blankRowsHtml}</tbody>
+            </table>
+
+            <div class="totals">
+              <div class="totals-box">
+                <div class="totals-line"><span>Total</span><span>₹${Number(total).toFixed(0)}</span></div>
+                <div class="totals-line"><span>Balance Due</span><span>₹${Number(total).toFixed(0)}</span></div>
+              </div>
+            </div>
+
+            <div class="bottom">
+              <div class="notes-bank">
+ODO : ${safe(odometer || '-') } Kms
+Observation:
+${safe(notes || '-')}
+
+Bank Details :
+A/C No            : 344 002 000 285538
+NAME              : ONLY BULLET
+IFSC Code         : IOBA0003400
+Bank /Branch      : INDIAN OVERSEAS BANK / SEMMANCHERRY
+A/c Type          : Current Account
+              </div>
+              <div class="qr-area">
+                <img src="${qrImageUrl}" alt="Invoice Amount QR" crossorigin="anonymous" />
+                <div style="font-size:11px; margin-top:4px;">Scan &amp; Pay ₹${Number(total).toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div class="tech">Technician: ${safe(staffFields.technician1 || staffSummary || '-')}</div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      return {
+        html,
+        printableInvoiceNumber,
+      };
+    };
+
+    const savePdfWithPickerOrDownload = async (doc, fileName) => {
+      try {
+        if (window.showSaveFilePicker) {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [
+              {
+                description: 'PDF Document',
+                accept: { 'application/pdf': ['.pdf'] }
+              }
+            ]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(doc.output('blob'));
+          await writable.close();
+          return;
+        }
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          return;
+        }
+      }
+
+      doc.save(fileName);
+    };
+
+    const handleInvoiceDocument = (mode = 'print') => {
+      const invoiceDocumentData = getInvoiceDocumentData(mode);
+      if (!invoiceDocumentData) {
+        return;
+      }
+
+      const printWindow = window.open('', '_blank', 'width=980,height=720');
+      if (!printWindow) {
+        alert('Popup blocked. Please allow popups to print invoice.');
+        return;
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(invoiceDocumentData.html);
+      printWindow.document.close();
+      printWindow.focus();
+
+      if (mode === 'preview') {
+        return;
+      }
+
+      setTimeout(() => {
+        printWindow.print();
+      }, 300);
+    };
+
+    const handlePrintInvoice = () => {
+      handleInvoiceDocument('print');
+    };
+
+    const handlePreviewInvoice = () => {
+      handleInvoiceDocument('preview');
+    };
+
+    const handleSavePdfInvoice = async () => {
+      const invoiceDocumentData = getInvoiceDocumentData('pdf');
+      if (!invoiceDocumentData) {
+        return;
+      }
+
+      const fileName = `Invoice-${invoiceDocumentData.printableInvoiceNumber}.pdf`;
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.left = '-10000px';
+      iframe.style.top = '0';
+      iframe.style.width = '820px';
+      iframe.style.height = '1120px';
+      iframe.style.opacity = '0';
+      document.body.appendChild(iframe);
+
+      try {
+        await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => reject(new Error('Timed out while preparing invoice PDF view.')), 15000);
+          iframe.onload = () => {
+            clearTimeout(timeoutId);
+            resolve();
+          };
+          iframe.srcdoc = invoiceDocumentData.html;
+        });
+
+        const iframeDocument = iframe.contentDocument;
+        const invoiceSheet = iframeDocument?.querySelector('.sheet');
+        if (!invoiceSheet) {
+          throw new Error('Unable to render invoice sheet for PDF.');
+        }
+
+        const images = Array.from(iframeDocument?.images || []);
+        await Promise.all(
+          images.map((img) => {
+            if (img.complete) {
+              return Promise.resolve();
+            }
+            return new Promise((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            });
+          })
+        );
+
+        const canvas = await html2canvas(invoiceSheet, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+        });
+
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageWidthMm = 210;
+        const pageHeightMm = 297;
+        const pageHeightPx = (canvas.width * pageHeightMm) / pageWidthMm;
+        let renderedHeightPx = 0;
+        let isFirstPage = true;
+
+        while (renderedHeightPx < canvas.height) {
+          const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedHeightPx);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeightPx;
+
+          const pageContext = pageCanvas.getContext('2d');
+          pageContext.drawImage(
+            canvas,
+            0,
+            renderedHeightPx,
+            canvas.width,
+            sliceHeightPx,
+            0,
+            0,
+            canvas.width,
+            sliceHeightPx
+          );
+
+          const pageImage = pageCanvas.toDataURL('image/png');
+          const pageImageHeightMm = (sliceHeightPx * pageWidthMm) / canvas.width;
+
+          if (!isFirstPage) {
+            pdf.addPage();
+          }
+          pdf.addImage(pageImage, 'PNG', 0, 0, pageWidthMm, pageImageHeightMm);
+
+          renderedHeightPx += sliceHeightPx;
+          isFirstPage = false;
+        }
+
+        await savePdfWithPickerOrDownload(pdf, fileName);
+      } catch (error) {
+        console.error('Error saving invoice PDF:', error);
+        alert(`Failed to save invoice PDF. ${error.message || ''}`.trim());
+      } finally {
+        iframe.remove();
       }
     };
 
@@ -1174,24 +1508,75 @@ export default function InvoiceMaster() {
               }}
             />
             {/* Payment button removed as per requirements */}
-            <button
-              onClick={handleSaveInvoice}
-              disabled={isSaving}
-              style={{
-                width: '100%',
-                marginTop: 8,
-                padding: 7,
-                backgroundColor: isSaving ? '#ccc' : '#4CAF50',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 4,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isSaving ? 'Saving...' : 'Save Invoice'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                onClick={handleSaveInvoice}
+                disabled={isSaving}
+                style={{
+                  flex: 1,
+                  padding: 7,
+                  backgroundColor: isSaving ? '#ccc' : '#4CAF50',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSaving ? 'Saving...' : 'Save Invoice'}
+              </button>
+              <button
+                onClick={handlePrintInvoice}
+                style={{
+                  flex: 1,
+                  padding: 7,
+                  backgroundColor: '#1565c0',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Print Invoice
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                onClick={handlePreviewInvoice}
+                style={{
+                  flex: 1,
+                  padding: 7,
+                  backgroundColor: '#546e7a',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Preview
+              </button>
+              <button
+                onClick={handleSavePdfInvoice}
+                style={{
+                  flex: 1,
+                  padding: 7,
+                  backgroundColor: '#2e7d32',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Save PDF
+              </button>
+            </div>
           </div>
         </div>
         </div>

@@ -14,3 +14,5 @@ yarn-error.log*
 *.swo
 coverage/
 .nyc_output/
+backups/
+backend/tmp_listdb.sql
