@@ -2,7 +2,7 @@ const InvoiceMaster = require('../models/InvoiceMaster');
 const InvoiceDetail = require('../models/InvoiceDetail');
 const ItemMaster = require('../models/ItemMaster');
 
-// Helper function to generate invoice number in format INVBBBYYMMMXXX
+// Helper function to generate invoice number in format BBBYYMMMXXX
 async function generateInvoiceNumber(pool, branchId) {
   // Get branch code from CompanyMaster (branchId is CompanyID)
   const branchQuery = `
@@ -25,18 +25,21 @@ async function generateInvoiceNumber(pool, branchId) {
   const month = monthNames[now.getMonth()];
   
   // Build prefix for pattern matching
-  const prefix = `INV${branchCode}${year}${month}`;
+  const prefix = `${branchCode}${year}${month}`;
+  const legacyPrefix = `INV${branchCode}${year}${month}`;
   
   // Find the maximum sequence number for this prefix (not just today)
   const maxSeqQuery = `
-    SELECT 
-      CAST(SUBSTRING(invoicenumber, LENGTH($1) + 1) AS INTEGER) as seq
+    SELECT MAX(CAST(RIGHT(invoicenumber, 3) AS INTEGER)) AS seq
     FROM invoicemaster 
-    WHERE invoicenumber LIKE $2 AND deletedat IS NULL
-    ORDER BY seq DESC
-    LIMIT 1
+    WHERE deletedat IS NULL
+      AND (
+        invoicenumber LIKE $1
+        OR invoicenumber LIKE $2
+      )
+      AND RIGHT(invoicenumber, 3) ~ '^[0-9]{3}$'
   `;
-  const maxSeqResult = await pool.query(maxSeqQuery, [prefix, prefix + '%']);
+  const maxSeqResult = await pool.query(maxSeqQuery, [prefix + '%', legacyPrefix + '%']);
   const maxSequence = maxSeqResult.rows.length > 0 ? maxSeqResult.rows[0].seq : 0;
   const sequenceNumber = (maxSequence + 1).toString().padStart(3, '0');
   

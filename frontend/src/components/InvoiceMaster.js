@@ -57,6 +57,7 @@ export default function InvoiceMaster() {
     const [invoiceRunningNumber, setInvoiceRunningNumber] = useState(1);
     const [invoiceYearMonth, setInvoiceYearMonth] = useState('');
     const [branchCode, setBranchCode] = useState('');
+    const [branchCompany, setBranchCompany] = useState(null);
     const [previewInvoiceNumber, setPreviewInvoiceNumber] = useState('');
     const [generatedInvoiceNumber, setGeneratedInvoiceNumber] = useState('');
     const [invoiceDate, setInvoiceDate] = useState('');
@@ -101,7 +102,23 @@ export default function InvoiceMaster() {
         try {
           const employees = await getAllEmployees();
           console.log('Loaded employees:', employees.length, employees);
-          setAllEmployees(Array.isArray(employees) ? employees : []);
+          const normalizedEmployees = Array.isArray(employees) ? employees : [];
+          setAllEmployees(normalizedEmployees);
+
+          if (normalizedEmployees.length > 0) {
+            const defaultName = normalizedEmployees[0].firstName || normalizedEmployees[0].firstname || '';
+            if (defaultName) {
+              setStaffFields(prev => ({
+                technician1: prev.technician1 || defaultName,
+                technician2: prev.technician2 || defaultName,
+                serviceadvisor: prev.serviceadvisor || defaultName,
+                deliveryadvisor: prev.deliveryadvisor || defaultName,
+                testdriver: prev.testdriver || defaultName,
+                cleaner: prev.cleaner || defaultName,
+                waterwash: prev.waterwash || defaultName,
+              }));
+            }
+          }
         } catch (error) {
           console.error('Error fetching employees:', error);
           setAllEmployees([]);
@@ -158,9 +175,11 @@ export default function InvoiceMaster() {
               const company = companyList[0];
               const code = company.ExtraVar1 || company.extravar1 || 'HO';
               setBranchCode(code.toUpperCase().substring(0, 3));
+              setBranchCompany(company);
               console.log('Branch code from companies list:', code);
             } else {
               setBranchCode('HO');
+              setBranchCompany(null);
             }
             return;
           }
@@ -172,6 +191,7 @@ export default function InvoiceMaster() {
             const company = companyResponse?.data || companyResponse;
             const code = company?.ExtraVar1 || company?.extravar1 || 'HO';
             setBranchCode(code.toUpperCase().substring(0, 3));
+            setBranchCompany(company || null);
             console.log('Branch code fetched for company', userBranchId, ':', code);
           } catch (companyError) {
             console.error('Failed to fetch company by ID, trying companies list...', companyError);
@@ -183,14 +203,17 @@ export default function InvoiceMaster() {
             if (matchedCompany) {
               const code = matchedCompany.ExtraVar1 || matchedCompany.extravar1 || 'HO';
               setBranchCode(code.toUpperCase().substring(0, 3));
+              setBranchCompany(matchedCompany);
               console.log('Branch code from companies list (fallback):', code);
             } else {
               setBranchCode('HO');
+              setBranchCompany(null);
             }
           }
         } catch (error) {
           console.error('Error fetching branch code:', error);
           setBranchCode('HO'); // Default fallback
+          setBranchCompany(null);
         }
       };
       fetchBranchCode();
@@ -202,7 +225,7 @@ export default function InvoiceMaster() {
         const year = invoiceYearMonth.substring(0, 2);
         const month = invoiceYearMonth.substring(2, 5);
         const running = String(invoiceRunningNumber).padStart(3, '0');
-        const previewNumber = `INV${branchCode}${year}${month}${running}`;
+        const previewNumber = `${branchCode}${year}${month}${running}`;
         setPreviewInvoiceNumber(previewNumber);
       }
     }, [invoiceRunningNumber, invoiceYearMonth, branchCode]);
@@ -299,7 +322,7 @@ export default function InvoiceMaster() {
         const year = yearMonth.substring(0, 2);
         const month = yearMonth.substring(2, 5);
         const running = String(runningNumber).padStart(3, '0');
-        const invoiceNumber = `INV${branchCode}${year}${month}${running}`;
+        const invoiceNumber = `${branchCode}${year}${month}${running}`;
         
         console.log('Generated invoice number:', invoiceNumber);
         console.log('Branch code:', branchCode, 'Running number:', runningNumber, 'Year-Month:', yearMonth);
@@ -318,13 +341,13 @@ export default function InvoiceMaster() {
           setInvoiceYearMonth(currentYearMonth);
           setInvoiceRunningNumber(2);
           const running = String(1).padStart(3, '0');
-          const fallbackNumber = `INV${code}${year}${month}${running}`;
+          const fallbackNumber = `${code}${year}${month}${running}`;
           console.log('Using fallback invoice number:', fallbackNumber);
           return fallbackNumber;
         } else {
           const running = String(invoiceRunningNumber).padStart(3, '0');
           setInvoiceRunningNumber(prev => prev + 1);
-          const fallbackNumber = `INV${code}${year}${month}${running}`;
+          const fallbackNumber = `${code}${year}${month}${running}`;
           console.log('Using fallback invoice number:', fallbackNumber);
           return fallbackNumber;
         }
@@ -342,6 +365,14 @@ export default function InvoiceMaster() {
         // Validate required fields
         if (!selectedVehicle || !selectedVehicle.vehiclenumber) {
           alert('Please select a vehicle');
+          return;
+        }
+        if (!jobCardInput.trim()) {
+          alert('Please enter the Job Card number');
+          return;
+        }
+        if (!odometer.trim()) {
+          alert('Please enter KMs');
           return;
         }
         if (activeGridRows.length === 0) {
@@ -448,6 +479,31 @@ export default function InvoiceMaster() {
       }
 
       const safe = (value) => (value ?? '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const companyName = branchCompany?.CompanyName || branchCompany?.companyname || 'ONLY BULLET';
+      const companyPhone = branchCompany?.PhoneNumber1 || branchCompany?.phonenumber1 || '';
+      const companyEmail = branchCompany?.EmailAddress || branchCompany?.emailaddress || '';
+      const companyAddressLines = [
+        branchCompany?.AddressLine1 || branchCompany?.addressline1,
+        branchCompany?.AddressLine2 || branchCompany?.addressline2,
+        [branchCompany?.City || branchCompany?.city, branchCompany?.State || branchCompany?.state]
+          .filter(Boolean)
+          .join(', '),
+        branchCompany?.PostalCode || branchCompany?.postalcode,
+      ].filter((line) => line && String(line).trim().length > 0);
+
+      const companyHeaderPhoneLine = companyPhone
+        ? `${branchCode || 'BRANCH'} - ${companyPhone}`
+        : '';
+
+      const companyAddressHtml = (companyAddressLines.length > 0
+        ? companyAddressLines
+        : [
+            '190, Ponniyaman Kovil 2nd St,',
+            'Behind South Indian Bank, & Sholinganallur,',
+          ]
+      ).map((line) => `<div>${safe(line)}</div>`).join('');
+
       const printableInvoiceNumber = generatedInvoiceNumber || previewInvoiceNumber || 'DRAFT';
       const printableDate = invoiceDate
         ? new Date(invoiceDate).toLocaleDateString('en-GB')
@@ -468,8 +524,8 @@ export default function InvoiceMaster() {
         .join('');
 
       const staffSummary = [
-        staffFields.technician1 && `Technician 1: ${staffFields.technician1}`,
-        staffFields.technician2 && `Technician 2: ${staffFields.technician2}`,
+        staffFields.technician1 && `Technician: ${staffFields.technician1}`,
+        staffFields.technician2 && `Assistant: ${staffFields.technician2}`,
         staffFields.serviceadvisor && `Service Advisor: ${staffFields.serviceadvisor}`,
         staffFields.deliveryadvisor && `Delivery Advisor: ${staffFields.deliveryadvisor}`,
         staffFields.testdriver && `Test Driver: ${staffFields.testdriver}`,
@@ -539,12 +595,10 @@ export default function InvoiceMaster() {
             <div class="sheet">
               <div class="top">
                 <div class="company">
-                  <div class="brand">ONLY BULLET</div>
-                  <div>OMR - 9962 285538</div>
-                  <div>190, Ponniyaman Kovil 2nd St,</div>
-                  <div>Behind South Indian Bank, &amp;</div>
-                  <div>Sholinganallur,</div>
-                  <div>onlybulletomr@gmail.com</div>
+                  <div class="brand">${safe(companyName)}</div>
+                  ${companyHeaderPhoneLine ? `<div>${safe(companyHeaderPhoneLine)}</div>` : ''}
+                  ${companyAddressHtml}
+                  ${companyEmail ? `<div>${safe(companyEmail)}</div>` : ''}
                 </div>
                 <div class="meta">
                   <div class="meta-row"><div class="meta-label">Date:</div><div>${safe(printableDate)}</div></div>
@@ -676,7 +730,18 @@ A/c Type          : Current Account
         return;
       }
 
-      const fileName = `Invoice-${invoiceDocumentData.printableInvoiceNumber}.pdf`;
+      const rawVehicleNumber = selectedVehicle?.vehiclenumber || '';
+      const vehicleDigits = String(rawVehicleNumber).replace(/\D/g, '');
+      const last4VehicleDigits = vehicleDigits.slice(-4) || String(rawVehicleNumber).slice(-4);
+
+      const rawCustomerFirstName =
+        selectedVehicle?.customerfirstname ||
+        (selectedVehicle?.customername ? String(selectedVehicle.customername).trim().split(/\s+/)[0] : 'Customer');
+
+      const safeLast4 = String(last4VehicleDigits || '0000').replace(/[^a-zA-Z0-9]/g, '');
+      const safeFirstName = String(rawCustomerFirstName || 'Customer').replace(/[^a-zA-Z0-9]/g, '');
+      const fileNameCore = `${safeLast4}${safeFirstName}` || `Invoice${invoiceDocumentData.printableInvoiceNumber}`;
+      const fileName = `${fileNameCore}.pdf`;
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
       iframe.style.left = '-10000px';
@@ -1167,7 +1232,7 @@ A/c Type          : Current Account
 
               {/* JobCard */}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <label htmlFor="jobCardInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>JobCard:</label>
+                <label htmlFor="jobCardInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>JobCard *:</label>
                 <input
                   ref={jobCardInputRef}
                   id="jobCardInput"
@@ -1175,19 +1240,21 @@ A/c Type          : Current Account
                   placeholder="Enter JobCard"
                   value={jobCardInput}
                   onChange={e => setJobCardInput(e.target.value)}
+                  required
                   style={{ width: '100px', padding: 4, fontSize: 14 }}
                 />
               </div>
 
               {/* KMs (Odometer) */}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <label htmlFor="odometerInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>KMs:</label>
+                <label htmlFor="odometerInput" style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap' }}>KMs *:</label>
                 <input
                   id="odometerInput"
                   type="text"
                   placeholder="Enter KM"
                   value={odometer}
                   onChange={e => setOdometer(e.target.value.replace(/[^0-9]/g, ''))}
+                  required
                   style={{ width: '70px', padding: 4, fontSize: 14 }}
                 />
               </div>
@@ -1363,7 +1430,7 @@ A/c Type          : Current Account
           {/* Employee Fields - Single Row Below Grid - Left Side */}
           <div style={{ display: 'flex', gap: 2, marginTop: 0, justifyContent: 'flex-start', flexWrap: 'nowrap', overflow: 'auto', flex: '0 0 auto' }}>
             <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
-              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Technician 1</div>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Technician</div>
               <select
                 value={staffFields.technician1}
                 onChange={e => setStaffFields(f => ({ ...f, technician1: e.target.value }))}
@@ -1378,7 +1445,7 @@ A/c Type          : Current Account
               </select>
             </div>
             <div style={{ flex: 1, minWidth: 0, minWidth: '100px' }}>
-              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Technician 2</div>
+              <div style={{ fontSize: 9, marginBottom: 1, fontWeight: 600 }}>Assistant</div>
               <select
                 value={staffFields.technician2}
                 onChange={e => setStaffFields(f => ({ ...f, technician2: e.target.value }))}
@@ -1460,6 +1527,7 @@ A/c Type          : Current Account
                 style={{ width: '100%', padding: 1, fontSize: 10 }}
               >
                 <option value="">-- Select --</option>
+                <option value="Outside">Outside</option>
                 {allEmployees.map((emp) => (
                   <option key={emp.employeeid} value={emp.firstname}>
                     {emp.firstName || emp.firstname || 'N/A'}

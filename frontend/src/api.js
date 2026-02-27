@@ -566,9 +566,9 @@ export const getNextInvoiceNumber = async () => {
     const year = now.getFullYear().toString().slice(-2);
     const month = now.toLocaleString('en-US', { month: 'short' }).toUpperCase();
     const currentYearMonth = `${year}${month}`;
-    const prefix = `INV${currentYearMonth}`;
+    const monthMarker = currentYearMonth;
     
-    console.log('Getting next invoice number for:', prefix);
+    console.log('Getting next invoice number for month marker:', monthMarker);
     
     // Extract invoices array from response
     const invoiceList = Array.isArray(invoices) ? invoices : (invoices.data || []);
@@ -577,7 +577,7 @@ export const getNextInvoiceNumber = async () => {
     // Filter invoices for current month/year
     const currentInvoices = invoiceList.filter(inv => {
       const invNumber = inv.invoicenumber || inv.InvoiceNumber || '';
-      const matches = invNumber.startsWith(prefix);
+      const matches = invNumber.includes(monthMarker) && /\d{3}$/.test(invNumber);
       if (matches) {
         console.log('Found current month invoice:', invNumber);
       }
