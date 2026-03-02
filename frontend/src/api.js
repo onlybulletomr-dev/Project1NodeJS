@@ -722,3 +722,25 @@ export const recordAdvancePayment = async (advancePaymentData) => {
     throw error;
   }
 };
+
+// Update or create item detail (for Update Items popup in Invoice+)
+export const updateItemDetailQuantity = async (itemId, branchId, qtyToAdd) => {
+  try {
+    console.log('[API REQUEST] updateItemDetailQuantity:', {
+      itemId,
+      branchId,
+      qtyToAdd,
+      url: `${API_BASE_URL}/items/detail/update-quantity`
+    });
+    const response = await axios.post(`${API_BASE_URL}/items/detail/update-quantity`, {
+      itemId,
+      branchId,
+      qtyToAdd
+    });
+    console.log('[API RESPONSE] updateItemDetailQuantity:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating item detail quantity:', error);
+    throw error;
+  }
+};

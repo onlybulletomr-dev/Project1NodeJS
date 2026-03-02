@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices } from '../api';
+import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity } from '../api';
 
 // Search all vehicles by vehicle number and return with customer details
 async function searchVehiclesByNumber(query) {
@@ -1224,34 +1224,50 @@ A/c Type          : Current Account
           return;
         }
 
-        // Validate and process updates
+        // Get branch ID for the logged-in user
+        const branchId = getBranchId() || 1;
+
+        // Process updates via API
         const messages = [];
         for (const updateRow of updateRows) {
-          const item = allItemsList.find(i => 
-            (i.partnumber || i.itemnumber || '').toLowerCase() === updateRow.partnumber.toLowerCase()
-          );
+          try {
+            const item = allItemsList.find(i => 
+              (i.partnumber || i.itemnumber || '').toLowerCase() === updateRow.partnumber.toLowerCase()
+            );
 
-          if (!item) {
-            messages.push(`Item ${updateRow.partnumber} not found`);
-            continue;
+            if (!item) {
+              messages.push(`❌ Item ${updateRow.partnumber} not found`);
+              continue;
+            }
+
+            const qtyToAdd = Number(updateRow.qtyToAdd || 0);
+            const itemId = item.itemid || item.id;
+
+            // Call API to update or create item detail
+            const response = await updateItemDetailQuantity(itemId, branchId, qtyToAdd);
+
+            if (response.success) {
+              const newQty = response.data.quantityonhand || 0;
+              const action = response.action === 'created' ? '(New)' : '(Updated)';
+              messages.push(`✓ ${item.partnumber}: Updated qty to ${newQty} ${action}`);
+            } else {
+              messages.push(`❌ ${item.partnumber}: ${response.message}`);
+            }
+          } catch (error) {
+            messages.push(`❌ ${updateRow.partnumber}: ${error.message}`);
+            console.error(`Error updating item ${updateRow.partnumber}:`, error);
           }
-
-          const currentQty = Number(item.availableqty || item.onhandqty || 0);
-          const qtyToAdd = Number(updateRow.qtyToAdd || 0);
-          const newQty = currentQty + qtyToAdd;
-
-          messages.push(`${item.partnumber}: ${currentQty} + ${qtyToAdd} = ${newQty} ✓`);
         }
 
         setUpdateItemsMessage(messages.join('\n'));
         
-        // Clear form for next entry
+        // Clear form after 3 seconds
         setTimeout(() => {
           setUpdateItemsRows(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
-        }, 2000);
+        }, 3000);
       } catch (error) {
-        console.error('Error updating items:', error);
-        setUpdateItemsMessage('Error updating items: ' + error.message);
+        console.error('Error submitting item updates:', error);
+        setUpdateItemsMessage('Error: ' + error.message);
       }
     };
 
