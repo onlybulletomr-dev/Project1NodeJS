@@ -100,6 +100,10 @@ export default function InvoiceForm({ mode = 'invoice' }) {
     const [discount, setDiscount] = useState('');
     const [gsChecked, setGsChecked] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [showUpdateItemsPopup, setShowUpdateItemsPopup] = useState(false);
+    const [updateItemsRows, setUpdateItemsRows] = useState(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
+    const [updateItemsMessage, setUpdateItemsMessage] = useState('');
+    const [allItemsList, setAllItemsList] = useState([]);
     const itemRowRefs = React.useRef({});
     const qtyInputRef = React.useRef(null);
     const itemPopupRef = React.useRef(null);
@@ -130,13 +134,24 @@ export default function InvoiceForm({ mode = 'invoice' }) {
               }));
             }
           }
+
+          // Load all items for update items popup (invoice+ mode only)
+          if (mode === 'invoice-plus') {
+            try {
+              const items = await getAllItems();
+              setAllItemsList(Array.isArray(items) ? items : []);
+              console.log('Loaded all items for update popup:', items.length);
+            } catch (error) {
+              console.error('Error loading all items:', error);
+            }
+          }
         } catch (error) {
           console.error('Error fetching employees:', error);
           setAllEmployees([]);
         }
       };
       fetchAllEmployees();
-    }, []);
+    }, [mode]);
 
     // Load all items and services for invoice mode
     React.useEffect(() => {
@@ -1132,6 +1147,57 @@ A/c Type          : Current Account
       ));
     };
 
+    // Handle update items popup row change
+    const handleUpdateItemsRowChange = (rowIdx, field, value) => {
+      setUpdateItemsRows(rows => rows.map((row, i) =>
+        i === rowIdx ? { ...row, [field]: value } : row
+      ));
+    };
+
+    // Handle submit update items
+    const handleSubmitUpdateItems = async () => {
+      try {
+        setUpdateItemsMessage('');
+        
+        // Collect non-empty rows
+        const updateRows = updateItemsRows.filter(row => row.partnumber && row.qtyToAdd);
+        
+        if (updateRows.length === 0) {
+          setUpdateItemsMessage('Please enter at least one item with quantity');
+          return;
+        }
+
+        // Validate and process updates
+        const messages = [];
+        for (const updateRow of updateRows) {
+          const item = allItemsList.find(i => 
+            (i.partnumber || i.itemnumber || '').toLowerCase() === updateRow.partnumber.toLowerCase()
+          );
+
+          if (!item) {
+            messages.push(`Item ${updateRow.partnumber} not found`);
+            continue;
+          }
+
+          const currentQty = Number(item.availableqty || item.onhandqty || 0);
+          const qtyToAdd = Number(updateRow.qtyToAdd || 0);
+          const newQty = currentQty + qtyToAdd;
+
+          messages.push(`${item.partnumber}: ${currentQty} + ${qtyToAdd} = ${newQty} ✓`);
+        }
+
+        setUpdateItemsMessage(messages.join('\n'));
+        
+        // Clear form for next entry
+        setTimeout(() => {
+          setUpdateItemsRows(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
+        }, 2000);
+      } catch (error) {
+        console.error('Error updating items:', error);
+        setUpdateItemsMessage('Error updating items: ' + error.message);
+      }
+    };
+
     // ...existing code...
 
   // Vehicle search state
@@ -1797,6 +1863,29 @@ A/c Type          : Current Account
               }}
             />
             {/* Payment button removed as per requirements */}
+            {mode === 'invoice-plus' && (
+              <button
+                onClick={() => {
+                  setShowUpdateItemsPopup(true);
+                  setUpdateItemsMessage('');
+                  setUpdateItemsRows(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
+                }}
+                style={{
+                  width: '100%',
+                  padding: 7,
+                  backgroundColor: '#FF9800',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginBottom: 8,
+                }}
+              >
+                Update Items
+              </button>
+            )}
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button
                 onClick={handleSaveInvoice}
@@ -1886,6 +1975,123 @@ A/c Type          : Current Account
           </div>
         </div>
         </div>
+
+      {/* Update Items Popup - Invoice+ Mode Only */}
+      {showUpdateItemsPopup && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10001,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 8,
+            padding: 20,
+            width: '90%',
+            maxWidth: 500,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 18, fontWeight: 600 }}>Update Item Quantities</h2>
+            
+            {/* Update Items Form - 5 Rows */}
+            <div style={{ marginBottom: 16, maxHeight: '400px', overflowY: 'auto' }}>
+              {updateItemsRows.map((row, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Part Number"
+                    value={row.partnumber}
+                    onChange={e => handleUpdateItemsRowChange(idx, 'partnumber', e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: 8,
+                      border: '1px solid #ddd',
+                      borderRadius: 4,
+                      fontSize: 12,
+                    }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Qty to Add"
+                    value={row.qtyToAdd}
+                    onChange={e => handleUpdateItemsRowChange(idx, 'qtyToAdd', e.target.value.replace(/[^0-9]/g, ''))}
+                    style={{
+                      width: 100,
+                      padding: 8,
+                      border: '1px solid #ddd',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Message Display */}
+            {updateItemsMessage && (
+              <div style={{
+                background: '#f5f5f5',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                padding: 10,
+                marginBottom: 16,
+                fontSize: 12,
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'monospace',
+                maxHeight: 150,
+                overflowY: 'auto',
+                color: '#333',
+              }}>
+                {updateItemsMessage}
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleSubmitUpdateItems}
+                style={{
+                  flex: 1,
+                  padding: 10,
+                  backgroundColor: '#FF9800',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Submit
+              </button>
+              <button
+                onClick={() => setShowUpdateItemsPopup(false)}
+                style={{
+                  flex: 1,
+                  padding: 10,
+                  backgroundColor: '#999',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
       </>
     );
