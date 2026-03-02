@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import CustomerMaster from './components/CustomerMaster';
 import InvoiceMaster from './components/InvoiceMaster';
+import InvoicePlus from './components/InvoicePlus';
 import InvoiceList from './components/InvoiceList';
 import Payment from './components/Payment';
 import Login from './components/Login';
@@ -94,6 +95,8 @@ function App() {
 
       if (hash.includes('/invoices')) {
         setActiveMenu('invoice');
+      } else if (hash.includes('/invoice-plus')) {
+        setActiveMenu('invoiceplus');
       } else if (hash.includes('/invoice-list')) {
         setActiveMenu('invoicelist');
       } else if (hash.includes('/payments')) {
@@ -161,6 +164,17 @@ function App() {
                   Invoice List
                 </Link>
               </li>
+              {userName && userName.toLowerCase() === 'ashok' && (
+                <li>
+                  <Link
+                    to="/invoice-plus"
+                    className={activeMenu === 'invoiceplus' ? 'active' : ''}
+                    onClick={() => setActiveMenu('invoiceplus')}
+                  >
+                    Invoice+
+                  </Link>
+                </li>
+              )}
               <li>
                 <Link
                   to="/payments"
@@ -195,6 +209,19 @@ function App() {
           <Routes>
             <Route path="/customers" element={<CustomerMaster />} />
             <Route path="/invoices" element={<InvoiceMaster />} />
+            <Route
+              path="/invoice-plus"
+              element={
+                userName && userName.toLowerCase() === 'ashok' ? (
+                  <InvoicePlus />
+                ) : (
+                  <div style={{ padding: '20px', textAlign: 'center' }}>
+                    <h2>Access Denied</h2>
+                    <p>You do not have permission to access Invoice+.</p>
+                  </div>
+                )
+              }
+            />
             <Route path="/invoice-list" element={<InvoiceList />} />
             <Route path="/payments" element={<Payment />} />
             <Route 

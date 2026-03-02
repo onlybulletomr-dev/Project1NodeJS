@@ -224,6 +224,7 @@ class InvoiceMaster {
       BranchId,
       CustomerId,
       VehicleId,
+      VehicleNumber,
       JobCardId,
       InvoiceDate,
       DueDate,
@@ -249,20 +250,29 @@ class InvoiceMaster {
       UpdatedBy,
     } = data;
 
+    // Defensive check: InvoiceNumber is required and NOT NULL in schema
+    if (!InvoiceNumber) {
+      console.error('UPDATE INVOICE MODEL: InvoiceNumber is null/undefined', {
+        InvoiceNumber,
+        data,
+      });
+      throw new Error('InvoiceNumber is required for invoice update');
+    }
+
     const UpdatedAt = new Date().toISOString().split('T')[0];
 
     const result = await pool.query(
       `UPDATE invoicemaster SET
-        invoicenumber = $1, branchid = $2, customerid = $3, vehicleid = $4, jobcardid = $5,
-        invoicedate = $6, duedate = $7, invoicetype = $8,
-        subtotal = $9, totaldiscount = $10, partsincome = $11, serviceincome = $12, tax1 = $13, tax2 = $14, totalamount = $15,
-        technicianmain = $16, technicianassistant = $17, waterwash = $18, serviceadvisorin = $19, serviceadvisordeliver = $20,
-        testdriver = $21, cleaner = $22, additionalwork = $23,
-        odometer = $24, notes = $25, notes1 = $26, updatedby = $27, updatedat = $28
-      WHERE invoiceid = $29 AND deletedat IS NULL
+        invoicenumber = $1, branchid = $2, customerid = $3, vehicleid = $4, vehiclenumber = $5, jobcardid = $6,
+        invoicedate = $7, duedate = $8, invoicetype = $9,
+        subtotal = $10, totaldiscount = $11, partsincome = $12, serviceincome = $13, tax1 = $14, tax2 = $15, totalamount = $16,
+        technicianmain = $17, technicianassistant = $18, waterwash = $19, serviceadvisorin = $20, serviceadvisordeliver = $21,
+        testdriver = $22, cleaner = $23, additionalwork = $24,
+        odometer = $25, notes = $26, notes1 = $27, updatedby = $28, updatedat = $29
+      WHERE invoiceid = $30 AND deletedat IS NULL
       RETURNING *`,
       [
-        InvoiceNumber, BranchId, CustomerId, VehicleId, JobCardId,
+        InvoiceNumber, BranchId, CustomerId, VehicleId, VehicleNumber, JobCardId,
         InvoiceDate, DueDate, InvoiceType,
         SubTotal, TotalDiscount, PartsIncome, ServiceIncome, Tax1, Tax2, TotalAmount,
         Technicianmain, Technicianassistant, WaterWash, ServiceAdvisorIn, ServiceAdvisorDeliver,

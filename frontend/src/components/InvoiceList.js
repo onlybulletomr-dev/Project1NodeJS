@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../api';
 
 const InvoiceList = () => {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentBranchId, setCurrentBranchId] = useState(null);
   const [vehicleSearchInput, setVehicleSearchInput] = useState('');
-  const [activeVehicleFilter, setActiveVehicleFilter] = useState('');
+  const [activeSearchFilter, setActiveSearchFilter] = useState('');
   const [sortConfig, setSortConfig] = useState({
     key: 'invoicedate',
     direction: 'desc', // default to descending (newest first)
   });
 
-  const fetchInvoices = async (vehicleNumber = '') => {
+  const fetchInvoices = async (searchText = '') => {
     try {
       setLoading(true);
       const userId = localStorage.getItem('userId');
@@ -20,10 +23,8 @@ const InvoiceList = () => {
         throw new Error('Session expired. Please login again.');
       }
 
-      const cleanVehicleNumber = (vehicleNumber || '').trim();
-      const endpoint = cleanVehicleNumber
-        ? `${API_BASE_URL}/invoices?vehicleNumber=${encodeURIComponent(cleanVehicleNumber)}`
-        : `${API_BASE_URL}/invoices`;
+      const cleanSearchText = (searchText || '').trim();
+      const endpoint = `${API_BASE_URL}/invoices`;
 
       const response = await fetch(endpoint, {
         headers: {
@@ -44,8 +45,17 @@ const InvoiceList = () => {
         paidAmount: parseFloat(inv.paidamount) || 0,
       }));
 
-      setInvoices(transformedInvoices);
-      setActiveVehicleFilter(cleanVehicleNumber);
+      const filteredInvoices = !cleanSearchText
+        ? transformedInvoices
+        : transformedInvoices.filter(inv => {
+            const searchValue = cleanSearchText.toLowerCase();
+            const vehicleNumber = (inv.vehiclenumber || '').toString().toLowerCase();
+            const customerName = (inv.customername || '').toString().toLowerCase();
+            return vehicleNumber.includes(searchValue) || customerName.includes(searchValue);
+          });
+
+      setInvoices(filteredInvoices);
+      setActiveSearchFilter(cleanSearchText);
     } catch (error) {
       console.error('Error fetching invoices:', error);
       setInvoices([]);
@@ -56,8 +66,31 @@ const InvoiceList = () => {
   };
 
   useEffect(() => {
+    const branchId = localStorage.getItem('branchId');
+    setCurrentBranchId(branchId ? Number(branchId) : null);
     fetchInvoices('');
   }, []);
+
+  const canEditInvoice = (invoice) => {
+    if (!invoice) return false;
+    if (currentBranchId === null || currentBranchId === undefined) return false;
+    return Number(invoice.branchid) === Number(currentBranchId);
+  };
+
+  const handleEditInvoice = (invoice) => {
+    if (!canEditInvoice(invoice)) return;
+    const editInvoiceId = invoice?.invoiceid || invoice?.InvoiceID || invoice?.id;
+    if (!editInvoiceId) {
+      alert('Unable to open invoice for edit: invoice ID not found.');
+      return;
+    }
+    navigate('/invoices', {
+      state: {
+        editInvoiceId,
+        editInvoiceData: invoice,
+      },
+    });
+  };
 
   const handleVehicleSearch = async () => {
     await fetchInvoices(vehicleSearchInput);
@@ -150,7 +183,7 @@ const InvoiceList = () => {
         </h1>
         <p style={{ fontSize: '14px', color: '#6b7280' }}>
           {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} found
-          {activeVehicleFilter ? ` for vehicle ${activeVehicleFilter}` : ''}
+          {activeSearchFilter ? ` for search "${activeSearchFilter}"` : ''}
         </p>
       </div>
 
@@ -158,8 +191,8 @@ const InvoiceList = () => {
         <input
           type="text"
           value={vehicleSearchInput}
-          onChange={(e) => setVehicleSearchInput(e.target.value.toUpperCase())}
-          placeholder="Enter Vehicle Number"
+          onChange={(e) => setVehicleSearchInput(e.target.value)}
+          placeholder="Enter Vehicle Number / Customer Name"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleVehicleSearch();
@@ -228,6 +261,7 @@ const InvoiceList = () => {
                   <SortableHeader label="Amount" sortKey="totalAmount" />
                   <SortableHeader label="Paid" sortKey="paidAmount" />
                   <SortableHeader label="Due" sortKey="dueAmount" />
+                  <th style={{ padding: '12px 8px', borderBottom: '2px solid #dee2e6', backgroundColor: '#f8f9fa' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -287,6 +321,29 @@ const InvoiceList = () => {
                       }}
                     >
                       ₹{invoice.dueAmount.toFixed(2)}
+                    </td>
+
+                    <td style={{ padding: '12px 8px', textAlign: 'center' }}>
+                      {canEditInvoice(invoice) ? (
+                        <button
+                          type="button"
+                          onClick={() => handleEditInvoice(invoice)}
+                          style={{
+                            padding: '6px 10px',
+                            border: '1px solid #2563eb',
+                            borderRadius: '6px',
+                            background: '#fff',
+                            color: '#2563eb',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Edit
+                        </button>
+                      ) : (
+                        <span style={{ color: '#9ca3af' }}>-</span>
+                      )}
                     </td>
                   </tr>
                 ))}

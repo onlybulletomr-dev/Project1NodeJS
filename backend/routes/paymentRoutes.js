@@ -5,6 +5,9 @@ const paymentController = require('../controllers/paymentController');
 // Get all unpaid invoices
 router.get('/unpaid', paymentController.getUnpaidInvoices);
 
+// Get invoices by status (Paid/Unpaid/Partial) with payment line items
+router.get('/invoices', paymentController.getInvoicesByStatus);
+
 // Get unpaid invoices for a specific vehicle
 router.get('/unpaid/vehicle/:vehicleId', paymentController.getUnpaidInvoicesByVehicle);
 

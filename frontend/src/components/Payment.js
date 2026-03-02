@@ -1,32 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { getUnpaidInvoices, getPaymentSummary, updatePaymentStatus, getPaymentMethods, recordAdvancePayment } from '../api';
+import { getPaymentInvoicesByStatus, getPaymentSummary, updatePaymentStatus, getPaymentMethods, recordAdvancePayment } from '../api';
 import PaymentModal from './PaymentModal';
 import '../styles/Payment.css';
 
 function Payment() {
-  const [unpaidInvoices, setUnpaidInvoices] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [paymentSummary, setPaymentSummary] = useState(null);
   const [paymentMethods, setPaymentMethods] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState('Unpaid');
+  const [sortField, setSortField] = useState('createdat');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [vehicleFilter, setVehicleFilter] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [invoiceDateFromFilter, setInvoiceDateFromFilter] = useState('');
+  const [invoiceDateToFilter, setInvoiceDateToFilter] = useState('');
+  const [paidDateFromFilter, setPaidDateFromFilter] = useState('');
+  const [paidDateToFilter, setPaidDateToFilter] = useState('');
 
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
 
   useEffect(() => {
-    fetchUnpaidInvoices();
     fetchPaymentSummary();
     fetchPaymentMethods();
   }, []);
 
-  const fetchUnpaidInvoices = async () => {
+  useEffect(() => {
+    fetchInvoicesByStatus(selectedStatus);
+  }, [selectedStatus]);
+
+  const fetchInvoicesByStatus = async (statusValue) => {
     setLoading(true);
     try {
-      const result = await getUnpaidInvoices();
+      const result = await getPaymentInvoicesByStatus(statusValue);
       if (result.success) {
-        setUnpaidInvoices(result.data || []);
+        setInvoices(result.data || []);
         setError(null);
       } else {
         setError(result.message || 'Failed to load invoices');
@@ -166,7 +178,7 @@ function Payment() {
         setSuccess(`${invoiceCount} invoice(s) marked as paid successfully${advanceText}!`);
         
         // Refresh the list
-        fetchUnpaidInvoices();
+        fetchInvoicesByStatus(selectedStatus);
         fetchPaymentSummary();
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(null), 3000);
@@ -186,7 +198,88 @@ function Payment() {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-IN');
+  };
+
+  const toDateOnly = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
+
+  const toSortableValue = (row, field) => {
+    switch (field) {
+      case 'totalamount':
+      case 'amountpaid':
+      case 'amounttobepaid':
+      case 'paymentamount':
+        return Number(row[field] || 0);
+      case 'createdat':
+      case 'paymentdate':
+        return toDateOnly(row[field] || row.invoicepaymentdate || '');
+      default:
+        return (row[field] || '').toString().toLowerCase();
+    }
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortField(field);
+    setSortDirection('asc');
+  };
+
+  const filteredInvoices = invoices.filter((row) => {
+    const isWithinDateRange = (dateValue, fromValue, toValue) => {
+      if (!fromValue && !toValue) return true;
+      if (!dateValue) return false;
+
+      if (fromValue && dateValue < fromValue) return false;
+      if (toValue && dateValue > toValue) return false;
+      return true;
+    };
+
+    const matchesVehicle = (row.vehiclenumber || '').toLowerCase().includes(vehicleFilter.trim().toLowerCase());
+    const matchesCustomer = (row.customername || '').toLowerCase().includes(customerFilter.trim().toLowerCase());
+    const invoiceDateValue = toDateOnly(row.createdat);
+    const matchesInvoiceDate = isWithinDateRange(invoiceDateValue, invoiceDateFromFilter, invoiceDateToFilter);
+    const paidDateValue = toDateOnly(row.paymentdate || row.invoicepaymentdate);
+    const matchesPaidDate = isWithinDateRange(paidDateValue, paidDateFromFilter, paidDateToFilter);
+
+    return matchesVehicle && matchesCustomer && matchesInvoiceDate && matchesPaidDate;
+  });
+
+  const sortedInvoices = [...filteredInvoices].sort((a, b) => {
+    const left = toSortableValue(a, sortField);
+    const right = toSortableValue(b, sortField);
+
+    if (left < right) return sortDirection === 'asc' ? -1 : 1;
+    if (left > right) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const getStatusLabel = () => {
+    if (selectedStatus === 'Paid') return 'Paid Invoices';
+    if (selectedStatus === 'Partial') return 'Partial Invoices';
+    return 'Pending Invoices';
+  };
+
+  const renderSortIndicator = (field) => {
+    if (sortField !== field) return ' ↕';
+    return sortDirection === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const handleClearFilters = () => {
+    setVehicleFilter('');
+    setCustomerFilter('');
+    setInvoiceDateFromFilter('');
+    setInvoiceDateToFilter('');
+    setPaidDateFromFilter('');
+    setPaidDateToFilter('');
   };
 
   return (
@@ -196,17 +289,35 @@ function Payment() {
       {/* Payment Summary Cards */}
       {paymentSummary && (
         <div className="payment-summary">
-          <div className="summary-card paid">
+          <div
+            className={`summary-card paid ${selectedStatus === 'Paid' ? 'selected' : ''}`}
+            onClick={() => setSelectedStatus('Paid')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setSelectedStatus('Paid')}
+          >
             <h3>Paid Invoices</h3>
             <p className="count">{paymentSummary.paidcount || 0}</p>
             <p className="amount">{formatCurrency(paymentSummary.paidamount || 0)}</p>
           </div>
-          <div className="summary-card unpaid">
+          <div
+            className={`summary-card unpaid ${selectedStatus === 'Unpaid' ? 'selected' : ''}`}
+            onClick={() => setSelectedStatus('Unpaid')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setSelectedStatus('Unpaid')}
+          >
             <h3>Pending Invoices</h3>
             <p className="count">{paymentSummary.unpaidcount || 0}</p>
             <p className="amount">{formatCurrency(paymentSummary.unpaidamount || 0)}</p>
           </div>
-          <div className="summary-card partial">
+          <div
+            className={`summary-card partial ${selectedStatus === 'Partial' ? 'selected' : ''}`}
+            onClick={() => setSelectedStatus('Partial')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setSelectedStatus('Partial')}
+          >
             <h3>Partial Payments</h3>
             <p className="count">{paymentSummary.partialcount || 0}</p>
             <p className="amount">{formatCurrency(paymentSummary.partialamount || 0)}</p>
@@ -228,28 +339,84 @@ function Payment() {
       {/* Unpaid & Partially Paid Invoices Table */}
       {!loading && (
         <div className="invoices-section">
-          <h3>Pending Invoices ({unpaidInvoices.length})</h3>
-          {unpaidInvoices.length === 0 ? (
-            <p className="no-data">No pending invoices found.</p>
+          <h3>{getStatusLabel()} ({sortedInvoices.length})</h3>
+
+          <div className="payment-filters">
+            <input
+              type="text"
+              placeholder="Filter by vehicle number"
+              value={vehicleFilter}
+              onChange={(e) => setVehicleFilter(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Filter by customer name"
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+            />
+            <div className="payment-filter-date">
+              <label>Invoice Date (From)</label>
+              <input
+                type="date"
+                value={invoiceDateFromFilter}
+                onChange={(e) => setInvoiceDateFromFilter(e.target.value)}
+              />
+            </div>
+            <div className="payment-filter-date">
+              <label>Invoice Date (To)</label>
+              <input
+                type="date"
+                value={invoiceDateToFilter}
+                onChange={(e) => setInvoiceDateToFilter(e.target.value)}
+              />
+            </div>
+            <div className="payment-filter-date">
+              <label>Paid Date (From)</label>
+              <input
+                type="date"
+                value={paidDateFromFilter}
+                onChange={(e) => setPaidDateFromFilter(e.target.value)}
+              />
+            </div>
+            <div className="payment-filter-date">
+              <label>Paid Date (To)</label>
+              <input
+                type="date"
+                value={paidDateToFilter}
+                onChange={(e) => setPaidDateToFilter(e.target.value)}
+              />
+            </div>
+            <div className="payment-filter-actions">
+              <button type="button" className="clear-filters-button" onClick={handleClearFilters}>
+                Clear Filters
+              </button>
+            </div>
+          </div>
+
+          {sortedInvoices.length === 0 ? (
+            <p className="no-data">No {getStatusLabel().toLowerCase()} found.</p>
           ) : (
             <div className="table-responsive">
               <table className="payment-table">
                 <thead>
                   <tr>
-                    <th>Invoice Number</th>
-                    <th>Vehicle Number</th>
-                    <th>Customer Name</th>
-                    <th>Phone Number</th>
-                    <th>Invoice Amount</th>
-                    <th>Paid</th>
-                    <th>Pending</th>
-                    <th>Invoice Date</th>
+                    <th className="sortable" onClick={() => handleSort('invoicenumber')}>Invoice Number{renderSortIndicator('invoicenumber')}</th>
+                    <th className="sortable" onClick={() => handleSort('vehiclenumber')}>Vehicle Number{renderSortIndicator('vehiclenumber')}</th>
+                    <th className="sortable" onClick={() => handleSort('customername')}>Customer Name{renderSortIndicator('customername')}</th>
+                    <th className="sortable" onClick={() => handleSort('phonenumber')}>Phone Number{renderSortIndicator('phonenumber')}</th>
+                    <th className="sortable amount-header" onClick={() => handleSort('totalamount')}>Invoice Amount{renderSortIndicator('totalamount')}</th>
+                    <th className="sortable amount-header" onClick={() => handleSort('amountpaid')}>Paid{renderSortIndicator('amountpaid')}</th>
+                    <th className="sortable amount-header" onClick={() => handleSort('amounttobepaid')}>Pending{renderSortIndicator('amounttobepaid')}</th>
+                    <th className="sortable" onClick={() => handleSort('createdat')}>Invoice Date{renderSortIndicator('createdat')}</th>
+                    <th className="sortable" onClick={() => handleSort('paymentdate')}>Paid Date{renderSortIndicator('paymentdate')}</th>
+                    <th className="sortable" onClick={() => handleSort('paymentmode')}>Mode{renderSortIndicator('paymentmode')}</th>
+                    <th className="sortable amount-header" onClick={() => handleSort('paymentamount')}>Payment Amount{renderSortIndicator('paymentamount')}</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {unpaidInvoices.map((invoice) => (
-                    <tr key={invoice.invoiceid}>
+                  {sortedInvoices.map((invoice, index) => (
+                    <tr key={`${invoice.invoiceid}-${invoice.paymentreceivedid || 'np'}-${index}`}>
                       <td className="invoice-number">{invoice.invoicenumber}</td>
                       <td>{invoice.vehiclenumber}</td>
                       <td>{invoice.customername}</td>
@@ -258,13 +425,20 @@ function Payment() {
                       <td className="amount-cell amount-paid">{formatCurrency(invoice.amountpaid || 0)}</td>
                       <td className="amount-cell amount-pending">{formatCurrency(invoice.amounttobepaid || 0)}</td>
                       <td>{formatDate(invoice.createdat)}</td>
+                      <td>{formatDate(invoice.paymentdate || invoice.invoicepaymentdate)}</td>
+                      <td>{invoice.paymentmode || '-'}</td>
+                      <td className="amount-cell">{invoice.paymentreceivedid ? formatCurrency(invoice.paymentamount || 0) : '-'}</td>
                       <td className="action-cell">
-                        <button
-                          className="pay-button"
-                          onClick={() => handlePayment(invoice)}
-                        >
-                          Pay
-                        </button>
+                        {selectedStatus !== 'Paid' ? (
+                          <button
+                            className="pay-button"
+                            onClick={() => handlePayment(invoice)}
+                          >
+                            Pay
+                          </button>
+                        ) : (
+                          <span>-</span>
+                        )}
                       </td>
                     </tr>
                   ))}

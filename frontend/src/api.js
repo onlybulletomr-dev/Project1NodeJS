@@ -477,11 +477,43 @@ export const searchServices = async (query) => {
 // Combined Items and Services Search
 export const searchItemsAndServices = async (query) => {
   try {
-    if (!query || query.length < 2) return [];
+    if (!query || query.length < 1) return [];
     const response = await axios.get(`${API_BASE_URL}/items-services/search`, { params: { q: query } });
     return response.data.data || [];
   } catch (error) {
     console.error('Error searching items and services:', error);
+    return [];
+  }
+};
+
+// Get ALL items and services (no search filter)
+export const getAllItemsAndServices = async () => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/items-services/all`);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching all items and services:', error);
+    return [];
+  }
+};
+
+// Search items and services for invoice mode (simple, itemmaster only, no qty field)
+export const searchItemsInvoiceMode = async (query) => {
+  try {
+    if (!query || query.length < 1) {
+      // If empty query, return all items
+      return await getAllItemsAndServices();
+    }
+    // For now, fetch all and filter client-side for simplicity
+    const all = await getAllItemsAndServices();
+    const lowerQuery = query.toLowerCase();
+    return all.filter(item =>
+      (item.itemnumber && item.itemnumber.toLowerCase().includes(lowerQuery)) ||
+      (item.itemdescription && item.itemdescription.toLowerCase().includes(lowerQuery)) ||
+      (item.partnumber && item.partnumber.toLowerCase().includes(lowerQuery))
+    );
+  } catch (error) {
+    console.error('Error searching items in invoice mode:', error);
     return [];
   }
 };
@@ -629,6 +661,18 @@ export const getUnpaidInvoices = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching unpaid invoices:', error);
+    throw error;
+  }
+};
+
+export const getPaymentInvoicesByStatus = async (status) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/payments/invoices`, {
+      params: { status }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching payment invoices by status:', error);
     throw error;
   }
 };

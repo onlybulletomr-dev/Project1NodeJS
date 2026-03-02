@@ -66,6 +66,95 @@ exports.getUnpaidInvoices = async (req, res) => {
   }
 };
 
+// Get invoices by payment status with payment line items
+exports.getInvoicesByStatus = async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'] || 1;
+    const statusParam = (req.query.status || 'Unpaid').toString().trim();
+
+    const statusMap = {
+      paid: 'Paid',
+      unpaid: 'Unpaid',
+      pending: 'Unpaid',
+      partial: 'Partial'
+    };
+
+    const normalizedStatus = statusMap[statusParam.toLowerCase()];
+
+    if (!normalizedStatus) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Use one of: Paid, Unpaid/Pending, Partial'
+      });
+    }
+
+    const userQuery = `
+      SELECT branchid FROM employeemaster
+      WHERE employeeid = $1 AND deletedat IS NULL
+    `;
+    const userResult = await pool.query(userQuery, [userId]);
+    const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
+
+    const query = `
+      SELECT
+        im.invoiceid,
+        im.invoicenumber,
+        COALESCE(im.vehiclenumber, '') AS vehiclenumber,
+        COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') AS customername,
+        cm.mobilenumber1 AS phonenumber,
+        COALESCE(im.totalamount, 0) AS totalamount,
+        COALESCE(im.paymentstatus, 'Unpaid') AS paymentstatus,
+        im.createdat,
+        im.paymentdate AS invoicepaymentdate,
+        im.customerid,
+        im.vehicleid,
+        COALESCE(totals.amountpaid, 0) AS amountpaid,
+        COALESCE(im.totalamount, 0) - COALESCE(totals.amountpaid, 0) AS amounttobepaid,
+        pd.paymentreceivedid,
+        pd.paymentdate,
+        COALESCE(pd.amount, 0) AS paymentamount,
+        pm.methodname AS paymentmode
+      FROM invoicemaster im
+      LEFT JOIN customermaster cm
+        ON im.customerid = cm.customerid
+        AND cm.deletedat IS NULL
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(CASE WHEN p2.paymentstatus IN ('Paid', 'Completed') THEN p2.amount ELSE 0 END), 0) AS amountpaid
+        FROM paymentdetail p2
+        WHERE p2.invoiceid = im.invoiceid
+          AND p2.deletedat IS NULL
+      ) totals ON TRUE
+      LEFT JOIN paymentdetail pd
+        ON pd.invoiceid = im.invoiceid
+        AND pd.deletedat IS NULL
+        AND pd.paymentstatus IN ('Paid', 'Completed')
+      LEFT JOIN paymentmethodmaster pm
+        ON pm.paymentmethodid = pd.paymentmethodid
+        AND pm.deletedat IS NULL
+      WHERE im.deletedat IS NULL
+        AND im.branchid = $1
+        AND COALESCE(im.paymentstatus, 'Unpaid') = $2
+      ORDER BY im.createdat DESC, pd.paymentdate DESC NULLS LAST, pd.paymentreceivedid DESC NULLS LAST
+    `;
+
+    const result = await pool.query(query, [userBranchID, normalizedStatus]);
+
+    res.status(200).json({
+      success: true,
+      data: result.rows,
+      status: normalizedStatus,
+      message: `${normalizedStatus} invoices retrieved successfully`
+    });
+  } catch (error) {
+    console.error('Error fetching invoices by status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch invoices by status',
+      error: error.message
+    });
+  }
+};
+
 // Get unpaid and partially paid invoices for a specific vehicle
 exports.getUnpaidInvoicesByVehicle = async (req, res) => {
   try {

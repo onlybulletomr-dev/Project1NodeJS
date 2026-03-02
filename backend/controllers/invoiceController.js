@@ -179,6 +179,8 @@ exports.saveInvoice = async (req, res) => {
             console.log(`Looked up itemid for partnumber ${partnumber}: ${itemid}`);
           } else {
             console.warn(`Item not found for partnumber: ${partnumber}`);
+            itemid = String(partnumber);
+            console.log(`Falling back to provided item identifier: ${itemid}`);
           }
         }
       }
@@ -322,53 +324,101 @@ exports.updateInvoice = async (req, res) => {
     }
 
     const {
+      CustomerId,
+      VehicleId,
       VehicleNumber,
-      VehicleModel,
-      VehicleColor,
-      CustomerID,
-      MobileNumber1,
-      JobCardID,
-      Notes,
-      TechnicianMain,
-      TechnicianAssistant,
+      JobCardId,
+      SubTotal,
+      TotalDiscount,
+      PartsIncome,
+      ServiceIncome,
+      Tax1,
+      Tax2,
+      TotalAmount,
+      Technicianmain,
+      Technicianassistant,
+      WaterWash,
       ServiceAdvisorIn,
       ServiceAdvisorDeliver,
       TestDriver,
       Cleaner,
-      WaterWash,
+      AdditionalWork,
       Odometer,
-      TotalDiscount,
+      Notes,
+      Notes1,
       InvoiceDetails,
     } = req.body;
 
     // Verify invoice belongs to user's branch
     const invoiceMasterCheck = await InvoiceMaster.getById(id);
-    if (!invoiceMasterCheck || invoiceMasterCheck.branchid !== userBranchId) {
+    console.log('=== UPDATE INVOICE DEBUG ===');
+    console.log('Invoice ID to update:', id);
+    console.log('Fetched invoice record:', JSON.stringify(invoiceMasterCheck, null, 2));
+    
+    if (!invoiceMasterCheck) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found in database',
+      });
+    }
+
+    if (invoiceMasterCheck.branchid !== userBranchId) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to update this invoice',
       });
     }
 
+    // Preserve existing invoice number (getById returns lowercase column names from PostgreSQL)
+    const existingInvoiceNumber = invoiceMasterCheck.invoicenumber;
+    console.log('Existing invoice number from DB:', existingInvoiceNumber);
+    
+    if (!existingInvoiceNumber) {
+      console.error('Invoice record exists but invoicenumber is null/undefined:', invoiceMasterCheck);
+      return res.status(400).json({
+        success: false,
+        message: `Invoice ${id} corrupted: missing invoicenumber in database`,
+      });
+    }
+
     const invoiceMasterData = {
-      VehicleNumber,
-      VehicleModel,
-      VehicleColor,
-      CustomerID,
-      MobileNumber1,
-      JobCardID,
-      Notes,
-      TechnicianMain: TechnicianMain || null,
-      TechnicianAssistant: TechnicianAssistant || null,
+      InvoiceNumber: existingInvoiceNumber,
+      BranchId: userBranchId,
+      CustomerId: CustomerId || invoiceMasterCheck.customerid,
+      VehicleId: VehicleId || invoiceMasterCheck.vehicleid,
+      VehicleNumber: VehicleNumber || invoiceMasterCheck.vehiclenumber,
+      JobCardId: JobCardId || 0,
+      InvoiceDate: invoiceMasterCheck.invoicedate || new Date().toISOString().split('T')[0],
+      DueDate: invoiceMasterCheck.duedate,
+      InvoiceType: invoiceMasterCheck.invoicetype || 'Service Invoice',
+      SubTotal: parseFloat(SubTotal || 0),
+      TotalDiscount: parseFloat(TotalDiscount || 0),
+      PartsIncome: parseFloat(PartsIncome || 0),
+      ServiceIncome: parseFloat(ServiceIncome || 0),
+      Tax1: parseFloat(Tax1 || 0),
+      Tax2: parseFloat(Tax2 || 0),
+      TotalAmount: parseFloat(TotalAmount || 0),
+      Technicianmain: Technicianmain || null,
+      Technicianassistant: Technicianassistant || null,
+      WaterWash: WaterWash || null,
       ServiceAdvisorIn: ServiceAdvisorIn || null,
       ServiceAdvisorDeliver: ServiceAdvisorDeliver || null,
       TestDriver: TestDriver || null,
       Cleaner: Cleaner || null,
-      WaterWash: WaterWash || null,
-      Odometer,
-      TotalDiscount: TotalDiscount || 0,
-      UpdatedBy: userId,  // Track who updated it
+      AdditionalWork: AdditionalWork || null,
+      Odometer: Odometer || null,
+      Notes: Notes || null,
+      Notes1: Notes1 || null,
+      UpdatedBy: userId,
     };
+
+    console.log('=== ABOUT TO CALL MODEL UPDATE ===');
+    console.log('Invoice ID:', id);
+    console.log('InvoiceNumber value to pass:', invoiceMasterData.InvoiceNumber);
+    console.log('InvoiceNumber is null?', invoiceMasterData.InvoiceNumber === null);
+    console.log('InvoiceNumber is undefined?', invoiceMasterData.InvoiceNumber === undefined);
+    console.log('InvoiceNumber type:', typeof invoiceMasterData.InvoiceNumber);
+    console.log('Full data object keys:', Object.keys(invoiceMasterData));
 
     const invoiceMaster = await InvoiceMaster.update(id, invoiceMasterData);
 
@@ -381,18 +431,41 @@ exports.updateInvoice = async (req, res) => {
 
     // Delete existing details and create new ones
     if (InvoiceDetails && Array.isArray(InvoiceDetails)) {
-      await InvoiceDetail.deleteByInvoiceId(id, userId);
+      console.log('=== DELETING OLD INVOICE DETAILS ===');
+      console.log('Invoice ID:', id);
+      console.log('User ID:', userId);
+      // For updates, HARD DELETE old detail rows to avoid unique constraint violations
+      // (soft-deleted rows would still conflict with new inserts having same itemid)
+      const deletedRows = await InvoiceDetail.hardDeleteByInvoiceId(id);
+      console.log('Rows hard-deleted:', deletedRows ? deletedRows.length : 0);
 
       const invoiceDetailRecords = [];
       for (const detail of InvoiceDetails) {
+        const partnumber = detail.ItemID || detail.ItemNumber;
+        const itemSource = detail.source || 'item';
+        let itemid = null;
+
+        if (itemSource === 'service') {
+          itemid = String(partnumber);
+        } else if (partnumber) {
+          const item = await ItemMaster.getByPartNumber(partnumber);
+          if (item) {
+            itemid = item.itemid;
+          } else {
+            itemid = String(partnumber);
+          }
+        }
+
         const invoiceDetailData = {
           InvoiceID: id,
-          ItemID: detail.ItemID || detail.ItemNumber,
-          Qty: detail.Qty,
-          UnitPrice: detail.UnitPrice,
-          LineDiscount: detail.Discount || 0,
-          Total: detail.Total,
-          CreatedBy: userId,  // Track who created it
+          ItemID: itemid,
+          Qty: parseInt(detail.Qty || 0, 10),
+          UnitPrice: parseFloat(detail.UnitPrice || 0),
+          LineDiscount: parseFloat(detail.Discount || 0),
+          LineTotal: parseFloat(detail.Total || 0),
+          LineItemTax1: 0,
+          LineItemTax2: 0,
+          CreatedBy: userId,
         };
 
         const invoiceDetail = await InvoiceDetail.create(invoiceDetailData);
