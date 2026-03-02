@@ -104,10 +104,15 @@ export default function InvoiceForm({ mode = 'invoice' }) {
     const [updateItemsRows, setUpdateItemsRows] = useState(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
     const [updateItemsMessage, setUpdateItemsMessage] = useState('');
     const [allItemsList, setAllItemsList] = useState([]);
+    const [updateItemsDropdownOpen, setUpdateItemsDropdownOpen] = useState(Array(5).fill(false));
+    const [updateItemsDropdownResults, setUpdateItemsDropdownResults] = useState(Array(5).fill([]));
+    const [updateItemsDropdownIndex, setUpdateItemsDropdownIndex] = useState(Array(5).fill(-1));
     const itemRowRefs = React.useRef({});
     const qtyInputRef = React.useRef(null);
     const itemPopupRef = React.useRef(null);
     const itemInputRef = React.useRef(null);
+    const updateItemsDropdownRefs = React.useRef({});
+    const updateItemsInputRefs = React.useRef({});
 
 
     // Load all employees for dropdown selection
@@ -1152,6 +1157,58 @@ A/c Type          : Current Account
       setUpdateItemsRows(rows => rows.map((row, i) =>
         i === rowIdx ? { ...row, [field]: value } : row
       ));
+
+      // If partnumber field is changed, show dropdown with filtered results
+      if (field === 'partnumber') {
+        if (value.length >= 1) {
+          const filtered = allItemsList.filter(item =>
+            (item.partnumber || item.itemnumber || '').toLowerCase().includes(value.toLowerCase()) ||
+            (item.itemname || item.description || '').toLowerCase().includes(value.toLowerCase())
+          );
+          setUpdateItemsDropdownResults(results => results.map((r, i) => i === rowIdx ? filtered : r));
+          setUpdateItemsDropdownOpen(open => open.map((o, i) => i === rowIdx ? filtered.length > 0 : false));
+          setUpdateItemsDropdownIndex(index => index.map((idx, i) => i === rowIdx ? -1 : idx));
+        } else {
+          setUpdateItemsDropdownOpen(open => open.map((o, i) => i === rowIdx ? false : o));
+          setUpdateItemsDropdownResults(results => results.map((r, i) => i === rowIdx ? [] : r));
+        }
+      }
+    };
+
+    // Handle update items dropdown selection
+    const handleUpdateItemsSelectItem = (rowIdx, item) => {
+      setUpdateItemsRows(rows => rows.map((row, i) =>
+        i === rowIdx ? { ...row, partnumber: item.partnumber || item.itemnumber } : row
+      ));
+      setUpdateItemsDropdownOpen(open => open.map((o, i) => i === rowIdx ? false : o));
+      setUpdateItemsDropdownResults(results => results.map((r, i) => i === rowIdx ? [] : r));
+      setUpdateItemsDropdownIndex(index => index.map((idx, i) => i === rowIdx ? -1 : idx));
+    };
+
+    // Handle update items dropdown keyboard navigation
+    const handleUpdateItemsPartNumberKeyDown = (rowIdx, e) => {
+      const dropdownOpen = updateItemsDropdownOpen[rowIdx];
+      const dropdownResults = updateItemsDropdownResults[rowIdx];
+      const currentIndex = updateItemsDropdownIndex[rowIdx];
+
+      if (!dropdownOpen || dropdownResults.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const newIndex = (currentIndex + 1) % dropdownResults.length;
+        setUpdateItemsDropdownIndex(index => index.map((idx, i) => i === rowIdx ? newIndex : idx));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const newIndex = (currentIndex - 1 + dropdownResults.length) % dropdownResults.length;
+        setUpdateItemsDropdownIndex(index => index.map((idx, i) => i === rowIdx ? newIndex : idx));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (currentIndex >= 0 && currentIndex < dropdownResults.length) {
+          handleUpdateItemsSelectItem(rowIdx, dropdownResults[currentIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        setUpdateItemsDropdownOpen(open => open.map((o, i) => i === rowIdx ? false : o));
+      }
     };
 
     // Handle submit update items
@@ -2003,20 +2060,66 @@ A/c Type          : Current Account
             {/* Update Items Form - 5 Rows */}
             <div style={{ marginBottom: 16, maxHeight: '400px', overflowY: 'auto' }}>
               {updateItemsRows.map((row, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    placeholder="Part Number"
-                    value={row.partnumber}
-                    onChange={e => handleUpdateItemsRowChange(idx, 'partnumber', e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: 8,
-                      border: '1px solid #ddd',
-                      borderRadius: 4,
-                      fontSize: 12,
-                    }}
-                  />
+                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start', position: 'relative' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      ref={el => updateItemsInputRefs.current[idx] = el}
+                      type="text"
+                      placeholder="Part Number"
+                      value={row.partnumber}
+                      onChange={e => handleUpdateItemsRowChange(idx, 'partnumber', e.target.value)}
+                      onKeyDown={e => handleUpdateItemsPartNumberKeyDown(idx, e)}
+                      onBlur={() => setTimeout(() => setUpdateItemsDropdownOpen(open => open.map((o, i) => i === idx ? false : o)), 200)}
+                      style={{
+                        width: '100%',
+                        padding: 8,
+                        border: '1px solid #ddd',
+                        borderRadius: 4,
+                        fontSize: 12,
+                      }}
+                    />
+                    {updateItemsDropdownOpen[idx] && (
+                      <div
+                        ref={el => updateItemsDropdownRefs.current[idx] = el}
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          background: '#fff',
+                          border: '1px solid #ddd',
+                          borderTop: 'none',
+                          borderRadius: '0 0 4px 4px',
+                          maxHeight: 150,
+                          overflowY: 'auto',
+                          zIndex: 10002,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        }}
+                      >
+                        {updateItemsDropdownResults[idx].map((item, itemIdx) => (
+                          <div
+                            key={itemIdx}
+                            style={{
+                              padding: 8,
+                              cursor: 'pointer',
+                              background: itemIdx === updateItemsDropdownIndex[idx] ? '#e3f2fd' : (itemIdx % 2 === 0 ? '#f9f9f9' : '#fff'),
+                              borderBottom: '1px solid #f0f0f0',
+                              fontSize: 11,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                            onClick={() => handleUpdateItemsSelectItem(idx, item)}
+                            title={`${item.partnumber || item.itemnumber} - ${item.itemname || item.description}`}
+                          >
+                            <span style={{ fontWeight: 600 }}>{item.partnumber || item.itemnumber}</span>
+                            {' - '}
+                            <span>{item.itemname || item.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="number"
                     placeholder="Qty to Add"
