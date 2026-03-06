@@ -44,13 +44,12 @@ router.get('/services/:id', async (req, res) => {
   }
 });
 
-// Combined search for items and services
+// Combined search for items and services (INVOICE+ MODE)
+// Fetches items PRIMARY from itemdetail (with qty data for validation)
 router.get('/items-services/search', async (req, res) => {
   try {
     const { q } = req.query;
-    if (!q || q.length < 1) {
-      return res.status(400).json({ success: false, message: 'Search query is required' });
-    }
+    // Allow empty query (returns all items) or search by pattern
 
     const userId = req.headers['x-user-id'] || 1;
 
@@ -75,28 +74,26 @@ router.get('/items-services/search', async (req, res) => {
     const stockColumnCandidates = ['quantityonhand', 'qtyonhand', 'quantity', 'qty'];
     const stockColumn = stockColumnCandidates.find(column => itemDetailColumns.has(column)) || null;
 
-    const stockExpression = stockColumn ? `COALESCE(stock.${stockColumn}, 0)` : '0';
-
+    // For invoice+, fetch PRIMARY from itemdetail with qty info
+    // If q is empty, return all items; otherwise filter by pattern
+    const searchPattern = (q && q.length > 0) ? `%${q}%` : '%';
+    
     const itemsQuery = `
-      SELECT
-        im.itemid,
+      SELECT DISTINCT
+        id.itemid,
         im.partnumber,
         im.${descriptionColumn} AS itemdescription,
         im.${descriptionColumn} AS itemname,
         im.uom,
         im.mrp,
-        ${stockExpression} AS availableqty
-      FROM itemmaster im
-      LEFT JOIN (
-        SELECT itemid, ${stockColumn ? `SUM(${stockColumn})` : '0'} AS ${stockColumn || 'stockqty'}
-        FROM itemdetail
-        WHERE branchid = $2 AND deletedat IS NULL
-        GROUP BY itemid
-      ) stock ON stock.itemid = im.itemid
-      WHERE (im.partnumber ILIKE $1 OR im.${descriptionColumn} ILIKE $1)
+        ${stockColumn ? `COALESCE(id.${stockColumn}, 0)` : '0'} AS availableqty
+      FROM itemdetail id
+      JOIN itemmaster im ON id.itemid = im.itemid
+      WHERE id.branchid = $2 
+        AND id.deletedat IS NULL 
         AND im.deletedat IS NULL
+        AND (im.partnumber ILIKE $1 OR im.${descriptionColumn} ILIKE $1)
       ORDER BY im.partnumber
-      LIMIT 20
     `;
 
     const servicesQuery = `
@@ -105,16 +102,17 @@ router.get('/items-services/search', async (req, res) => {
       WHERE (servicename ILIKE $1 OR description ILIKE $1)
         AND deletedat IS NULL
       ORDER BY servicename
-      LIMIT 20
     `;
 
     const [itemsResult, servicesResult] = await Promise.all([
-      pool.query(itemsQuery, [`%${q}%`, userBranchId]),
-      pool.query(servicesQuery, [`%${q}%`])
+      pool.query(itemsQuery, [searchPattern, userBranchId]),
+      pool.query(servicesQuery, [searchPattern])
     ]);
 
     const items = itemsResult.rows;
     const services = servicesResult.rows;
+
+    console.log(`🔍 Search query: "${q || 'all'}" - Found ${items.length} items from itemdetail, ${services.length} services`);
 
     // Add source field to distinguish between items and services
     const enrichedItems = items.map(item => ({
@@ -123,7 +121,7 @@ router.get('/items-services/search', async (req, res) => {
       itemnumber: item.partnumber,
       itemdescription: item.itemdescription || item.itemname,
       itemprice: item.mrp,
-      availableqty: item.availableqty
+      availableqty: Number(item.availableqty)
     }));
 
     const enrichedServices = services.map(service => ({
@@ -155,6 +153,7 @@ router.get('/items-services/all', async (req, res) => {
     const descriptionColumn = itemMasterColumns.has('description') ? 'description' : 'itemname';
 
     // Get all items from itemmaster ONLY (no itemdetail join, no qty field)
+    // Removed LIMIT to fetch all items
     const itemsQuery = `
       SELECT
         im.itemid,
@@ -166,7 +165,6 @@ router.get('/items-services/all', async (req, res) => {
       FROM itemmaster im
       WHERE im.deletedat IS NULL
       ORDER BY im.partnumber
-      LIMIT 500
     `;
 
     // Get all services
@@ -175,7 +173,6 @@ router.get('/items-services/all', async (req, res) => {
       FROM servicemaster
       WHERE deletedat IS NULL
       ORDER BY servicename
-      LIMIT 500
     `;
 
     const [itemsResult, servicesResult] = await Promise.all([
@@ -185,6 +182,9 @@ router.get('/items-services/all', async (req, res) => {
 
     const items = itemsResult.rows;
     const services = servicesResult.rows;
+
+    console.log(`✓ Fetched ${items.length} items from itemmaster`);
+    console.log(`✓ Fetched ${services.length} services from servicemaster`);
 
     // Add source field to distinguish between items and services
     const enrichedItems = items.map(item => ({
@@ -207,6 +207,192 @@ router.get('/items-services/all', async (req, res) => {
     res.status(200).json({ success: true, data: combined });
   } catch (error) {
     console.error('Error fetching all items and services:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to check a specific item by part number
+router.get('/debug/item/:partnumber', async (req, res) => {
+  try {
+    const { partnumber } = req.params;
+    
+    // Check itemmaster
+    const itemMasterResult = await pool.query(
+      `SELECT itemid, partnumber, itemname, deletedat FROM itemmaster WHERE partnumber = $1`,
+      [partnumber]
+    );
+    
+    if (itemMasterResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `Item ${partnumber} not found in itemmaster`
+      });
+    }
+    
+    const itemMaster = itemMasterResult.rows[0];
+    const itemid = itemMaster.itemid;
+    
+    // Check itemdetail for all branches
+    const itemDetailAllBranchesResult = await pool.query(
+      `SELECT itemid, branchid, quantityonhand, qtyonhand, quantity, qty, deletedat 
+       FROM itemdetail 
+       WHERE itemid = $1
+       ORDER BY branchid`,
+      [itemid]
+    );
+    
+    // Check itemdetail for user's branch
+    const userId = req.headers['x-user-id'] || 1;
+    const userBranchResult = await pool.query(
+      `SELECT branchid FROM employeemaster WHERE employeeid = $1 AND deletedat IS NULL LIMIT 1`,
+      [userId]
+    );
+    const userBranchId = userBranchResult.rows.length > 0 ? userBranchResult.rows[0].branchid : 1;
+    
+    const itemDetailUserBranchResult = await pool.query(
+      `SELECT itemid, branchid, quantityonhand, qtyonhand, quantity, qty, deletedat 
+       FROM itemdetail 
+       WHERE itemid = $1 AND branchid = $2`,
+      [itemid, userBranchId]
+    );
+    
+    // Detect which qty column exists
+    const stockColumnCandidates = ['quantityonhand', 'qtyonhand', 'quantity', 'qty'];
+    const columnCheckResult = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'itemdetail' 
+       AND column_name IN ('quantityonhand', 'qtyonhand', 'quantity', 'qty')`
+    );
+    const availableColumns = columnCheckResult.rows.map(r => r.column_name);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        partnumber,
+        itemid,
+        itemMaster: {
+          ...itemMaster,
+          exists: true,
+          isDeleted: itemMaster.deletedat !== null
+        },
+        availableQtyColumns: availableColumns,
+        itemDetailInAllBranches: itemDetailAllBranchesResult.rows,
+        itemDetailInUserBranch: {
+          branchid: userBranchId,
+          records: itemDetailUserBranchResult.rows,
+          count: itemDetailUserBranchResult.rows.length
+        },
+        message: itemDetailUserBranchResult.rows.length === 0 
+          ? `⚠️ Item ${partnumber} (ID: ${itemid}) exists in itemmaster but NOT in itemdetail for branch ${userBranchId}` 
+          : `✓ Item ${partnumber} found in itemdetail for branch ${userBranchId}`
+      }
+    });
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to test search results for a specific item
+router.get('/debug/search-item/:partnumber', async (req, res) => {
+  try {
+    const { partnumber } = req.params;
+    const userId = req.headers['x-user-id'] || 1;
+
+    // Get user's branch
+    const userBranchResult = await pool.query(
+      `SELECT branchid FROM employeemaster WHERE employeeid = $1 AND deletedat IS NULL LIMIT 1`,
+      [userId]
+    );
+    const userBranchId = userBranchResult.rows.length > 0 ? userBranchResult.rows[0].branchid : 1;
+
+    // Get column names
+    const itemMasterColumnsResult = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'itemmaster'`
+    );
+    const itemDetailColumnsResult = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'itemdetail'`
+    );
+
+    const itemMasterColumns = new Set(itemMasterColumnsResult.rows.map(row => row.column_name));
+    const itemDetailColumns = new Set(itemDetailColumnsResult.rows.map(row => row.column_name));
+
+    const descriptionColumn = itemMasterColumns.has('description') ? 'description' : 'itemname';
+    const stockColumnCandidates = ['quantityonhand', 'qtyonhand', 'quantity', 'qty'];
+    const stockColumn = stockColumnCandidates.find(column => itemDetailColumns.has(column)) || null;
+
+    // Test 1: Check itemmaster
+    const itemMasterCheck = await pool.query(
+      `SELECT itemid, partnumber, ${descriptionColumn} as description, deletedat FROM itemmaster WHERE partnumber ILIKE $1`,
+      [`%${partnumber}%`]
+    );
+
+    // Test 2: Check itemdetail for this item in user's branch
+    const itemDetailCheck = await pool.query(
+      `SELECT id.itemid, id.branchid, id.deletedat, ${stockColumn ? `id.${stockColumn} as stock_qty` : 'NULL as stock_qty'}
+       FROM itemdetail id
+       WHERE id.itemid IN (SELECT itemid FROM itemmaster WHERE partnumber ILIKE $1)
+       ORDER BY id.branchid`,
+      [`%${partnumber}%`]
+    );
+
+    // Test 3: Run the exact search query
+    const searchPattern = `%${partnumber}%`;
+
+    const searchQuery = `
+      SELECT DISTINCT
+        id.itemid,
+        im.partnumber,
+        im.${descriptionColumn} AS itemdescription,
+        im.uom,
+        im.mrp,
+        ${stockColumn ? `COALESCE(id.${stockColumn}, 0)` : '0'} AS availableqty,
+        id.branchid,
+        id.deletedat
+      FROM itemdetail id
+      JOIN itemmaster im ON id.itemid = im.itemid
+      WHERE id.branchid = $2 
+        AND id.deletedat IS NULL 
+        AND im.deletedat IS NULL
+        AND (im.partnumber ILIKE $1 OR im.${descriptionColumn} ILIKE $1)
+      ORDER BY im.partnumber
+    `;
+
+    const searchResult = await pool.query(searchQuery, [searchPattern, userBranchId]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        partnumber,
+        userId,
+        userBranchId,
+        stockColumn,
+        detailsColumn: descriptionColumn,
+        tests: {
+          itemMasterCheck: {
+            found: itemMasterCheck.rows.length,
+            items: itemMasterCheck.rows
+          },
+          itemDetailCheck: {
+            found: itemDetailCheck.rows.length,
+            items: itemDetailCheck.rows
+          },
+          searchQueryResult: {
+            found: searchResult.rows.length,
+            items: searchResult.rows,
+            query: searchQuery.substring(0, 200) + '...'
+          }
+        },
+        analysis: {
+          inItemMaster: itemMasterCheck.rows.length > 0,
+          inItemDetail: itemDetailCheck.rows.length > 0,
+          searchReturned: searchResult.rows.length > 0,
+          itemDetailForUserBranch: itemDetailCheck.rows.filter(r => r.branchid === userBranchId).length > 0,
+          itemDetailNotDeleted: itemDetailCheck.rows.filter(r => r.deletedat === null).length > 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error in debug search endpoint:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

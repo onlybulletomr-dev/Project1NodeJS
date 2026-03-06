@@ -145,7 +145,7 @@ async function importFromJSON(jsonPath, branchId, taxId) {
 
         // Check if already exists in itemdetail for this branch
         const existing = await pool.query(
-          `SELECT itemdetailid FROM itemdetail WHERE itemid = $1 AND branchid = $2 AND deletedat IS NULL`,
+          `SELECT itemid FROM itemdetail WHERE itemid = $1 AND branchid = $2 AND deletedat IS NULL`,
           [itemId, branchId]
         );
 

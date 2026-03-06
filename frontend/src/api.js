@@ -518,6 +518,27 @@ export const searchItemsInvoiceMode = async (query) => {
   }
 };
 
+// Get all items and services for invoice+ mode (from itemdetail with qty)
+export const getAllItemsAndServicesInvoicePlus = async () => {
+  try {
+    // For invoice+ mode, fetch all items AND services separately then combine
+    // Items come from itemdetail (via search endpoint which now accepts empty query)
+    const [itemsResult, servicesResult] = await Promise.all([
+      axios.get(`${API_BASE_URL}/items-services/search?q=`),
+      axios.get(`${API_BASE_URL}/services`)
+    ]);
+    
+    const items = (itemsResult.data && itemsResult.data.data && Array.isArray(itemsResult.data.data)) ? itemsResult.data.data : [];
+    const services = (servicesResult.data && servicesResult.data.data && Array.isArray(servicesResult.data.data)) ? servicesResult.data.data : [];
+    
+    console.log(`✓ Invoice+ mode: Loaded ${items.length} items from itemdetail + ${services.length} services`);
+    return [...items, ...services];
+  } catch (error) {
+    console.error('Error fetching all items and services for invoice+:', error.message);
+    return [];
+  }
+};
+
 // Invoice API
 export const saveInvoice = async (invoiceData) => {
   try {

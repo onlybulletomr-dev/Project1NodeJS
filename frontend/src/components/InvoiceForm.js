@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity, validateVendorInvoice, verifyDuplicatePassword } from '../api';
+import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getAllItemsAndServicesInvoicePlus, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity, validateVendorInvoice, verifyDuplicatePassword } from '../api';
 
 // Search all vehicles by vehicle number and return with customer details
 async function searchVehiclesByNumber(query) {
@@ -924,8 +924,10 @@ A/c Type          : Current Account
           results = await searchItemsInvoiceMode(value);
         }
       } else {
-        // For invoice+ mode: use standard search (with itemdetail/qty)
-        if (value.length >= 1) {
+        // For invoice+ mode: use itemdetail search (with qty validation enabled)
+        if (value.length === 0) {
+          results = await getAllItemsAndServicesInvoicePlus();
+        } else if (value.length >= 1) {
           results = await searchItemsAndServices(value);
         }
       }
@@ -984,7 +986,8 @@ A/c Type          : Current Account
     const handleSelectItem = (item) => {
       setSelectedItem(item);
       setItemMessage('');
-      if (item.source === 'item') {
+      // Only check qty availability for invoice+ mode
+      if (mode === 'invoice-plus' && item.source === 'item') {
         const remainingQty = getRemainingQtyForItem(item);
         if (Number(remainingQty) <= 0) {
           setItemMessage('Item cannot be added due to insufficient qty.');
