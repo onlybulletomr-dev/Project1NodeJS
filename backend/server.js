@@ -25,6 +25,29 @@ const roleManagementRoutes = require('./routes/roleManagementRoutes');
 const app = express();
 const PORT = process.env.SERVER_PORT || 5000;
 
+// Root endpoint - API information
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Project1 ERP Backend API',
+    status: 'Running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      auth_login: '/api/auth/login',
+      auth_logout: '/api/auth/logout',
+      companies: '/api/companies',
+      items: '/api/items',
+      invoices: '/api/invoices',
+      payments: '/api/payments',
+      employees: '/api/employees',
+      customers: '/api/customers',
+      services: '/api/services',
+      vehicles: '/api/vehicles'
+    },
+    documentation: 'Use /health endpoint to check database connection'
+  });
+});
+
 // Middleware
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:5000', 'https://project1-frontend-8abj.onrender.com', 'https://project1-backend1.onrender.com'],
