@@ -458,8 +458,6 @@ app.get('/admin/debug/employee-query/:username', async (req, res) => {
     const pool = require('./config/db');
     const username = req.params.username;
     
-    console.log(`[DEBUG] Testing employee query for username: ${username}`);
-    
     // Test exact query used in auth controller
     const query = `
       SELECT employeeid, firstname, lastname, branchid
@@ -493,7 +491,7 @@ app.get('/admin/debug/employee-query/:username', async (req, res) => {
       note: 'Compare searched username with all_employees to find mismatch'
     });
   } catch (err) {
-    console.error('[DEBUG] Error:', err.message);
+    console.error('Error:', err.message);
     res.status(500).json({
       success: false,
       error: err.message,
@@ -610,8 +608,6 @@ app.get('/admin/debug/deletedat-values', async (req, res) => {
   try {
     const pool = require('./config/db');
     
-    console.log('[DEBUG] Checking deletedat values in employeemaster...');
-    
     // Check all deletedat values
     const allRecords = await pool.query(`
       SELECT 
@@ -640,7 +636,7 @@ app.get('/admin/debug/deletedat-values', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[DEBUG] Error:', err.message);
+    console.error('Error:', err.message);
     res.status(500).json({
       success: false,
       error: err.message,
@@ -653,8 +649,6 @@ app.get('/admin/debug/deletedat-values', async (req, res) => {
 app.get('/admin/debug/credentials-table', async (req, res) => {
   try {
     const pool = require('./config/db');
-    
-    console.log('[DEBUG] Querying employeecredentials table...');
     
     // Get count
     const countResult = await pool.query('SELECT COUNT(*) as count FROM employeecredentials');
@@ -682,7 +676,7 @@ app.get('/admin/debug/credentials-table', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[DEBUG] Error:', err.message);
+    console.error('Error:', err.message);
     res.status(500).json({
       success: false,
       error: err.message,
@@ -1012,11 +1006,9 @@ app.get('/debug/database', async (req, res) => {
     `);
     
     const tables = tablesRes.rows.map(r => r.table_name);
-    console.log('[Debug] Tables in database:', tables);
     
     // Determine which vehicle table exists
     const vehicleTableName = tables.includes('vehicledetail') ? 'vehicledetail' : 'vehicledetails';
-    console.log('[Debug] Using vehicle table:', vehicleTableName);
     
     // Check data in key tables
     const data = {};
@@ -1039,7 +1031,7 @@ app.get('/debug/database', async (req, res) => {
           data[table] = { exists: false };
         }
       } catch (tableErr) {
-        console.error(`[Debug] Error querying ${table}:`, tableErr.message);
+        console.error(`Error querying ${table}: ${tableErr.message}`);
         data[table] = { exists: false, error: tableErr.message };
       }
     }

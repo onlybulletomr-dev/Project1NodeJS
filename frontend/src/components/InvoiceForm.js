@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity } from '../api';
+import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity, validateVendorInvoice, verifyDuplicatePassword } from '../api';
 
 // Search all vehicles by vehicle number and return with customer details
 async function searchVehiclesByNumber(query) {
@@ -101,13 +101,22 @@ export default function InvoiceForm({ mode = 'invoice' }) {
     const [gsChecked, setGsChecked] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [showUpdateItemsPopup, setShowUpdateItemsPopup] = useState(false);
-    const [updateItemsRows, setUpdateItemsRows] = useState(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
+    const [updateItemsRows, setUpdateItemsRows] = useState(Array(5).fill({ partnumber: '', description: '', qtyToAdd: '' }));
     const [updateItemsMessage, setUpdateItemsMessage] = useState('');
     const [allItemsList, setAllItemsList] = useState([]);
     const [updateItemsDropdownOpen, setUpdateItemsDropdownOpen] = useState(Array(5).fill(false));
     const [updateItemsDropdownResults, setUpdateItemsDropdownResults] = useState(Array(5).fill([]));
     const [updateItemsDropdownIndex, setUpdateItemsDropdownIndex] = useState(Array(5).fill(-1));
     const itemRowRefs = React.useRef({});
+    // File-based update mode state
+    const [updateItemsMode, setUpdateItemsMode] = useState('manual'); // 'manual' or 'file'
+    const [invoiceFile, setInvoiceFile] = useState(null);
+    const [parsedInvoiceItems, setParsedInvoiceItems] = useState([]);
+    const [isValidatingFile, setIsValidatingFile] = useState(false);
+    const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+    const [duplicatePassword, setDuplicatePassword] = useState('');
+    const [duplicateBillNo, setDuplicateBillNo] = useState(null);
+    const [passwordVerified, setPasswordVerified] = useState(false);
     const qtyInputRef = React.useRef(null);
     const itemPopupRef = React.useRef(null);
     const itemInputRef = React.useRef(null);
@@ -1178,7 +1187,7 @@ A/c Type          : Current Account
     // Handle update items dropdown selection
     const handleUpdateItemsSelectItem = (rowIdx, item) => {
       setUpdateItemsRows(rows => rows.map((row, i) =>
-        i === rowIdx ? { ...row, partnumber: item.partnumber || item.itemnumber } : row
+        i === rowIdx ? { ...row, partnumber: item.partnumber || item.itemnumber, description: item.itemname || item.description || '' } : row
       ));
       setUpdateItemsDropdownOpen(open => open.map((o, i) => i === rowIdx ? false : o));
       setUpdateItemsDropdownResults(results => results.map((r, i) => i === rowIdx ? [] : r));
@@ -1208,6 +1217,160 @@ A/c Type          : Current Account
         }
       } else if (e.key === 'Escape') {
         setUpdateItemsDropdownOpen(open => open.map((o, i) => i === rowIdx ? false : o));
+      }
+    };
+
+    // Handle file upload for Invoice PDF
+    const handleInvoiceFileSelect = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (file.type !== 'application/pdf') {
+        setUpdateItemsMessage('❌ Please select a PDF file only');
+        return;
+      }
+
+      try {
+        setIsValidatingFile(true);
+        setUpdateItemsMessage('📄 Validating invoice...');
+        
+        const branchId = getBranchId() || 1;
+        const response = await validateVendorInvoice(file, branchId);
+
+        if (response.success && response.data.items) {
+          setParsedInvoiceItems(response.data.items);
+          setInvoiceFile(file);
+          setUpdateItemsMode('file');
+          setUpdateItemsMessage(`✅ Successfully parsed ${response.data.items.length} items from invoice`);
+        } else {
+          setUpdateItemsMessage(`❌ ${response.message || 'Failed to parse invoice'}`);
+        }
+      } catch (error) {
+        // Check if it's a duplicate file error
+        if (error.response?.status === 409 && error.response?.data?.isDuplicate) {
+          console.log('⚠️  Duplicate invoice detected. Requesting password...');
+          const billNo = error.response.data.billNo;
+          setUpdateItemsMessage(`⚠️  ${error.response.data.message}\n\nEnter your password to proceed with reprocessing.`);
+          setShowPasswordDialog(true);
+          setDuplicateBillNo(billNo);
+          setInvoiceFile(file); // Store file for later use
+        } else {
+          setUpdateItemsMessage(`❌ Error: ${error.message}`);
+          console.error('Error validating invoice:', error);
+        }
+      } finally {
+        setIsValidatingFile(false);
+      }
+    };
+
+    // Handle submit update items from file
+    const handleSubmitUpdateItemsFromFile = async () => {
+      try {
+        setUpdateItemsMessage('📤 Updating inventory...');
+
+        const branchId = getBranchId() || 1;
+        const messages = [];
+
+        // Process each parsed item
+        for (const item of parsedInvoiceItems) {
+          try {
+            const qtyToAdd = item.qtyReceived;
+            const response = await updateItemDetailQuantity(item.itemid, branchId, qtyToAdd);
+
+            if (response.success) {
+              const newQty = response.data.quantityonhand || 0;
+              const action = response.action === 'created' ? '(New)' : '(Updated)';
+              const displayText = item.description ? `${item.partnumber} - ${item.description}` : item.partnumber;
+              messages.push(`✓ ${displayText}: Added ${qtyToAdd}, Total qty now ${newQty} ${action}`);
+            } else {
+              const displayText = item.description ? `${item.partnumber} - ${item.description}` : item.partnumber;
+              messages.push(`❌ ${displayText}: ${response.message}`);
+            }
+          } catch (error) {
+            const displayText = item.description ? `${item.partnumber} - ${item.description}` : item.partnumber;
+            messages.push(`❌ ${displayText}: ${error.message}`);
+          }
+        }
+
+        setUpdateItemsMessage(messages.join('\n'));
+        
+        // Reset after 3 seconds
+        setTimeout(() => {
+          setParsedInvoiceItems([]);
+          setInvoiceFile(null);
+          setUpdateItemsMode('manual');
+          setUpdateItemsMessage('');
+        }, 3000);
+      } catch (error) {
+        setUpdateItemsMessage(`❌ Error: ${error.message}`);
+      }
+    };
+
+    // Handle password submission for duplicate invoice reprocessing
+    const handlePasswordSubmit = async () => {
+      if (!duplicatePassword.trim()) {
+        setUpdateItemsMessage('❌ Please enter a password');
+        return;
+      }
+
+      try {
+        // Call API to verify password
+        const response = await verifyDuplicatePassword(duplicatePassword, duplicateBillNo);
+        
+        if (response.success && response.authorized) {
+          console.log('✓ Password verified. Ready to reprocess invoice.');
+          setPasswordVerified(true);
+          setDuplicatePassword('');
+        } else {
+          setUpdateItemsMessage(`❌ ${response.message || 'Password verification failed'}`);
+        }
+      } catch (error) {
+        console.error('Error verifying password:', error);
+        
+        if (error.response?.status === 401) {
+          setUpdateItemsMessage('❌ Incorrect password. Please try again.');
+        } else {
+          setUpdateItemsMessage(`❌ Error: ${error.message || 'Password verification failed'}`);
+        }
+      }
+    };
+
+    // Handle proceeding after password verification
+    const handleProceedAfterPasswordVerification = async () => {
+      if (invoiceFile) {
+        try {
+          const branchId = getBranchId() || 1;
+          const validateResponse = await validateVendorInvoice(invoiceFile, branchId);
+          
+          if (validateResponse.success && validateResponse.data.items) {
+            setShowPasswordDialog(false);
+            setPasswordVerified(false);
+            setParsedInvoiceItems(validateResponse.data.items);
+            setUpdateItemsMode('file');
+            setUpdateItemsMessage(`✅ Successfully parsed ${validateResponse.data.items.length} items from invoice`);
+          } else {
+            setUpdateItemsMessage(`❌ ${validateResponse.message || 'Failed to parse invoice'}`);
+          }
+        } catch (error) {
+          setUpdateItemsMessage(`❌ Error: ${error.message}`);
+        }
+      }
+    };
+
+    // Handle close password dialog
+    // Handle close password dialog
+    const handleClosePasswordDialog = () => {
+      setShowPasswordDialog(false);
+      setDuplicatePassword('');
+      setPasswordVerified(false);
+      setUpdateItemsMessage('');
+      setDuplicateBillNo(null);
+    };
+
+    // Handle keyboard enter key in password input
+    const handlePasswordKeyPress = (e) => {
+      if (e.key === 'Enter') {
+        handlePasswordSubmit();
       }
     };
 
@@ -1249,12 +1412,18 @@ A/c Type          : Current Account
             if (response.success) {
               const newQty = response.data.quantityonhand || 0;
               const action = response.action === 'created' ? '(New)' : '(Updated)';
-              messages.push(`✓ ${item.partnumber}: Updated qty to ${newQty} ${action}`);
+              const description = updateRow.description || item.itemname || item.description || '';
+              const displayText = description ? `${item.partnumber} - ${description}` : item.partnumber;
+              messages.push(`✓ ${displayText}: Updated qty to ${newQty} ${action}`);
             } else {
-              messages.push(`❌ ${item.partnumber}: ${response.message}`);
+              const description = updateRow.description || item.itemname || item.description || '';
+              const displayText = description ? `${item.partnumber} - ${description}` : item.partnumber;
+              messages.push(`❌ ${displayText}: ${response.message}`);
             }
           } catch (error) {
-            messages.push(`❌ ${updateRow.partnumber}: ${error.message}`);
+            const description = updateRow.description || '';
+            const displayText = description ? `${updateRow.partnumber} - ${description}` : updateRow.partnumber;
+            messages.push(`❌ ${displayText}: ${error.message}`);
             console.error(`Error updating item ${updateRow.partnumber}:`, error);
           }
         }
@@ -1263,7 +1432,7 @@ A/c Type          : Current Account
         
         // Clear form after 3 seconds
         setTimeout(() => {
-          setUpdateItemsRows(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
+          setUpdateItemsRows(Array(5).fill({ partnumber: '', description: '', qtyToAdd: '' }));
         }, 3000);
       } catch (error) {
         console.error('Error submitting item updates:', error);
@@ -1941,7 +2110,7 @@ A/c Type          : Current Account
                 onClick={() => {
                   setShowUpdateItemsPopup(true);
                   setUpdateItemsMessage('');
-                  setUpdateItemsRows(Array(5).fill({ partnumber: '', qtyToAdd: '' }));
+                  setUpdateItemsRows(Array(5).fill({ partnumber: '', description: '', qtyToAdd: '' }));
                 }}
                 style={{
                   width: '100%',
@@ -2068,91 +2237,232 @@ A/c Type          : Current Account
             borderRadius: 8,
             padding: 20,
             width: '90%',
-            maxWidth: 500,
+            maxWidth: 700,
             boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            maxHeight: '85vh',
+            overflowY: 'auto',
           }}>
             <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 18, fontWeight: 600 }}>Update Item Quantities</h2>
             
-            {/* Update Items Form - 5 Rows */}
-            <div style={{ marginBottom: 16, maxHeight: '400px', overflowY: 'auto' }}>
-              {updateItemsRows.map((row, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start', position: 'relative' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
-                    <input
-                      ref={el => updateItemsInputRefs.current[idx] = el}
-                      type="text"
-                      placeholder="Part Number"
-                      value={row.partnumber}
-                      onChange={e => handleUpdateItemsRowChange(idx, 'partnumber', e.target.value)}
-                      onKeyDown={e => handleUpdateItemsPartNumberKeyDown(idx, e)}
-                      onBlur={() => setTimeout(() => setUpdateItemsDropdownOpen(open => open.map((o, i) => i === idx ? false : o)), 200)}
+            {/* Mode Selector Tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '2px solid #eee' }}>
+              <button
+                onClick={() => setUpdateItemsMode('file')}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  background: updateItemsMode === 'file' ? '#FF9800' : '#f5f5f5',
+                  color: updateItemsMode === 'file' ? '#fff' : '#333',
+                  borderRadius: '4px 4px 0 0',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                📄 Upload Invoice
+              </button>
+              <button
+                onClick={() => setUpdateItemsMode('manual')}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  background: updateItemsMode === 'manual' ? '#FF9800' : '#f5f5f5',
+                  color: updateItemsMode === 'manual' ? '#fff' : '#333',
+                  borderRadius: '4px 4px 0 0',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                ✎ Manual Entry
+              </button>
+            </div>
+
+            {/* File Upload Mode */}
+            {updateItemsMode === 'file' && (
+              <div style={{ marginBottom: 16 }}>
+                {parsedInvoiceItems.length === 0 ? (
+                  <>
+                    <label htmlFor="vendor-invoice-pdf" style={{
+                      display: 'block',
+                      padding: 20,
+                      border: '2px dashed #FF9800',
+                      borderRadius: 4,
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      background: '#fffef5',
+                      marginBottom: 12,
+                    }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>📁 Select Vendor Invoice PDF</div>
+                      <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>Click to upload or drag and drop</div>
+                      <input
+                        id="vendor-invoice-pdf"
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleInvoiceFileSelect}
+                        disabled={isValidatingFile}
+                        style={{ display: 'none' }}
+                      />
+                      <div style={{ fontSize: 11, color: '#999' }}>{isValidatingFile ? 'Validating...' : 'PDF files only'}</div>
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 12, padding: 10, background: '#f0f7ff', borderRadius: 4, borderLeft: '4px solid #1976d2' }}>
+                      <div style={{ fontSize: 12, color: '#333' }}>
+                        📄 <strong>{invoiceFile?.name}</strong>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+                        {parsedInvoiceItems.length} items found
+                      </div>
+                    </div>
+                    
+                    {/* Items Table */}
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      marginBottom: 12,
+                      fontSize: 12,
+                    }}>
+                      <thead>
+                        <tr style={{ background: '#f5f5f5', borderBottom: '2px solid #ddd' }}>
+                          <th style={{ padding: 8, textAlign: 'left', fontWeight: 600 }}>Part Number</th>
+                          <th style={{ padding: 8, textAlign: 'left', fontWeight: 600 }}>Description</th>
+                          <th style={{ padding: 8, textAlign: 'center', fontWeight: 600, width: 70 }}>Current Qty</th>
+                          <th style={{ padding: 8, textAlign: 'center', fontWeight: 600, width: 70 }}>Qty Received</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedInvoiceItems.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #eee', background: idx % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                            <td style={{ padding: 8, fontWeight: 600 }}>{item.partnumber}</td>
+                            <td style={{ padding: 8, color: '#666', fontSize: 11 }}>{item.description}</td>
+                            <td style={{ padding: 8, textAlign: 'center', color: '#999' }}>{item.currentQty}</td>
+                            <td style={{ padding: 8, textAlign: 'center', fontWeight: 600, color: '#2196F3' }}>{item.qtyReceived}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <button
+                      onClick={() => { setParsedInvoiceItems([]); setInvoiceFile(null); setUpdateItemsMessage(''); }}
                       style={{
-                        width: '100%',
+                        padding: '6px 12px',
+                        background: '#f5f5f5',
+                        border: '1px solid #ddd',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: '#666',
+                      }}
+                    >
+                      Select Different File
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Manual Entry Mode */}
+            {updateItemsMode === 'manual' && (
+              <div style={{ marginBottom: 16, maxHeight: '400px', overflowY: 'auto' }}>
+                {updateItemsRows.map((row, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start', position: 'relative' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <div style={{ width: '100%' }}>
+                        <input
+                          ref={el => updateItemsInputRefs.current[idx] = el}
+                          type="text"
+                          placeholder="Part Number"
+                          value={row.partnumber}
+                          onChange={e => handleUpdateItemsRowChange(idx, 'partnumber', e.target.value)}
+                          onKeyDown={e => handleUpdateItemsPartNumberKeyDown(idx, e)}
+                          onBlur={() => setTimeout(() => setUpdateItemsDropdownOpen(open => open.map((o, i) => i === idx ? false : o)), 200)}
+                          style={{
+                            width: '100%',
+                            padding: 8,
+                            border: '1px solid #ddd',
+                            borderRadius: 4,
+                            fontSize: 12,
+                            marginBottom: 4,
+                          }}
+                        />
+                        {row.description && (
+                          <div style={{
+                            fontSize: 11,
+                            color: '#666',
+                            padding: '4px 8px',
+                            background: '#f9f9f9',
+                            borderRadius: 3,
+                            marginBottom: 4,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {row.description}
+                          </div>
+                        )}
+                      </div>
+                      {updateItemsDropdownOpen[idx] && (
+                        <div
+                          ref={el => updateItemsDropdownRefs.current[idx] = el}
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            background: '#fff',
+                            border: '1px solid #ddd',
+                            borderTop: 'none',
+                            borderRadius: '0 0 4px 4px',
+                            maxHeight: 150,
+                            overflowY: 'auto',
+                            zIndex: 10002,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          }}
+                        >
+                          {updateItemsDropdownResults[idx].map((item, itemIdx) => (
+                            <div
+                              key={itemIdx}
+                              style={{
+                                padding: 8,
+                                cursor: 'pointer',
+                                background: itemIdx === updateItemsDropdownIndex[idx] ? '#e3f2fd' : (itemIdx % 2 === 0 ? '#f9f9f9' : '#fff'),
+                                borderBottom: '1px solid #f0f0f0',
+                                fontSize: 11,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                              onClick={() => handleUpdateItemsSelectItem(idx, item)}
+                              title={`${item.partnumber || item.itemnumber} - ${item.itemname || item.description}`}
+                            >
+                              <span style={{ fontWeight: 600 }}>{item.partnumber || item.itemnumber}</span>
+                              {' - '}
+                              <span>{item.itemname || item.description}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      placeholder="Qty to Add"
+                      value={row.qtyToAdd}
+                      onChange={e => handleUpdateItemsRowChange(idx, 'qtyToAdd', e.target.value.replace(/[^0-9]/g, ''))}
+                      style={{
+                        width: 100,
                         padding: 8,
                         border: '1px solid #ddd',
                         borderRadius: 4,
                         fontSize: 12,
+                        textAlign: 'right',
                       }}
                     />
-                    {updateItemsDropdownOpen[idx] && (
-                      <div
-                        ref={el => updateItemsDropdownRefs.current[idx] = el}
-                        style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          background: '#fff',
-                          border: '1px solid #ddd',
-                          borderTop: 'none',
-                          borderRadius: '0 0 4px 4px',
-                          maxHeight: 150,
-                          overflowY: 'auto',
-                          zIndex: 10002,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                        }}
-                      >
-                        {updateItemsDropdownResults[idx].map((item, itemIdx) => (
-                          <div
-                            key={itemIdx}
-                            style={{
-                              padding: 8,
-                              cursor: 'pointer',
-                              background: itemIdx === updateItemsDropdownIndex[idx] ? '#e3f2fd' : (itemIdx % 2 === 0 ? '#f9f9f9' : '#fff'),
-                              borderBottom: '1px solid #f0f0f0',
-                              fontSize: 11,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                            onClick={() => handleUpdateItemsSelectItem(idx, item)}
-                            title={`${item.partnumber || item.itemnumber} - ${item.itemname || item.description}`}
-                          >
-                            <span style={{ fontWeight: 600 }}>{item.partnumber || item.itemnumber}</span>
-                            {' - '}
-                            <span>{item.itemname || item.description}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                  <input
-                    type="number"
-                    placeholder="Qty to Add"
-                    value={row.qtyToAdd}
-                    onChange={e => handleUpdateItemsRowChange(idx, 'qtyToAdd', e.target.value.replace(/[^0-9]/g, ''))}
-                    style={{
-                      width: 100,
-                      padding: 8,
-                      border: '1px solid #ddd',
-                      borderRadius: 4,
-                      fontSize: 12,
-                      textAlign: 'right',
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Message Display */}
             {updateItemsMessage && (
@@ -2176,23 +2486,30 @@ A/c Type          : Current Account
             {/* Buttons */}
             <div style={{ display: 'flex', gap: 8 }}>
               <button
-                onClick={handleSubmitUpdateItems}
+                onClick={updateItemsMode === 'file' ? handleSubmitUpdateItemsFromFile : handleSubmitUpdateItems}
+                disabled={isValidatingFile || (updateItemsMode === 'file' && parsedInvoiceItems.length === 0)}
                 style={{
                   flex: 1,
                   padding: 10,
-                  backgroundColor: '#FF9800',
+                  backgroundColor: isValidatingFile || (updateItemsMode === 'file' && parsedInvoiceItems.length === 0) ? '#ccc' : '#FF9800',
                   color: '#fff',
                   border: 'none',
                   borderRadius: 4,
                   fontSize: 13,
                   fontWeight: 600,
-                  cursor: 'pointer',
+                  cursor: isValidatingFile || (updateItemsMode === 'file' && parsedInvoiceItems.length === 0) ? 'not-allowed' : 'pointer',
                 }}
               >
-                Submit
+                {isValidatingFile ? 'Validating...' : 'Submit'}
               </button>
               <button
-                onClick={() => setShowUpdateItemsPopup(false)}
+                onClick={() => {
+                  setShowUpdateItemsPopup(false);
+                  setParsedInvoiceItems([]);
+                  setInvoiceFile(null);
+                  setUpdateItemsMode('manual');
+                  setUpdateItemsMessage('');
+                }}
                 style={{
                   flex: 1,
                   padding: 10,
@@ -2212,6 +2529,203 @@ A/c Type          : Current Account
         </div>
       )}
       </div>
+
+      {/* Password Dialog for Duplicate Invoice */}
+      {showPasswordDialog && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10002,
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: 8,
+            padding: 30,
+            maxWidth: 450,
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+            textAlign: 'center',
+          }}>
+            {!passwordVerified ? (
+              <>
+                <h3 style={{
+                  color: '#d32f2f',
+                  marginBottom: 15,
+                  fontSize: 18,
+                  margin: '0 0 15px 0',
+                }}>
+                  🔐 Invoice Already Processed
+                </h3>
+                
+                <p style={{
+                  color: '#666',
+                  marginBottom: 10,
+                  fontSize: 14,
+                  lineHeight: 1.5,
+                  margin: '0 0 10px 0',
+                }}>
+                  This invoice (Bill No: <strong>{duplicateBillNo}</strong>) has already been processed.
+                </p>
+
+                <p style={{
+                  color: '#666',
+                  marginBottom: 25,
+                  fontSize: 13,
+                  fontStyle: 'italic',
+                  margin: '0 0 25px 0',
+                }}>
+                  Please enter the password for <strong>Ashok</strong> to proceed with reprocessing.
+                </p>
+
+                <input
+                  type="password"
+                  placeholder="Enter Ashok's password"
+                  value={duplicatePassword}
+                  onChange={(e) => setDuplicatePassword(e.target.value)}
+                  onKeyPress={handlePasswordKeyPress}
+                  style={{
+                    width: '100%',
+                    padding: 12,
+                    marginBottom: 20,
+                    border: '1px solid #ddd',
+                    borderRadius: 4,
+                    fontSize: 14,
+                    boxSizing: 'border-box',
+                  }}
+                  autoFocus
+                />
+
+                {updateItemsMessage && (
+                  <div style={{
+                    marginBottom: 20,
+                    padding: 10,
+                    backgroundColor: updateItemsMessage.includes('❌') ? '#ffebee' : '#f5f5f5',
+                    borderRadius: 4,
+                    color: updateItemsMessage.includes('❌') ? '#c62828' : '#333',
+                    fontSize: 13,
+                  }}>
+                    {updateItemsMessage}
+                  </div>
+                )}
+
+                <div style={{
+                  display: 'flex',
+                  gap: 10,
+                }}>
+                  <button
+                    onClick={handlePasswordSubmit}
+                    style={{
+                      flex: 1,
+                      padding: 12,
+                      backgroundColor: '#4CAF50',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#45a049'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#4CAF50'}
+                  >
+                    Verify Password
+                  </button>
+                  <button
+                    onClick={handleClosePasswordDialog}
+                    style={{
+                      flex: 1,
+                      padding: 12,
+                      backgroundColor: '#999',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#777'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#999'}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 style={{
+                  color: '#4CAF50',
+                  marginBottom: 15,
+                  fontSize: 18,
+                  margin: '0 0 15px 0',
+                }}>
+                  ✅ Password Verified
+                </h3>
+                
+                <p style={{
+                  color: '#666',
+                  marginBottom: 25,
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                }}>
+                  Your password has been verified successfully. You can now proceed to reprocess this invoice.
+                </p>
+
+                <div style={{
+                  display: 'flex',
+                  gap: 10,
+                }}>
+                  <button
+                    onClick={handleProceedAfterPasswordVerification}
+                    style={{
+                      flex: 1,
+                      padding: 12,
+                      backgroundColor: '#4CAF50',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#45a049'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#4CAF50'}
+                  >
+                    ✓ Proceed with Reprocessing
+                  </button>
+                  <button
+                    onClick={handleClosePasswordDialog}
+                    style={{
+                      flex: 1,
+                      padding: 12,
+                      backgroundColor: '#999',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'background-color 0.3s',
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#777'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#999'}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       </>
     );
 }

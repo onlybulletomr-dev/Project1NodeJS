@@ -197,12 +197,10 @@ class VehicleDetail {
         ORDER BY registrationnumber
       `;
       let result = await pool.query(query, [customerId]);
-      console.log(`[SQL] Result: ${result.rows.length} vehicles found (Render schema)`);
       return result.rows;
     } catch (renderError) {
       // If Render schema fails, try local schema (vehicledetailid, vehiclenumber, vehiclemodel, vehiclecolor)
       try {
-        console.log('[SQL] Render schema failed, trying local schema...');
         const query = `
           SELECT 
             vehicledetailid as vehicleid,
@@ -221,9 +219,7 @@ class VehicleDetail {
           WHERE customerid = $1 AND deletedat IS NULL
           ORDER BY vehiclenumber
         `;
-        console.log(`[SQL] Executing query for customer ${customerId} (local schema):`, query);
         const result = await pool.query(query, [customerId]);
-        console.log(`[SQL] Result: ${result.rows.length} vehicles found (local schema)`);
         return result.rows;
       } catch (localError) {
         console.error(`[SQL ERROR] Both schemas failed for customer ${customerId}`);

@@ -302,14 +302,6 @@ exports.updatePaymentStatus = async (req, res) => {
     } = req.body;
     const userId = req.headers['x-user-id'] || 1;
 
-    console.log('[DEBUG] ===== PAYMENT REQUEST RECEIVED =====');
-    console.log('[DEBUG] InvoiceID:', InvoiceID);
-    console.log('[DEBUG] PaymentStatus:', PaymentStatus);
-    console.log('[DEBUG] Amount from request:', Amount, 'Type:', typeof Amount);
-    console.log('[DEBUG] PaymentMethodID:', PaymentMethodID);
-    console.log('[DEBUG] Full req.body:', JSON.stringify(req.body));
-    console.log('[DEBUG] ==========================================');
-
     if (!InvoiceID || !PaymentStatus) {
       return res.status(400).json({
         success: false,
@@ -371,13 +363,7 @@ exports.updatePaymentStatus = async (req, res) => {
     const result = await pool.query(query, [finalPaymentStatus, paymentDateValue, updatedAt, userId, InvoiceID]);
 
     // If payment status is "Paid" or "Partial" and we have amount, record payment details
-    console.log('[CONDITION-CHECK] About to check if payment detail should be created:');
-    console.log('[CONDITION-CHECK] finalPaymentStatus:', finalPaymentStatus, '| Is Paid/Partial?', (finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial'));
-    console.log('[CONDITION-CHECK] Amount:', Amount, '| Truthy?', !!Amount);
-    console.log('[CONDITION-CHECK] PaymentMethodID:', PaymentMethodID, '| Truthy?', !!PaymentMethodID);
-    
     if ((finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial') && Amount && PaymentMethodID) {
-      console.log('[CONDITION-PASSED] YES - Creating payment detail record...');
       try {
         // Get user's branch information
         const userQuery = `
@@ -390,15 +376,11 @@ exports.updatePaymentStatus = async (req, res) => {
         const invoiceAmount = result.rows[0].totalamount || 0;
         let vehicleID = result.rows[0].vehicleid;
 
-        console.log('[DEBUG-CALC] Invoice amount from DB:', invoiceAmount, 'Type:', typeof invoiceAmount);
-        console.log('[DEBUG-CALC] Total Amount from request:', Amount, 'Type:', typeof Amount);
-
         // VehicleID is used directly from invoice (validated by FK constraint)
         const finalVehicleID = vehicleID || null;
 
         // Calculate the invoice payment amount (capped at invoice amount)
         const invoicePaymentAmount = Math.min(Number(Amount), Number(invoiceAmount));
-        console.log('[DEBUG-CALC] Math.min calculation: min(' + Number(Amount) + ', ' + Number(invoiceAmount) + ') = ' + invoicePaymentAmount);
 
         // Create payment detail record for actual payment against invoice
         const paymentDetailData = {
@@ -418,17 +400,14 @@ exports.updatePaymentStatus = async (req, res) => {
           createdby: userId
         };
 
-        console.log('[DEBUG] Creating regular payment record with amount:', invoicePaymentAmount, 'vehicleID:', finalVehicleID);
+
         const paymentDetailRecord = await PaymentDetail.create(paymentDetailData);
         console.log('[SUCCESS] Regular payment recorded:', paymentDetailRecord);
-        console.log('[SUCCESS] Payment detail record saved to DB with ID:', paymentDetailRecord.paymentreceivedid || paymentDetailRecord.id);
 
         // Check if payment exceeds invoice amount (overpayment/advance)
         const overpaymentAmount = Number(Amount) - invoicePaymentAmount;
-        console.log(`[DEBUG] Overpayment calculation: ${Amount} - ${invoicePaymentAmount} = ${overpaymentAmount}`);
 
         // Check if total payments now equal or exceed invoice amount
-        console.log('[DEBUG] Checking if invoice is fully paid...');
         const totalPaymentsQuery = `
           SELECT 
             COALESCE(SUM(CASE WHEN paymentstatus IN ('Paid', 'Completed') THEN CAST(amount AS DECIMAL) ELSE 0 END), 0) AS totalpaid
@@ -444,7 +423,6 @@ exports.updatePaymentStatus = async (req, res) => {
         
         // Update invoice status if fully paid
         if (totalPaidAmount >= invoiceTotalFloat) {
-          console.log(`[SUCCESS] Invoice ${InvoiceID} is now fully paid! Updating status to PAID`);
           const updateFullPaymentQuery = `
             UPDATE invoicemaster
             SET paymentstatus = 'Paid', updatedat = $1, updatedby = $2
@@ -477,16 +455,12 @@ exports.updatePaymentStatus = async (req, res) => {
               createdby: userId
             };
 
-            console.log('[DEBUG] Creating advance payment with data:', JSON.stringify(advancePaymentData, null, 2));
             const advanceRecord = await PaymentDetail.create(advancePaymentData);
-            console.log(`[✓ SUCCESS] Advance payment recorded ID=${advanceRecord.paymentreceivedid} | Amount: ₹${overpaymentAmount}`);
           } catch (advanceError) {
-            console.error('[✗ ERROR] Failed to record advance payment:', advanceError.message);
-            console.error('[✗ ERROR] Stack:', advanceError.stack);
-            // Don't fail if advance payment recording fails
+            // Silently fail if advance payment recording fails
           }
         } else {
-          console.log('[INFO] No overpayment - no advance payment needed');
+
         }
       } catch (error) {
         console.error('Error recording payment detail:', error);
@@ -626,9 +600,6 @@ exports.getActivePaymentMethods = async (req, res) => {
 // Record advance payment (payment without invoice)
 exports.recordAdvancePayment = async (req, res) => {
   try {
-    console.log('[ADVANCE-DEBUG] Request body:', req.body);
-    console.log('[ADVANCE-DEBUG] Request headers:', req.headers);
-    
     const { 
       invoiceid,
       amount,
@@ -638,19 +609,9 @@ exports.recordAdvancePayment = async (req, res) => {
       paymentdate
     } = req.body;
     
-    console.log('[ADVANCE-DEBUG] Extracted parameters:', {
-      invoiceid,
-      amount,
-      paymentmethodid,
-      transactionreference,
-      notes,
-      paymentdate
-    });
-    
     const userId = req.headers['x-user-id'] || 1;
 
     if (!amount || !paymentmethodid) {
-      console.log('[ADVANCE-ERROR] Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'amount and paymentmethodid are required'
@@ -664,34 +625,21 @@ exports.recordAdvancePayment = async (req, res) => {
     `;
     const userResult = await pool.query(userQuery, [userId]);
     const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
-    
-    console.log('[ADVANCE-DEBUG] User branch ID:', userBranchID);
 
     const paymentDateValue = paymentdate || new Date().toISOString().split('T')[0];
 
     // Get vehicle ID from the invoice that caused the overpayment
     let validVehicleId = null;
     if (invoiceid) {
-      console.log('[ADVANCE-DEBUG] Getting vehicle ID from invoice:', invoiceid);
       const invoiceQuery = `
         SELECT vehicleid FROM invoicemaster 
         WHERE invoiceid = $1 AND deletedat IS NULL
       `;
       const invoiceResult = await pool.query(invoiceQuery, [invoiceid]);
-      console.log('[ADVANCE-DEBUG] Invoice query result:', invoiceResult.rows);
       
       if (invoiceResult.rows.length > 0) {
         validVehicleId = invoiceResult.rows[0].vehicleid;
-        console.log('[ADVANCE-DEBUG] Vehicle ID from invoice:', validVehicleId, 'Type:', typeof validVehicleId);
-        
-        if (!validVehicleId || validVehicleId === null) {
-          console.log('[ADVANCE-WARNING] Invoice exists but has NULL vehicleid');
-        }
-      } else {
-        console.log('[ADVANCE-WARNING] Invoice does not exist:', invoiceid);
       }
-    } else {
-      console.log('[ADVANCE-WARNING] No invoice ID provided for advance payment');
     }
 
     // Record advance payment with invoiceid = NULL (NULL marks advance)
@@ -712,12 +660,8 @@ exports.recordAdvancePayment = async (req, res) => {
       createdby: userId
     };
 
-    console.log('[ADVANCE-DEBUG] Creating payment record with data:', advancePaymentData);
-
     const paymentDetailRecord = await PaymentDetail.create(advancePaymentData);
     
-    console.log('[ADVANCE-DEBUG] Payment record created:', paymentDetailRecord);
-
     res.status(200).json({
       success: true,
       data: paymentDetailRecord,

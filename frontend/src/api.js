@@ -744,3 +744,42 @@ export const updateItemDetailQuantity = async (itemId, branchId, qtyToAdd) => {
     throw error;
   }
 };
+
+// Validate vendor invoice PDF
+export const validateVendorInvoice = async (file, branchId) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    console.log('[API REQUEST] validateVendorInvoice:', {
+      file: file.name,
+      branchId,
+      url: `${API_BASE_URL}/items/validate-vendor-invoice`
+    });
+
+    const response = await axios.post(`${API_BASE_URL}/items/validate-vendor-invoice`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'x-branch-id': branchId || 1,
+      }
+    });
+    console.log('[API RESPONSE] validateVendorInvoice:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error validating vendor invoice:', error);
+    throw error;
+  }
+};
+export const verifyDuplicatePassword = async (password, billNo) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/items/verify-duplicate-password`, {
+      password,
+      billNo
+    });
+    console.log('[API RESPONSE] verifyDuplicatePassword:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    throw error;
+  }
+};

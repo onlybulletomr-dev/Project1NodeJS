@@ -41,14 +41,14 @@ class ItemDetail {
   /**
    * Create new item detail record
    */
-  static async create(itemId, branchId, quantityOnHand, taxId, reorderLevel, reorderQty, userId) {
+  static async create(itemId, branchId, quantityOnHand, taxId, minStockLevel, reorderQuantity, userId) {
     try {
       const result = await pool.query(
         `INSERT INTO itemdetail 
-         (itemid, branchid, quantityonhand, taxid, reorderlevel, reorderqty, createdby, createdat)
+         (itemid, branchid, quantityonhand, taxid, minstocklevel, reorderquantity, createdby, createdat)
          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
          RETURNING *`,
-        [itemId, branchId, quantityOnHand, taxId, reorderLevel, reorderQty, userId]
+        [itemId, branchId, quantityOnHand, taxId, minStockLevel, reorderQuantity, userId]
       );
       return result.rows[0];
     } catch (error) {
