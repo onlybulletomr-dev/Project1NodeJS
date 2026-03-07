@@ -13,6 +13,9 @@ const InvoiceList = () => {
     key: 'invoicedate',
     direction: 'desc', // default to descending (newest first)
   });
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [invoiceDetails, setInvoiceDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   const fetchInvoices = async (searchText = '') => {
     try {
@@ -99,6 +102,42 @@ const InvoiceList = () => {
   const handleShowAllInvoices = async () => {
     setVehicleSearchInput('');
     await fetchInvoices('');
+  };
+
+  // Fetch invoice details for viewing
+  const fetchInvoiceDetails = async (invoiceId) => {
+    try {
+      setDetailsLoading(true);
+      const userId = localStorage.getItem('userId');
+      
+      const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}`, {
+        headers: {
+          'x-user-id': userId,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch invoice details');
+      
+      const result = await response.json();
+      setInvoiceDetails(result.data || result);
+    } catch (error) {
+      console.error('Error fetching invoice details:', error);
+      alert('Failed to load invoice details: ' + error.message);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  // Handle View button click
+  const handleViewInvoice = async (invoice) => {
+    setSelectedInvoice(invoice);
+    await fetchInvoiceDetails(invoice.invoiceid || invoice.InvoiceID || invoice.id);
+  };
+
+  // Close modal
+  const closeModal = () => {
+    setSelectedInvoice(null);
+    setInvoiceDetails(null);
   };
 
   // Handle column header click for sorting
@@ -272,6 +311,7 @@ const InvoiceList = () => {
                       borderBottom: '1px solid #e5e7eb',
                       backgroundColor: index % 2 === 0 ? '#fff' : '#f9fafb',
                       transition: 'background-color 0.2s',
+                      cursor: 'pointer',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = '#f0f4ff';
@@ -279,6 +319,7 @@ const InvoiceList = () => {
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f9fafb';
                     }}
+                    onDoubleClick={() => handleViewInvoice(invoice)}
                   >
                     {/* Date */}
                     <td style={{ padding: '12px 8px', fontWeight: '500', color: '#374151' }}>
@@ -324,26 +365,57 @@ const InvoiceList = () => {
                     </td>
 
                     <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                      {canEditInvoice(invoice) ? (
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button
                           type="button"
-                          onClick={() => handleEditInvoice(invoice)}
+                          onClick={() => handleViewInvoice(invoice)}
+                          title="View invoice details (or double-click row)"
                           style={{
                             padding: '6px 10px',
-                            border: '1px solid #2563eb',
+                            border: '1px solid #16a34a',
                             borderRadius: '6px',
                             background: '#fff',
-                            color: '#2563eb',
+                            color: '#16a34a',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f0fdf4';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fff';
                           }}
                         >
-                          Edit
+                          View
                         </button>
-                      ) : (
-                        <span style={{ color: '#9ca3af' }}>-</span>
-                      )}
+                        {canEditInvoice(invoice) && (
+                          <button
+                            type="button"
+                            onClick={() => handleEditInvoice(invoice)}
+                            style={{
+                              padding: '6px 10px',
+                              border: '1px solid #2563eb',
+                              borderRadius: '6px',
+                              background: '#fff',
+                              color: '#2563eb',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f0f4ff';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fff';
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -368,6 +440,246 @@ const InvoiceList = () => {
           <p style={{ fontSize: '13px', color: '#d1d5db' }}>
             Create your first invoice to see it listed here
           </p>
+        </div>
+      )}
+
+      {/* View Invoice Modal */}
+      {selectedInvoice && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '8px',
+            boxShadow: '0 20px 25px rgba(0,0,0,0.15)',
+            maxWidth: '800px',
+            width: '100%',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px 24px',
+              borderBottom: '1px solid #e5e7eb',
+            }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                Invoice Details
+              </h2>
+              <button
+                type="button"
+                onClick={closeModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  padding: 0,
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'color 0.2s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#1f2937'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{
+              overflowY: 'auto',
+              flex: 1,
+              padding: '24px',
+            }}>
+              {detailsLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6b7280' }}>
+                  <p>Loading invoice details...</p>
+                </div>
+              ) : invoiceDetails ? (
+                <div>
+                  {/* Invoice Header Info */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '24px',
+                    marginBottom: '24px',
+                    paddingBottom: '20px',
+                    borderBottom: '1px solid #e5e7eb',
+                  }}>
+                    <div>
+                      <p style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600, margin: '0 0 4px 0' }}>Invoice Number</p>
+                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#1f2937', margin: 0, fontFamily: 'monospace' }}>
+                        {invoiceDetails.invoicenumber || selectedInvoice.invoicenumber || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600, margin: '0 0 4px 0' }}>Invoice Date</p>
+                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                        {invoiceDetails.invoiceDate || selectedInvoice.invoiceDate || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600, margin: '0 0 4px 0' }}>Customer Name</p>
+                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                        {invoiceDetails.customername || selectedInvoice.customername || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600, margin: '0 0 4px 0' }}>Vehicle Number</p>
+                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#1f2937', margin: 0, fontFamily: 'monospace' }}>
+                        {invoiceDetails.vehiclenumber || selectedInvoice.vehiclenumber || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600, margin: '0 0 4px 0' }}>Invoice Status</p>
+                      <p style={{ fontSize: '14px', fontWeight: '600', color: '#0f766e', margin: 0 }}>
+                        {invoiceDetails.status || selectedInvoice.status || '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Items List */}
+                  {(invoiceDetails.items || invoiceDetails.InvoiceDetail || []).length > 0 && (
+                    <div style={{ marginBottom: '24px' }}>
+                      <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#1f2937', marginTop: 0, marginBottom: '12px' }}>
+                        Invoice Items
+                      </h3>
+                      <div style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        overflow: 'hidden',
+                      }}>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: '13px',
+                        }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
+                              <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Item</th>
+                              <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Qty</th>
+                              <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Rate</th>
+                              <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(invoiceDetails.items || invoiceDetails.InvoiceDetail || []).map((item, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: idx % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                                <td style={{ padding: '10px 8px', color: '#374151' }}>{item.description || item.itemname || '-'}</td>
+                                <td style={{ padding: '10px 8px', textAlign: 'right', color: '#374151' }}>{item.quantity || item.qty || 0}</td>
+                                <td style={{ padding: '10px 8px', textAlign: 'right', color: '#374151' }}>₹{(item.rate || item.unitPrice || 0).toFixed(2)}</td>
+                                <td style={{ padding: '10px 8px', textAlign: 'right', color: '#374151', fontWeight: '600' }}>₹{((item.quantity || item.qty || 0) * (item.rate || item.unitPrice || 0)).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary Section */}
+                  <div style={{
+                    paddingTop: '20px',
+                    borderTop: '1px solid #e5e7eb',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                      <div style={{ width: '200px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <span style={{ color: '#6b7280' }}>Subtotal:</span>
+                          <span style={{ fontWeight: '600', color: '#374151' }}>₹{(invoiceDetails.subtotal || invoiceDetails.totalAmount || 0).toFixed(2)}</span>
+                        </div>
+                        {(invoiceDetails.taxAmount || 0) > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={{ color: '#6b7280' }}>Tax:</span>
+                            <span style={{ fontWeight: '600', color: '#374151' }}>₹{(invoiceDetails.taxAmount || 0).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {(invoiceDetails.discountAmount || 0) > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={{ color: '#6b7280' }}>Discount:</span>
+                            <span style={{ fontWeight: '600', color: '#dc2626' }}>-₹{(invoiceDetails.discountAmount || 0).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid #e5e7eb', fontSize: '16px', fontWeight: '700' }}>
+                          <span style={{ color: '#1f2937' }}>Total:</span>
+                          <span style={{ color: '#0f766e' }}>₹{(invoiceDetails.totalAmount || 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', gap: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 4px 0' }}>Amount Paid:</p>
+                        <p style={{ fontSize: '16px', fontWeight: '700', color: '#059669', margin: 0 }}>₹{(invoiceDetails.paidAmount || selectedInvoice.paidAmount || 0).toFixed(2)}</p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 4px 0' }}>Amount Due:</p>
+                        <p style={{ fontSize: '16px', fontWeight: '700', color: (invoiceDetails.dueAmount || selectedInvoice.dueAmount || 0) > 0 ? '#dc2626' : '#059669', margin: 0 }}>
+                          ₹{(invoiceDetails.dueAmount || selectedInvoice.dueAmount || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6b7280' }}>
+                  <p>Unable to load invoice details</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+            }}>
+              <button
+                type="button"
+                onClick={closeModal}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  background: '#fff',
+                  color: '#374151',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  e.currentTarget.style.borderColor = '#9ca3af';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#fff';
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
