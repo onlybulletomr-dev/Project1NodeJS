@@ -202,6 +202,13 @@ exports.saveInvoice = async (req, res) => {
       invoiceDetailRecords.push(invoiceDetail);
     }
 
+    console.log('=== INVOICE SAVE SUCCESS ===');
+    console.log('Invoice ID:', invoiceMaster.invoiceid);
+    console.log('Invoice Number:', invoiceMaster.invoicenumber);
+    console.log('Branch ID:', invoiceMaster.branchid);
+    console.log('Total Amount:', invoiceMaster.totalamount);
+    console.log('Details recorded:', invoiceDetailRecords.length);
+
     res.status(201).json({
       success: true,
       message: 'Invoice saved successfully',
@@ -211,12 +218,17 @@ exports.saveInvoice = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Error saving invoice:', err.message);
+    console.error('=== ERROR SAVING INVOICE ===');
+    console.error('Error type:', err.constructor.name);
+    console.error('Error message:', err.message);
+    console.error('Error code:', err.code);
+    console.error('Error detail:', err.detail);
     console.error('Error stack:', err.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to save invoice',
       error: err.message,
+      errorCode: err.code,
     });
   }
 };

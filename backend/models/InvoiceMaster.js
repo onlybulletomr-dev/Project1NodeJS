@@ -60,6 +60,8 @@ class InvoiceMaster {
 
     // If ID column is auto-generated OR metadata is unavailable, use standard insert
     if (hasAutoId || !hasIdColumn) {
+      console.log('[InvoiceMaster.create] Using standard insert with auto-generated ID');
+      console.log('[InvoiceMaster.create] SQL: INSERT into invoicemaster with values:', insertValues.slice(0, 5), '...');
       const result = await pool.query(
         `INSERT INTO invoicemaster (
           invoicenumber, branchid, customerid, vehicleid, vehiclenumber, jobcardid,
@@ -73,9 +75,17 @@ class InvoiceMaster {
         insertValues
       );
 
+      console.log('[InvoiceMaster.create] Insert successful!');
+      console.log('[InvoiceMaster.create] Returned invoice:', {
+        invoiceid: result.rows[0].invoiceid,
+        invoicenumber: result.rows[0].invoicenumber,
+        branchid: result.rows[0].branchid,
+        totalamount: result.rows[0].totalamount
+      });
       return result.rows[0];
     }
 
+    console.log('[InvoiceMaster.create] Using fallback insert (manual ID generation)');
     const idResult = await pool.query('SELECT COALESCE(MAX(invoiceid), 0) + 1 AS nextid FROM invoicemaster');
     const nextInvoiceId = idResult.rows[0].nextid;
 
@@ -92,6 +102,7 @@ class InvoiceMaster {
       [nextInvoiceId, ...insertValues]
     );
 
+    console.log('[InvoiceMaster.create] Fallback insert successful!');
     return fallbackResult.rows[0];
   }
 
