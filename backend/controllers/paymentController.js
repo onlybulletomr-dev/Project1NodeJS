@@ -75,7 +75,7 @@ exports.getInvoicesByStatus = async (req, res) => {
     const statusMap = {
       paid: 'Paid',
       unpaid: 'Unpaid',
-      pending: 'Unpaid',
+      pending: 'Pending',
       partial: 'Partial'
     };
 
