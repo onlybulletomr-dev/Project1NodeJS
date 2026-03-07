@@ -119,7 +119,47 @@ const InvoiceList = () => {
       if (!response.ok) throw new Error('Failed to fetch invoice details');
       
       const result = await response.json();
-      setInvoiceDetails(result.data || result);
+      
+      // API returns { success, message, data: { invoiceMaster, invoiceDetails } }
+      if (result.data && result.data.invoiceMaster) {
+        const { invoiceMaster, invoiceDetails } = result.data;
+        
+        // Flatten the invoice master data
+        const flatData = {
+          // Copy all invoiceMaster properties
+          ...invoiceMaster,
+          
+          // Format date fields
+          invoiceDate: invoiceMaster.invoicedate 
+            ? new Date(invoiceMaster.invoicedate).toLocaleDateString('en-IN')
+            : '-',
+          paymentDate: invoiceMaster.paymentdate
+            ? new Date(invoiceMaster.paymentdate).toLocaleDateString('en-IN')
+            : '-',
+          
+          // Ensure numeric amounts
+          subtotal: parseFloat(invoiceMaster.subtotal || invoiceMaster.partsincome || 0),
+          totalAmount: parseFloat(invoiceMaster.totalamount || 0),
+          taxAmount: parseFloat((invoiceMaster.tax1 || 0) + (invoiceMaster.tax2 || 0)),
+          discountAmount: parseFloat(invoiceMaster.totaldiscount || 0),
+          
+          // Store items array
+          items: (invoiceDetails || []).map(item => ({
+            ...item,
+            description: item.description || item.itemname || `Item ${item.itemid || 'N/A'}`,
+            quantity: item.qty || item.quantity || 0,
+            rate: parseFloat(item.unitprice || item.rate || 0),
+            amount: parseFloat(item.linetotal || 0),
+          })),
+          
+          // Payment info (will come from parent invoice list if available)
+          paymentstatus: invoiceMaster.paymentstatus || 'Pending',
+        };
+        
+        setInvoiceDetails(flatData);
+      } else {
+        throw new Error('Unexpected response format');
+      }
     } catch (error) {
       console.error('Error fetching invoice details:', error);
       alert('Failed to load invoice details: ' + error.message);
