@@ -94,9 +94,16 @@ function PaymentModal({
     const numValue = Number(value);
     const invoice = invoices.find(inv => inv.invoiceid === invoiceId);
     const maxAllowed = invoice.amounttobepaid || invoice.totalamount || invoice.amount || 0;
-
-    // Cap allocation at invoice amount (no overpayment per invoice on UI)
-    const finalValue = numValue > maxAllowed ? maxAllowed : numValue;
+    const totalPaymentEntered = Number(paymentAmount) || 0;
+    
+    // Calculate current allocations (excluding this invoice)
+    const currentAllocations = Object.entries(invoicePaymentAmounts)
+      .filter(([id]) => id !== invoiceId.toString())
+      .reduce((sum, [, amt]) => sum + (Number(amt) || 0), 0);
+    
+    // Cap at invoice amount AND ensure total allocations don't exceed payment amount
+    const maxFromPaymentAmount = Math.max(0, totalPaymentEntered - currentAllocations);
+    const finalValue = Math.min(numValue, maxAllowed, maxFromPaymentAmount);
 
     setInvoicePaymentAmounts(prev => ({
       ...prev,
@@ -161,8 +168,8 @@ function PaymentModal({
     totalPendingAmount - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)
   );
   const gpayNumber = '9962285538';
-  const amountPayable = Number(remainingAmount) || 0;
-  const qrPayload = `upi://pay?pa=9962285538@okhdfcbank&pn=Project1&am=${amountPayable.toFixed(2)}&cu=INR&tn=Invoice Payment`;
+  const userEnteredAmount = Number(paymentAmount) || 0;
+  const qrPayload = `upi://pay?pa=9962285538@okhdfcbank&pn=Project1&am=${userEnteredAmount.toFixed(2)}&cu=INR&tn=Invoice Payment`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrPayload)}`;
 
   if (!isOpen) return null;
@@ -349,7 +356,7 @@ function PaymentModal({
                 style={{ width: 150, height: 150, border: '2px solid #ddd', borderRadius: 6, padding: 4, background: '#fff' }}
               />
               <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
-                Amount: <strong>₹{amountPayable.toFixed(2)}</strong> | GPay: <strong>{gpayNumber}</strong>
+                Amount: <strong>₹{userEnteredAmount.toFixed(2)}</strong> | GPay: <strong>{gpayNumber}</strong>
               </div>
             </div>
 
@@ -360,7 +367,7 @@ function PaymentModal({
                 <div style={{ flex: 1, padding: 8, background: '#f5f5f5', borderRadius: 4 }}>
                   <div style={{ marginBottom: 3, fontSize: 11 }}>Total Amount: <strong>₹{Number(paymentAmount).toFixed(2)}</strong></div>
                   <div style={{ marginBottom: 3, fontSize: 11 }}>Allocated: <strong>₹{Number(Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
-                  <div style={{ fontSize: 11 }}>Unallocated: <strong style={{ color: Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0) < 0 ? '#d32f2f' : '#666' }}>₹{Number(Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)).toFixed(2)}</strong></div>
+                  <div style={{ fontSize: 11 }}>Unallocated: <strong style={{ color: Math.max(0, Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)) < 0 ? '#d32f2f' : '#666' }}>₹{Math.max(0, Number(Number(paymentAmount) - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0))).toFixed(2)}</strong></div>
                 </div>
                 
                 {/* Right: Transaction Reference and Notes */}
