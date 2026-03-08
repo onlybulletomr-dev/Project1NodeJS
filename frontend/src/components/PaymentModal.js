@@ -35,19 +35,20 @@ function PaymentModal({
           customername: customername
         });
         // Pre-populate with the invoice data
+        const numAmount = Number(amountToPay) || 0;
         const invoiceData = {
           invoiceid: invoiceId,
           invoicenumber: invoiceNumber,
           vehiclenumber: vehicleNumber,
           customername: customername,
-          totalamount: totalAmount,
-          amounttobepaid: amountToPay,
-          amount: amountToPay
+          totalamount: Number(totalAmount) || 0,
+          amounttobepaid: numAmount,
+          amount: numAmount
         };
         setInvoices([invoiceData]);
         // Pre-populate the payment amount for this invoice
         setInvoicePaymentAmounts({
-          [invoiceId]: amountToPay
+          [invoiceId]: numAmount
         });
         setError(null);
       } else {

@@ -515,10 +515,10 @@ exports.getPaymentSummary = async (req, res) => {
     const query = `
       SELECT 
         COUNT(CASE WHEN im.paymentstatus = 'Paid' THEN 1 END) AS paidcount,
-        COUNT(CASE WHEN im.paymentstatus = 'Unpaid' THEN 1 END) AS unpaidcount,
+        COUNT(CASE WHEN im.paymentstatus IN ('Unpaid', 'Pending') THEN 1 END) AS unpaidcount,
         COUNT(CASE WHEN im.paymentstatus = 'Partial' THEN 1 END) AS partialcount,
         COALESCE(SUM(CASE WHEN im.paymentstatus = 'Paid' THEN im.totalamount ELSE 0 END), 0) AS paidamount,
-        COALESCE(SUM(CASE WHEN im.paymentstatus = 'Unpaid' THEN im.totalamount ELSE 0 END), 0) AS unpaidamount,
+        COALESCE(SUM(CASE WHEN im.paymentstatus IN ('Unpaid', 'Pending') THEN im.totalamount ELSE 0 END), 0) AS unpaidamount,
         COALESCE(SUM(CASE WHEN im.paymentstatus = 'Partial' THEN im.totalamount ELSE 0 END), 0) AS partialamount,
         COALESCE(SUM(im.totalamount), 0) AS totalamount
       FROM invoicemaster im
