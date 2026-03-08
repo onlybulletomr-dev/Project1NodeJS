@@ -369,6 +369,12 @@ function Payment() {
         isOpen={showPaymentModal}
         onClose={handlePaymentModalClose}
         vehicleId={selectedInvoiceForPayment?.vehicleid}
+        vehicleNumber={selectedInvoiceForPayment?.vehiclenumber}
+        customername={selectedInvoiceForPayment?.customername}
+        amountToPay={selectedInvoiceForPayment?.amounttobepaid}
+        totalAmount={selectedInvoiceForPayment?.totalamount}
+        invoiceNumber={selectedInvoiceForPayment?.invoicenumber}
+        invoiceId={selectedInvoiceForPayment?.invoiceid}
         onProcessPayment={handleProcessPaymentFromModal}
         paymentMethods={paymentMethods}
       />

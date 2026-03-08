@@ -5,6 +5,12 @@ function PaymentModal({
   isOpen, 
   onClose, 
   vehicleId,
+  vehicleNumber,
+  customername,
+  amountToPay,
+  totalAmount,
+  invoiceNumber,
+  invoiceId,
   onProcessPayment,
   paymentMethods = []
 }) {
@@ -21,11 +27,37 @@ function PaymentModal({
   // Fetch invoices for the vehicle when modal opens
   useEffect(() => {
     if (isOpen && vehicleId) {
-      fetchInvoicesForVehicle();
+      // If props were passed, skip fetching and use them directly
+      if (vehicleNumber && invoiceId) {
+        console.log('[PAYMENT MODAL] Using props directly - Vehicle:', vehicleNumber, 'Amount:', amountToPay);
+        setVehicleData({
+          vehiclenumber: vehicleNumber,
+          customername: customername
+        });
+        // Pre-populate with the invoice data
+        const invoiceData = {
+          invoiceid: invoiceId,
+          invoicenumber: invoiceNumber,
+          vehiclenumber: vehicleNumber,
+          customername: customername,
+          totalamount: totalAmount,
+          amounttobepaid: amountToPay,
+          amount: amountToPay
+        };
+        setInvoices([invoiceData]);
+        // Pre-populate the payment amount for this invoice
+        setInvoicePaymentAmounts({
+          [invoiceId]: amountToPay
+        });
+        setError(null);
+      } else {
+        // Fallback: fetch from API if props aren't provided
+        fetchInvoicesForVehicle();
+      }
     } else {
       resetState();
     }
-  }, [isOpen, vehicleId]);
+  }, [isOpen, vehicleId, vehicleNumber, invoiceId]);
 
   const fetchInvoicesForVehicle = async () => {
     setLoading(true);
@@ -260,33 +292,28 @@ function PaymentModal({
                 <h2 style={{ margin: 0 }}>💳 Payment</h2>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#333', marginBottom: 8 }}>
-                    | Vehicle: <span style={{ color: '#2196F3', fontSize: 16 }}>{vehicleData?.vehiclenumber || invoices[0]?.vehiclenumber || 'N/A'}</span>
+                    Vehicle: <span style={{ color: '#2196F3', fontSize: 16, fontWeight: 700 }}>{vehicleNumber || vehicleData?.vehiclenumber || invoices[0]?.vehiclenumber || 'N/A'}</span>
                   </div>
                   <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>
-                    <span style={{ color: '#666', fontSize: 13 }}>{invoices[0]?.customername || 'N/A'}, {invoices[0]?.phonenumber || 'N/A'}</span>, {vehicleData?.vehiclemodel ? `${vehicleData.vehiclemodel}${vehicleData?.vehiclecolor ? ` (${vehicleData.vehiclecolor})` : ''}` : 'N/A'}
+                    <span style={{ color: '#333', fontWeight: 600 }}>{customername || vehicleData?.customername || invoices[0]?.customername || 'N/A'}</span>
                   </div>
+                  {invoiceNumber && (
+                    <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>
+                      Invoice: {invoiceNumber}
+                    </div>
+                  )}
                 </div>
               </div>
               
-              {/* Total and Pending Amount */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 8, borderTop: '1px solid #eee' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <img
-                    src={qrImageUrl}
-                    alt="Payment QR"
-                    style={{ width: 92, height: 92, border: '1px solid #ddd', borderRadius: 6, padding: 4, background: '#fff' }}
-                  />
-                  <div style={{ fontSize: 11, color: '#555', lineHeight: 1.4 }}>
-                    <div style={{ fontWeight: 700, color: '#333' }}>Scan to Pay</div>
-                    <div>Amount: ₹{totalPendingAmount.toFixed(2)}</div>
-                    {!upiId && <div style={{ color: '#d97706' }}>Set REACT_APP_UPI_ID for direct UPI app payment</div>}
-                  </div>
+              {/* Amount to Pay Display */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 12, paddingBottom: 12, borderTop: '1px solid #eee', borderBottom: '1px solid #eee', marginBottom: 16, background: '#f9f9f9', padding: 12, borderRadius: 4 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Amount to be Paid</div>
+                  <div style={{ color: '#d32f2f', fontSize: 18, fontWeight: 700 }}>₹{(amountToPay || totalPendingAmount).toFixed(2)}</div>
                 </div>
                 <div>
-                  Total Pending: <span style={{ color: '#FF9800', fontSize: 14 }}>₹{totalPendingAmount.toFixed(2)}</span>
-                </div>
-                <div>
-                  Remaining: <span style={{ color: '#2196F3', fontSize: 14 }}>₹{remainingAmount.toFixed(2)}</span>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Remaining</div>
+                  <div style={{ color: '#2196F3', fontSize: 16, fontWeight: 700 }}>₹{(remainingAmount).toFixed(2)}</div>
                 </div>
               </div>
             </div>
