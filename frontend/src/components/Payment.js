@@ -13,12 +13,6 @@ function Payment() {
   const [selectedStatus, setSelectedStatus] = useState('Unpaid');
   const [sortField, setSortField] = useState('createdat');
   const [sortDirection, setSortDirection] = useState('desc');
-  const [vehicleFilter, setVehicleFilter] = useState('');
-  const [customerFilter, setCustomerFilter] = useState('');
-  const [invoiceDateFromFilter, setInvoiceDateFromFilter] = useState('');
-  const [invoiceDateToFilter, setInvoiceDateToFilter] = useState('');
-  const [paidDateFromFilter, setPaidDateFromFilter] = useState('');
-  const [paidDateToFilter, setPaidDateToFilter] = useState('');
 
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -233,27 +227,7 @@ function Payment() {
     setSortDirection('asc');
   };
 
-  const filteredInvoices = invoices.filter((row) => {
-    const isWithinDateRange = (dateValue, fromValue, toValue) => {
-      if (!fromValue && !toValue) return true;
-      if (!dateValue) return false;
-
-      if (fromValue && dateValue < fromValue) return false;
-      if (toValue && dateValue > toValue) return false;
-      return true;
-    };
-
-    const matchesVehicle = (row.vehiclenumber || '').toLowerCase().includes(vehicleFilter.trim().toLowerCase());
-    const matchesCustomer = (row.customername || '').toLowerCase().includes(customerFilter.trim().toLowerCase());
-    const invoiceDateValue = toDateOnly(row.createdat);
-    const matchesInvoiceDate = isWithinDateRange(invoiceDateValue, invoiceDateFromFilter, invoiceDateToFilter);
-    const paidDateValue = toDateOnly(row.paymentdate || row.invoicepaymentdate);
-    const matchesPaidDate = isWithinDateRange(paidDateValue, paidDateFromFilter, paidDateToFilter);
-
-    return matchesVehicle && matchesCustomer && matchesInvoiceDate && matchesPaidDate;
-  });
-
-  const sortedInvoices = [...filteredInvoices].sort((a, b) => {
+  const sortedInvoices = [...invoices].sort((a, b) => {
     const left = toSortableValue(a, sortField);
     const right = toSortableValue(b, sortField);
 
@@ -271,15 +245,6 @@ function Payment() {
   const renderSortIndicator = (field) => {
     if (sortField !== field) return ' ↕';
     return sortDirection === 'asc' ? ' ↑' : ' ↓';
-  };
-
-  const handleClearFilters = () => {
-    setVehicleFilter('');
-    setCustomerFilter('');
-    setInvoiceDateFromFilter('');
-    setInvoiceDateToFilter('');
-    setPaidDateFromFilter('');
-    setPaidDateToFilter('');
   };
 
   return (
@@ -341,57 +306,7 @@ function Payment() {
         <div className="invoices-section">
           <h3>{getStatusLabel()} ({sortedInvoices.length})</h3>
 
-          <div className="payment-filters">
-            <input
-              type="text"
-              placeholder="Filter by vehicle number"
-              value={vehicleFilter}
-              onChange={(e) => setVehicleFilter(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Filter by customer name"
-              value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-            />
-            <div className="payment-filter-date">
-              <label>Invoice Date (From)</label>
-              <input
-                type="date"
-                value={invoiceDateFromFilter}
-                onChange={(e) => setInvoiceDateFromFilter(e.target.value)}
-              />
-            </div>
-            <div className="payment-filter-date">
-              <label>Invoice Date (To)</label>
-              <input
-                type="date"
-                value={invoiceDateToFilter}
-                onChange={(e) => setInvoiceDateToFilter(e.target.value)}
-              />
-            </div>
-            <div className="payment-filter-date">
-              <label>Paid Date (From)</label>
-              <input
-                type="date"
-                value={paidDateFromFilter}
-                onChange={(e) => setPaidDateFromFilter(e.target.value)}
-              />
-            </div>
-            <div className="payment-filter-date">
-              <label>Paid Date (To)</label>
-              <input
-                type="date"
-                value={paidDateToFilter}
-                onChange={(e) => setPaidDateToFilter(e.target.value)}
-              />
-            </div>
-            <div className="payment-filter-actions">
-              <button type="button" className="clear-filters-button" onClick={handleClearFilters}>
-                Clear Filters
-              </button>
-            </div>
-          </div>
+
 
           {sortedInvoices.length === 0 ? (
             <p className="no-data">No {getStatusLabel().toLowerCase()} found.</p>
