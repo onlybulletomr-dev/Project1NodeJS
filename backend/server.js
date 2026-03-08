@@ -1245,6 +1245,73 @@ async function initializeDatabase() {
       console.error('[Startup] Credentials table setup error:', credErr.message);
       console.error('[Startup] Stack:', credErr.stack);
     }
+
+    // Step 3: Ensure PaymentDetail sequence exists (important for Render compatibility)
+    try {
+      console.log('[Startup] Checking paymentdetail_paymentreceivedid_seq...');
+      
+      const seqCheckRes = await client.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.sequences 
+          WHERE sequence_schema = 'public' 
+          AND sequence_name = 'paymentdetail_paymentreceivedid_seq'
+        ) as sequence_exists
+      `);
+      
+      const sequenceExists = seqCheckRes.rows[0].sequence_exists;
+      
+      if (!sequenceExists) {
+        console.log('[Startup] Sequence not found - creating paymentdetail_paymentreceivedid_seq...');
+        
+        // Create the sequence
+        await client.query(`
+          CREATE SEQUENCE paymentdetail_paymentreceivedid_seq
+          INCREMENT BY 1
+          START WITH 1
+          NO MAXVALUE
+          CACHE 1
+        `);
+        console.log('[Startup] ✓ Sequence created');
+        
+        // Set sequence to max ID in table if any records exist
+        const maxIdRes = await client.query(`
+          SELECT COALESCE(MAX(paymentreceivedid), 0) as max_id FROM paymentdetail
+        `);
+        const maxId = maxIdRes.rows[0].max_id;
+        
+        if (maxId > 0) {
+          await client.query(`
+            SELECT setval('paymentdetail_paymentreceivedid_seq', ${maxId + 1})
+          `);
+          console.log(`[Startup] ✓ Sequence reset to start from ${maxId + 1}`);
+        }
+        
+        // Ensure column has proper DEFAULT
+        const colDefaultRes = await client.query(`
+          SELECT column_default FROM information_schema.columns
+          WHERE table_name = 'paymentdetail' AND column_name = 'paymentreceivedid'
+        `);
+        
+        const hasProperDefault = colDefaultRes.rows[0].column_default && 
+                                 colDefaultRes.rows[0].column_default.includes('paymentdetail_paymentreceivedid_seq');
+        
+        if (!hasProperDefault) {
+          console.log('[Startup] Setting column DEFAULT for paymentreceivedid...');
+          await client.query(`
+            ALTER TABLE paymentdetail
+            ALTER COLUMN paymentreceivedid SET DEFAULT nextval('paymentdetail_paymentreceivedid_seq'::regclass)
+          `);
+          console.log('[Startup] ✓ Column DEFAULT set');
+        }
+        
+        console.log('[Startup] ✅ PaymentDetail sequence setup completed!');
+      } else {
+        console.log('[Startup] ✓ Sequence already exists');
+      }
+    } catch (seqErr) {
+      console.error('[Startup] Sequence setup error:', seqErr.message);
+      console.error('[Startup] Stack:', seqErr.stack);
+    }
     
     client.release();
   } catch (err) {
