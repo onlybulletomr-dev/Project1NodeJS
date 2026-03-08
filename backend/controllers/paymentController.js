@@ -561,15 +561,18 @@ exports.updatePaymentStatus = async (req, res) => {
               console.warn('[ADVANCE PAYMENT WARNING] Cannot record advance payment - no valid vehicle ID. VehicleID from invoice was invalid.');
             }
           } catch (advanceError) {
-            console.warn('[ADVANCE PAYMENT ERROR]:', advanceError.message);
-            console.error('[ADVANCE PAYMENT ERROR DETAIL]:', advanceError);
+            console.error('❌ [ADVANCE PAYMENT ERROR] Error recording advance payment');
+            console.error('[ADVANCE PAYMENT ERROR] Message:', advanceError.message);
+            console.error('[ADVANCE PAYMENT ERROR] Code:', advanceError.code);
+            console.error('[ADVANCE PAYMENT ERROR] Detail:', advanceError.detail);
+            console.error('[ADVANCE PAYMENT ERROR] Full error:', JSON.stringify(advanceError, Object.getOwnPropertyNames(advanceError), 2));
             // Silently fail if advance payment recording fails
           }
         } else {
 
         }
       } catch (error) {
-        console.error('[ERROR-PAYMENT-DETAIL] Error recording payment detail:', error.message);
+        console.error('❌ [ERROR-PAYMENT-DETAIL] Error recording payment detail:', error.message);
         console.error('[ERROR-PAYMENT-DETAIL] Error code:', error.code);
         console.error('[ERROR-PAYMENT-DETAIL] Error constraint:', error.constraint);
         console.error('[ERROR-PAYMENT-DETAIL] Error detail:', error.detail);

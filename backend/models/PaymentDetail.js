@@ -64,12 +64,17 @@ class PaymentDetail {
       
       const result = await pool.query(query, values);
       
-      console.log('[PaymentDetail.create] Query executed successfully');
+      console.log('[PaymentDetail.create] ✅ Query executed successfully');
       console.log('[PaymentDetail.create] Returned row:', JSON.stringify(result.rows[0], null, 2));
 
       return result.rows[0];
     } catch (error) {
-      console.error('Error creating payment detail:', error);
+      console.error('❌ [PaymentDetail.create] ERROR creating payment detail');
+      console.error('[PaymentDetail.create] Error Code:', error.code);
+      console.error('[PaymentDetail.create] Error Message:', error.message);
+      console.error('[PaymentDetail.create] Error Detail:', error.detail);
+      console.error('[PaymentDetail.create] Error Constraint:', error.constraint);
+      console.error('[PaymentDetail.create] Full Error:', error);
       throw error;
     }
   }
