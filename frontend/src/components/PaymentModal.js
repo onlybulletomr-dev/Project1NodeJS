@@ -28,8 +28,8 @@ function PaymentModal({
   useEffect(() => {
     if (isOpen && vehicleId) {
       // If props were passed, skip fetching and use them directly
-      if (vehicleNumber && invoiceId) {
-        console.log('[PAYMENT MODAL] Using props directly - Vehicle:', vehicleNumber, 'Amount:', amountToPay);
+      if (vehicleNumber && invoiceId !== undefined && invoiceId !== null) {
+        console.log('[PAYMENT MODAL] Using props directly - Vehicle:', vehicleNumber, 'Amount:', amountToPay, 'InvoiceId:', invoiceId);
         setVehicleData({
           vehiclenumber: vehicleNumber,
           customername: customername
