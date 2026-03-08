@@ -42,7 +42,7 @@ class InvoiceMaster {
       SubTotal, TotalDiscount || 0, PartsIncome || 0, ServiceIncome || 0, Tax1 || 0, Tax2 || 0, TotalAmount,
       Technicianmain, Technicianassistant, WaterWash, ServiceAdvisorIn, ServiceAdvisorDeliver,
       TestDriver, Cleaner, AdditionalWork,
-      Odometer, Notes, Notes1, PaymentStatus || 'Pending', CreatedBy, CreatedAt,
+      Odometer, Notes, Notes1, PaymentStatus || 'Unpaid', CreatedBy, CreatedAt,
     ];
 
     const schemaResult = await pool.query(
