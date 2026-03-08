@@ -512,9 +512,10 @@ exports.updatePaymentStatus = async (req, res) => {
         if (overpaymentAmount > 0) {
           try {
             // Record overpayment as advance payment with invoiceid = NULL (null marks advance)
+            // Advance is tied to the vehicle
             const advancePaymentData = {
               invoiceid: null,  // NULL marks advance payment (not tied to specific invoice)
-              vehicleid: finalVehicleID,
+              vehicleid: finalVehicleID,  // Tied to the vehicle that made the overpayment
               paymentmethodid: paymentMethodID,  // Use validated method ID
               processedbyuserid: userId,
               branchid: userBranchID,
@@ -529,9 +530,18 @@ exports.updatePaymentStatus = async (req, res) => {
               createdby: userId
             };
 
-            const advanceRecord = await PaymentDetail.create(advancePaymentData);
+            console.log('[ADVANCE PAYMENT] Recording advance with vehicleid:', finalVehicleID, 'amount:', overpaymentAmount);
+            
+            // Only create advance record if we have a valid vehicle ID
+            if (finalVehicleID) {
+              const advanceRecord = await PaymentDetail.create(advancePaymentData);
+              console.log('[SUCCESS] Advance payment recorded:', JSON.stringify(advanceRecord, null, 2));
+            } else {
+              console.warn('[ADVANCE PAYMENT WARNING] Cannot record advance payment - no valid vehicle ID. VehicleID from invoice was invalid.');
+            }
           } catch (advanceError) {
             console.warn('[ADVANCE PAYMENT ERROR]:', advanceError.message);
+            console.error('[ADVANCE PAYMENT ERROR DETAIL]:', advanceError);
             // Silently fail if advance payment recording fails
           }
         } else {
