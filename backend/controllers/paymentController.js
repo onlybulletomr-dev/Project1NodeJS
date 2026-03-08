@@ -862,7 +862,6 @@ exports.getCustomerAdvanceTransactions = async (req, res) => {
 exports.getPaymentHistoryByInvoice = async (req, res) => {
   try {
     const { InvoiceID } = req.params;
-    const userId = req.headers['x-user-id'] || 1;
 
     if (!InvoiceID) {
       return res.status(400).json({
@@ -871,15 +870,7 @@ exports.getPaymentHistoryByInvoice = async (req, res) => {
       });
     }
 
-    // Get user's branch
-    const userQuery = `
-      SELECT branchid FROM employeemaster 
-      WHERE employeeid = $1 AND deletedat IS NULL
-    `;
-    const userResult = await pool.query(userQuery, [userId]);
-    const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
-
-    // Get invoice details first
+    // Get invoice details first (without branch filtering)
     const invoiceQuery = `
       SELECT 
         invoiceid,
@@ -890,9 +881,9 @@ exports.getPaymentHistoryByInvoice = async (req, res) => {
         createdat,
         COALESCE(paymentdate, createdat) as paymentdate
       FROM invoicemaster
-      WHERE invoiceid = $1 AND branchid = $2 AND deletedat IS NULL
+      WHERE invoiceid = $1 AND deletedat IS NULL
     `;
-    const invoiceResult = await pool.query(invoiceQuery, [InvoiceID, userBranchID]);
+    const invoiceResult = await pool.query(invoiceQuery, [InvoiceID]);
     
     if (invoiceResult.rows.length === 0) {
       return res.status(404).json({
