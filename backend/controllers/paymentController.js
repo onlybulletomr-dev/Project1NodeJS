@@ -382,12 +382,12 @@ exports.updatePaymentStatus = async (req, res) => {
     console.log('[PAYMENT STATUS UPDATE] Invoice status updated to:', finalPaymentStatus);
     console.log('[PAYMENT DETAIL CHECK] Conditions for creating payment detail:');
     console.log('  - finalPaymentStatus is Paid or Partial?', (finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial'));
-    console.log('  - Amount provided?', !!Amount, `(Amount=${Amount})`);
-    console.log('  - PaymentMethodID provided?', !!PaymentMethodID, `(PaymentMethodID=${PaymentMethodID})`);
+    console.log('  - Amount provided?', !!Amount, `(Amount=${Amount}, type=${typeof Amount})`);
+    console.log('  - PaymentMethodID provided?', !!PaymentMethodID, `(PaymentMethodID=${PaymentMethodID}, type=${typeof PaymentMethodID})`);
 
     // If payment status is "Paid" or "Partial" and we have amount, record payment details
     if ((finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial') && Amount && PaymentMethodID) {
-      console.log('[PAYMENT DETAIL] Creating payment detail record...');
+      console.log('[PAYMENT DETAIL] ✓ ALL CONDITIONS MET - Creating payment detail record...');
       try {
         // Validate PaymentMethodID
         const paymentMethodID = Number(PaymentMethodID);
@@ -418,12 +418,33 @@ exports.updatePaymentStatus = async (req, res) => {
         console.log('[PAYMENT VALIDATION] PaymentMethod verified:', paymentMethodCheck.methodname, `(ID: ${paymentMethodID})`);;
         
         // Get user's branch information
-        const userQuery = `
-          SELECT branchid FROM employeemaster 
-          WHERE employeeid = $1 AND deletedat IS NULL
-        `;
-        const userResult = await pool.query(userQuery, [userId]);
-        const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
+        let userBranchID = 1;  // Default branch
+        try {
+          const userQuery = `
+            SELECT branchid FROM employeemaster 
+            WHERE employeeid = $1 AND deletedat IS NULL
+          `;
+          const userResult = await pool.query(userQuery, [userId]);
+          if (userResult.rows.length > 0) {
+            userBranchID = userResult.rows[0].branchid;
+            console.log('[USER BRANCH] Found branch for user:', userBranchID);
+          } else {
+            // Try to get branch from invoice
+            const invoiceBranchQuery = `
+              SELECT branchid FROM invoicemaster WHERE invoiceid = $1
+            `;
+            const invoiceBranchResult = await pool.query(invoiceBranchQuery, [InvoiceID]);
+            if (invoiceBranchResult.rows.length > 0) {
+              userBranchID = invoiceBranchResult.rows[0].branchid;
+              console.log('[USER BRANCH] Using branch from invoice:', userBranchID);
+            } else {
+              console.warn('[USER BRANCH] Using default branch 1 (user not found in employeemaster, invoice has no branch)');
+            }
+          }
+        } catch (branchErr) {
+          console.warn('[USER BRANCH] Error fetching user branch, using default:', branchErr.message);
+          // userBranchID already defaults to 1
+        }
 
         const invoiceAmount = result.rows[0].totalamount || 0;
         let vehicleID = result.rows[0].vehicleid;
@@ -557,10 +578,18 @@ exports.updatePaymentStatus = async (req, res) => {
         // Just log the error
       }
     } else {
-      console.log('[CONDITION-FAILED] NO - Payment detail NOT created. One or more conditions failed:');
-      console.log('[CONDITION-FAILED] finalPaymentStatus is Paid/Partial?', (finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial'));
-      console.log('[CONDITION-FAILED] Amount is truthy?', !!Amount);
-      console.log('[CONDITION-FAILED] PaymentMethodID is truthy?', !!PaymentMethodID);
+      console.log('[CONDITION-FAILED] ✗ CONDITIONS NOT MET - Payment detail NOT created');
+      const conditionsFailed = [];
+      if (!(finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial')) {
+        conditionsFailed.push(`Status=${finalPaymentStatus} (expected Paid or Partial)`);
+      }
+      if (!Amount) {
+        conditionsFailed.push(`Amount is missing or falsy (${Amount})`);
+      }
+      if (!PaymentMethodID) {
+        conditionsFailed.push(`PaymentMethodID is missing or falsy (${PaymentMethodID})`);
+      }
+      conditionsFailed.forEach(reason => console.log(`  ✗ ${reason}`));
     }
 
     res.status(200).json({
