@@ -95,6 +95,18 @@ exports.getInvoicesByStatus = async (req, res) => {
     const userResult = await pool.query(userQuery, [userId]);
     const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
 
+    // Build WHERE clause - 'Unpaid' should include both 'Unpaid' and 'Pending' invoices
+    let whereClause = `WHERE im.deletedat IS NULL
+      AND im.branchid = $1`;
+    let queryParams = [userBranchID];
+
+    if (normalizedStatus === 'Unpaid') {
+      whereClause += ` AND COALESCE(im.paymentstatus, 'Unpaid') IN ('Unpaid', 'Pending')`;
+    } else {
+      whereClause += ` AND COALESCE(im.paymentstatus, 'Unpaid') = $2`;
+      queryParams.push(normalizedStatus);
+    }
+
     const query = `
       SELECT
         im.invoiceid,
@@ -131,13 +143,11 @@ exports.getInvoicesByStatus = async (req, res) => {
       LEFT JOIN paymentmethodmaster pm
         ON pm.paymentmethodid = pd.paymentmethodid
         AND pm.deletedat IS NULL
-      WHERE im.deletedat IS NULL
-        AND im.branchid = $1
-        AND COALESCE(im.paymentstatus, 'Unpaid') = $2
+      ${whereClause}
       ORDER BY im.createdat DESC, pd.paymentdate DESC NULLS LAST, pd.paymentreceivedid DESC NULLS LAST
     `;
 
-    const result = await pool.query(query, [userBranchID, normalizedStatus]);
+    const result = await pool.query(query, queryParams);
 
     res.status(200).json({
       success: true,
