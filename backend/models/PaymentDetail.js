@@ -22,6 +22,7 @@ class PaymentDetail {
 
       const query = `
         INSERT INTO paymentdetail (
+          paymentreceivedid,
           invoiceid,
           vehicleid,
           paymentmethodid,
@@ -38,7 +39,10 @@ class PaymentDetail {
           createdby,
           createdat
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW()::DATE)
+        VALUES (
+          NEXTVAL('paymentdetail_paymentreceivedid_seq'::regclass),
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW()::DATE
+        )
         RETURNING *
       `;
 
