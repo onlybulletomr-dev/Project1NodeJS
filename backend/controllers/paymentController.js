@@ -897,16 +897,16 @@ exports.getPaymentHistoryByInvoice = async (req, res) => {
     // Get all payment details for this invoice
     const paymentQuery = `
       SELECT 
-        paymentreceivedid,
-        invoiceid,
-        paymentdate,
-        amount,
-        paymentstatus,
-        transactionreference,
-        notes,
+        pd.paymentreceivedid,
+        pd.invoiceid,
+        pd.paymentdate,
+        pd.amount,
+        pd.paymentstatus,
+        pd.transactionreference,
+        pd.notes,
         pm.methodname as paymentmethod,
-        createdby,
-        createdat
+        pd.createdby,
+        pd.createdat
       FROM paymentdetail pd
       LEFT JOIN paymentmethodmaster pm ON pd.paymentmethodid = pm.paymentmethodid
       WHERE pd.invoiceid = $1 AND pd.deletedat IS NULL
