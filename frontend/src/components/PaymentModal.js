@@ -150,6 +150,11 @@ function PaymentModal({
   };
 
   const handleProcessPayment = () => {
+    console.log('[PAYMENT MODAL] handleProcessPayment triggered');
+    console.log('[PAYMENT MODAL] selectedPaymentMethod:', selectedPaymentMethod, `(type: ${typeof selectedPaymentMethod})`);
+    console.log('[PAYMENT MODAL] paymentAmount:', paymentAmount);
+    console.log('[PAYMENT MODAL] invoicePaymentAmounts:', invoicePaymentAmounts);
+    
     const paymentData = {
       paymentMethod: selectedPaymentMethod,
       totalAmount: Number(paymentAmount),
@@ -159,6 +164,8 @@ function PaymentModal({
       transactionReference: transactionReference,
       notes: notes
     };
+    
+    console.log('[PAYMENT MODAL] Final paymentData to send:', JSON.stringify(paymentData, null, 2));
     onProcessPayment(paymentData);
     handleClose();
   };

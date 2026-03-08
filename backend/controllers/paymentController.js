@@ -395,6 +395,9 @@ exports.updatePaymentStatus = async (req, res) => {
         // Validate PaymentMethodID
         const paymentMethodID = Number(PaymentMethodID);
         
+        console.log('[PAYMENT METHOD VALIDATION] PaymentMethodID input:', PaymentMethodID, `(type: ${typeof PaymentMethodID})`);
+        console.log('[PAYMENT METHOD VALIDATION] After Number():', paymentMethodID, `(isNaN: ${isNaN(paymentMethodID)})`);
+        
         if (isNaN(paymentMethodID)) {
           console.error('[ERROR] Invalid PaymentMethodID (not a number):', PaymentMethodID);
           return res.status(400).json({
@@ -415,7 +418,7 @@ exports.updatePaymentStatus = async (req, res) => {
           });
         }
         
-        console.log('[PAYMENT VALIDATION] PaymentMethod verified:', paymentMethodCheck.methodname, `(ID: ${paymentMethodID})`);
+        console.log('[PAYMENT VALIDATION] PaymentMethod verified:', paymentMethodCheck.methodname, `(ID: ${paymentMethodID})`);;
         
         // Get user's branch information
         const userQuery = `
@@ -473,9 +476,10 @@ exports.updatePaymentStatus = async (req, res) => {
           createdby: userId
         };
 
-
+        console.log('[PAYMENT DETAIL DATA] About to create payment detail with:', JSON.stringify(paymentDetailData, null, 2));
+        
         const paymentDetailRecord = await PaymentDetail.create(paymentDetailData);
-        console.log('[SUCCESS] Regular payment recorded:', paymentDetailRecord);
+        console.log('[SUCCESS] Regular payment recorded:', JSON.stringify(paymentDetailRecord, null, 2));
 
         // Check if payment exceeds invoice amount (overpayment/advance)
         const overpaymentAmount = Number(Amount) - invoicePaymentAmount;
@@ -537,7 +541,11 @@ exports.updatePaymentStatus = async (req, res) => {
 
         }
       } catch (error) {
-        console.error('Error recording payment detail:', error);
+        console.error('[ERROR-PAYMENT-DETAIL] Error recording payment detail:', error.message);
+        console.error('[ERROR-PAYMENT-DETAIL] Error code:', error.code);
+        console.error('[ERROR-PAYMENT-DETAIL] Error constraint:', error.constraint);
+        console.error('[ERROR-PAYMENT-DETAIL] Error detail:', error.detail);
+        console.error('[ERROR-PAYMENT-DETAIL] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         // Don't fail the payment status update if payment detail recording fails
         // Just log the error
       }
