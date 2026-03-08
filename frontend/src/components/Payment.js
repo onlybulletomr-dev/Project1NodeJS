@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getPaymentInvoicesByStatus, getPaymentSummary, updatePaymentStatus, getPaymentMethods, recordAdvancePayment } from '../api';
 import PaymentModal from './PaymentModal';
+import PaymentHistoryModal from './PaymentHistoryModal';
 import '../styles/Payment.css';
 
 function Payment() {
@@ -17,6 +18,10 @@ function Payment() {
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
+
+  // Payment history modal state
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  const [selectedInvoiceForHistory, setSelectedInvoiceForHistory] = useState(null);
 
   useEffect(() => {
     fetchPaymentSummary();
@@ -82,6 +87,17 @@ function Payment() {
   const handlePaymentModalClose = () => {
     setShowPaymentModal(false);
     setSelectedInvoiceForPayment(null);
+  };
+
+  const handleShowPaymentHistory = (invoice) => {
+    console.log('[PAYMENT HISTORY] Opening history for invoice:', invoice.invoiceid);
+    setSelectedInvoiceForHistory(invoice);
+    setShowPaymentHistory(true);
+  };
+
+  const handlePaymentHistoryClose = () => {
+    setShowPaymentHistory(false);
+    setSelectedInvoiceForHistory(null);
   };
 
   const handleProcessPaymentFromModal = async (paymentData) => {
@@ -329,7 +345,11 @@ function Payment() {
                 </thead>
                 <tbody>
                   {sortedInvoices.map((invoice, index) => (
-                    <tr key={`${invoice.invoiceid}-${invoice.paymentreceivedid || 'np'}-${index}`}>
+                    <tr 
+                      key={`${invoice.invoiceid}-${index}`}
+                      onDoubleClick={() => handleShowPaymentHistory(invoice)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td className="invoice-number">{invoice.invoicenumber}</td>
                       <td>{invoice.vehiclenumber}</td>
                       <td>{invoice.customername}</td>
@@ -338,7 +358,7 @@ function Payment() {
                       <td className="amount-cell amount-paid">{formatCurrency(invoice.amountpaid || 0)}</td>
                       <td className="amount-cell amount-pending">{formatCurrency(invoice.amounttobepaid || 0)}</td>
                       <td>{formatDate(invoice.createdat)}</td>
-                      <td>{formatDate(invoice.paymentdate || invoice.invoicepaymentdate)}</td>
+                      <td>{formatDate(invoice.lastpaymentdate || invoice.paymentdate || invoice.invoicepaymentdate)}</td>
                       <td className="action-cell">
                         {selectedStatus !== 'Paid' ? (
                           <button
@@ -374,8 +394,16 @@ function Payment() {
         onProcessPayment={handleProcessPaymentFromModal}
         paymentMethods={paymentMethods}
       />
+      
+      <PaymentHistoryModal
+        isOpen={showPaymentHistory}
+        onClose={handlePaymentHistoryClose}
+        invoiceId={selectedInvoiceForHistory?.invoiceid}
+        invoiceNumber={selectedInvoiceForHistory?.invoicenumber}
+      />
     </div>
   );
 }
+
 
 export default Payment;

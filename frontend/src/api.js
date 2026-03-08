@@ -611,6 +611,17 @@ export const getActivePaymentMethods = async () => {
   }
 };
 
+// Get payment history for a specific invoice
+export const getPaymentHistoryByInvoice = async (invoiceId) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/payments/history/${invoiceId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching payment history:', error);
+    throw error;
+  }
+};
+
 // Get next invoice number (determines running number based on database state)
 export const getNextInvoiceNumber = async () => {
   try {
@@ -730,6 +741,19 @@ export const updatePaymentStatus = async (invoiceId, paymentData) => {
     return response.data;
   } catch (error) {
     console.error('Error updating payment status:', error);
+    throw error;
+  }
+};
+
+// Get payment history for a specific invoice
+export const getPaymentHistory = async (invoiceId) => {
+  try {
+    console.log('[API REQUEST] getPaymentHistory for invoice:', invoiceId);
+    const response = await axios.get(`${API_BASE_URL}/payments/history/${invoiceId}`);
+    console.log('[API RESPONSE] getPaymentHistory:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching payment history:', error);
     throw error;
   }
 };

@@ -122,10 +122,7 @@ exports.getInvoicesByStatus = async (req, res) => {
         im.vehicleid,
         COALESCE(totals.amountpaid, 0) AS amountpaid,
         COALESCE(im.totalamount, 0) - COALESCE(totals.amountpaid, 0) AS amounttobepaid,
-        pd.paymentreceivedid,
-        pd.paymentdate,
-        COALESCE(pd.amount, 0) AS paymentamount,
-        pm.methodname AS paymentmode
+        COALESCE(lastpayment.lastpaymentdate, NULL) AS lastpaymentdate
       FROM invoicemaster im
       LEFT JOIN customermaster cm
         ON im.customerid = cm.customerid
@@ -136,15 +133,15 @@ exports.getInvoicesByStatus = async (req, res) => {
         WHERE p2.invoiceid = im.invoiceid
           AND p2.deletedat IS NULL
       ) totals ON TRUE
-      LEFT JOIN paymentdetail pd
-        ON pd.invoiceid = im.invoiceid
-        AND pd.deletedat IS NULL
-        AND pd.paymentstatus IN ('Paid', 'Completed')
-      LEFT JOIN paymentmethodmaster pm
-        ON pm.paymentmethodid = pd.paymentmethodid
-        AND pm.deletedat IS NULL
+      LEFT JOIN LATERAL (
+        SELECT MAX(pd.paymentdate) AS lastpaymentdate
+        FROM paymentdetail pd
+        WHERE pd.invoiceid = im.invoiceid
+          AND pd.deletedat IS NULL
+          AND pd.paymentstatus IN ('Paid', 'Completed')
+      ) lastpayment ON TRUE
       ${whereClause}
-      ORDER BY im.createdat DESC, pd.paymentdate DESC NULLS LAST, pd.paymentreceivedid DESC NULLS LAST
+      ORDER BY im.createdat DESC
     `;
 
     const result = await pool.query(query, queryParams);
@@ -851,6 +848,109 @@ exports.getCustomerAdvanceTransactions = async (req, res) => {
   }
 };
 
+// Get payment history for a specific invoice
+exports.getPaymentHistoryByInvoice = async (req, res) => {
+  try {
+    const { InvoiceID } = req.params;
+    const userId = req.headers['x-user-id'] || 1;
+
+    if (!InvoiceID) {
+      return res.status(400).json({
+        success: false,
+        message: 'InvoiceID is required'
+      });
+    }
+
+    // Get user's branch
+    const userQuery = `
+      SELECT branchid FROM employeemaster 
+      WHERE employeeid = $1 AND deletedat IS NULL
+    `;
+    const userResult = await pool.query(userQuery, [userId]);
+    const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
+
+    // Get invoice details first
+    const invoiceQuery = `
+      SELECT 
+        invoiceid,
+        invoicenumber,
+        vehiclenumber,
+        totalamount,
+        paymentstatus,
+        createdat,
+        COALESCE(paymentdate, createdat) as paymentdate
+      FROM invoicemaster
+      WHERE invoiceid = $1 AND branchid = $2 AND deletedat IS NULL
+    `;
+    const invoiceResult = await pool.query(invoiceQuery, [InvoiceID, userBranchID]);
+    
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found'
+      });
+    }
+
+    const invoiceData = invoiceResult.rows[0];
+
+    // Get all payment details for this invoice
+    const paymentQuery = `
+      SELECT 
+        paymentreceivedid,
+        invoiceid,
+        paymentdate,
+        amount,
+        paymentstatus,
+        transactionreference,
+        notes,
+        pm.methodname as paymentmethod,
+        createdby,
+        createdat
+      FROM paymentdetail pd
+      LEFT JOIN paymentmethodmaster pm ON pd.paymentmethodid = pm.paymentmethodid
+      WHERE pd.invoiceid = $1 AND pd.deletedat IS NULL
+      ORDER BY pd.createdat DESC
+    `;
+    const paymentResult = await pool.query(paymentQuery, [InvoiceID]);
+
+    // Calculate totals
+    const totalPaid = paymentResult.rows.reduce((sum, row) => {
+      if (row.paymentstatus === 'Paid' || row.paymentstatus === 'Completed') {
+        return sum + parseFloat(row.amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    const pendingAmount = parseFloat(invoiceData.totalamount) - totalPaid;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        invoice: {
+          invoiceid: invoiceData.invoiceid,
+          invoicenumber: invoiceData.invoicenumber,
+          vehiclenumber: invoiceData.vehiclenumber,
+          totalamount: invoiceData.totalamount,
+          paymentstatus: invoiceData.paymentstatus,
+          totalPaid: totalPaid.toFixed(2),
+          pendingAmount: pendingAmount.toFixed(2),
+          invoiceDate: invoiceData.createdat,
+          lastPaymentDate: paymentResult.rows.length > 0 ? paymentResult.rows[0].paymentdate : null
+        },
+        payments: paymentResult.rows
+      },
+      message: 'Payment history retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching payment history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payment history',
+      error: error.message
+    });
+  }
+};
+
 // Get payment method by ID
 exports.getPaymentMethodById = async (req, res) => {
   try {
@@ -874,6 +974,87 @@ exports.getPaymentMethodById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch payment method',
+      error: error.message
+    });
+  }
+};
+
+// Get payment history for a specific invoice
+exports.getPaymentHistory = async (req, res) => {
+  try {
+    const { invoiceid } = req.params;
+    const userId = req.headers['x-user-id'] || 1;
+
+    if (!invoiceid) {
+      return res.status(400).json({
+        success: false,
+        message: 'invoiceid is required'
+      });
+    }
+
+    // Get user's branch
+    const userQuery = `
+      SELECT branchid FROM employeemaster 
+      WHERE employeeid = $1 AND deletedat IS NULL
+    `;
+    const userResult = await pool.query(userQuery, [userId]);
+    const userBranchID = userResult.rows.length > 0 ? userResult.rows[0].branchid : 1;
+
+    // Get invoice details
+    const invoiceQuery = `
+      SELECT 
+        invoiceid,
+        invoicenumber,
+        vehiclenumber,
+        totalamount,
+        paymentstatus,
+        createdat
+      FROM invoicemaster
+      WHERE invoiceid = $1 AND deletedat IS NULL AND branchid = $2
+    `;
+    const invoiceResult = await pool.query(invoiceQuery, [invoiceid, userBranchID]);
+    
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found'
+      });
+    }
+
+    const invoice = invoiceResult.rows[0];
+
+    // Get all payments for this invoice
+    const paymentsQuery = `
+      SELECT 
+        pd.paymentreceivedid,
+        pd.paymentdate,
+        pd.amount,
+        pm.methodname as paymentmethod,
+        pd.notes,
+        pd.paymentstatus
+      FROM paymentdetail pd
+      LEFT JOIN paymentmethodmaster pm
+        ON pm.paymentmethodid = pd.paymentmethodid
+        AND pm.deletedat IS NULL
+      WHERE pd.invoiceid = $1 
+        AND pd.deletedat IS NULL
+      ORDER BY pd.paymentdate DESC
+    `;
+    const paymentsResult = await pool.query(paymentsQuery, [invoiceid]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        invoice: invoice,
+        payments: paymentsResult.rows
+      },
+      message: 'Payment history retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching payment history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payment history',
       error: error.message
     });
   }

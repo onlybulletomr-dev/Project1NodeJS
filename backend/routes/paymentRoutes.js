@@ -23,6 +23,9 @@ router.get('/methods/active', paymentController.getActivePaymentMethods);
 // Get payment method by ID
 router.get('/methods/:id', paymentController.getPaymentMethodById);
 
+// Get payment history for a specific invoice
+router.get('/history/:InvoiceID', paymentController.getPaymentHistoryByInvoice);
+
 // Record advance payment (payment without invoice)
 router.post('/advance', paymentController.recordAdvancePayment);
 
