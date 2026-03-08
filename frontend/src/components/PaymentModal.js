@@ -16,7 +16,7 @@ function PaymentModal({
 }) {
   const [vehicleData, setVehicleData] = useState(null);
   const [invoices, setInvoices] = useState([]);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [invoicePaymentAmounts, setInvoicePaymentAmounts] = useState({});
   const [transactionReference, setTransactionReference] = useState('');
@@ -100,7 +100,7 @@ function PaymentModal({
   const resetState = () => {
     setVehicleData(null);
     setInvoices([]);
-    setSelectedPaymentMethod('');
+    setSelectedPaymentMethod('Cash');
     setPaymentAmount('');
     setInvoicePaymentAmounts({});
     setTransactionReference('');
@@ -186,12 +186,10 @@ function PaymentModal({
   const remainingAmount = Number(
     totalPendingAmount - Object.values(invoicePaymentAmounts).reduce((sum, amt) => sum + (Number(amt) || 0), 0)
   );
-  const upiId = process.env.REACT_APP_UPI_ID || '';
-  const upiPayeeName = process.env.REACT_APP_UPI_PAYEE_NAME || 'Project1NodeJS_Production';
-  const qrPayload = upiId
-    ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiPayeeName)}&am=${totalPendingAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Invoice Payment')}`
-    : `PAY|INR|${totalPendingAmount.toFixed(2)}|Invoice Payment`;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrPayload)}`;
+  const gpayNumber = '9962285538';
+  const amountPayable = Number(remainingAmount) || 0;
+  const qrPayload = `upi://pay?pa=9962285538@okhdfcbank&pn=Project1&am=${amountPayable.toFixed(2)}&cu=INR&tn=Invoice Payment`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrPayload)}`;
 
   if (!isOpen) return null;
 
@@ -306,15 +304,15 @@ function PaymentModal({
                 </div>
               </div>
               
-              {/* Amount to Pay Display */}
+              {/* Invoice Value and Amount Payable Display */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 12, paddingBottom: 12, borderTop: '1px solid #eee', borderBottom: '1px solid #eee', marginBottom: 16, background: '#f9f9f9', padding: 12, borderRadius: 4 }}>
                 <div>
-                  <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Amount to be Paid</div>
-                  <div style={{ color: '#d32f2f', fontSize: 18, fontWeight: 700 }}>₹{(Number(amountToPay) || Number(totalPendingAmount) || 0).toFixed(2)}</div>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Invoice Value</div>
+                  <div style={{ color: '#2196F3', fontSize: 18, fontWeight: 700 }}>₹{(Number(amountToPay) || Number(totalPendingAmount) || 0).toFixed(2)}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Remaining</div>
-                  <div style={{ color: '#2196F3', fontSize: 16, fontWeight: 700 }}>₹{(Number(remainingAmount) || 0).toFixed(2)}</div>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Amount Payable</div>
+                  <div style={{ color: '#d32f2f', fontSize: 18, fontWeight: 700 }}>₹{(Number(remainingAmount) || 0).toFixed(2)}</div>
                 </div>
               </div>
             </div>
@@ -339,6 +337,7 @@ function PaymentModal({
                   }}
                 >
                   <option value="">-- Select Method --</option>
+                  <option value="Cash">Cash</option>
                   {paymentMethods.map(method => (
                     <option key={method.paymentmethodid} value={method.paymentmethodid}>
                       {method.methodname}
@@ -351,7 +350,7 @@ function PaymentModal({
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <label style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>Amount:</label>
                 <input
-                  type="number"
+                  type="text"
                   placeholder="Enter amount"
                   value={paymentAmount}
                   onChange={e => handleTotalAmountChange(e.target.value)}
@@ -364,6 +363,19 @@ function PaymentModal({
                     boxSizing: 'border-box'
                   }}
                 />
+              </div>
+            </div>
+
+            {/* QR Code Section */}
+            <div style={{ marginBottom: 20, padding: 12, background: '#f9f9f9', borderRadius: 4, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 10 }}>Scan to Pay via Google Pay</div>
+              <img
+                src={qrImageUrl}
+                alt="GPay QR"
+                style={{ width: 150, height: 150, border: '2px solid #ddd', borderRadius: 6, padding: 4, background: '#fff' }}
+              />
+              <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
+                Amount: <strong>₹{amountPayable.toFixed(2)}</strong> | GPay: <strong>{gpayNumber}</strong>
               </div>
             </div>
 
