@@ -27,38 +27,12 @@ function PaymentModal({
   // Fetch invoices for the vehicle when modal opens
   useEffect(() => {
     if (isOpen && vehicleId) {
-      // If props were passed, skip fetching and use them directly
-      if (vehicleNumber && invoiceId !== undefined && invoiceId !== null) {
-        console.log('[PAYMENT MODAL] Using props directly - Vehicle:', vehicleNumber, 'Amount:', amountToPay, 'InvoiceId:', invoiceId);
-        setVehicleData({
-          vehiclenumber: vehicleNumber,
-          customername: customername
-        });
-        // Pre-populate with the invoice data
-        const numAmount = Number(amountToPay) || 0;
-        const invoiceData = {
-          invoiceid: invoiceId,
-          invoicenumber: invoiceNumber,
-          vehiclenumber: vehicleNumber,
-          customername: customername,
-          totalamount: Number(totalAmount) || 0,
-          amounttobepaid: numAmount,
-          amount: numAmount
-        };
-        setInvoices([invoiceData]);
-        // Pre-populate the payment amount for this invoice
-        setInvoicePaymentAmounts({
-          [invoiceId]: numAmount
-        });
-        setError(null);
-      } else {
-        // Fallback: fetch from API if props aren't provided
-        fetchInvoicesForVehicle();
-      }
+      // Always fetch all invoices for the vehicle from the API
+      fetchInvoicesForVehicle();
     } else {
       resetState();
     }
-  }, [isOpen, vehicleId, vehicleNumber, invoiceId]);
+  }, [isOpen, vehicleId]);
 
   const fetchInvoicesForVehicle = async () => {
     setLoading(true);
@@ -308,7 +282,7 @@ function PaymentModal({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, fontSize: 13, fontWeight: 600, color: '#333', paddingTop: 12, paddingBottom: 12, borderTop: '1px solid #eee', borderBottom: '1px solid #eee', marginBottom: 16, background: '#f9f9f9', padding: 12, borderRadius: 4 }}>
                 <div>
                   <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Invoice Value</div>
-                  <div style={{ color: '#2196F3', fontSize: 18, fontWeight: 700 }}>₹{(Number(amountToPay) || Number(totalPendingAmount) || 0).toFixed(2)}</div>
+                  <div style={{ color: '#2196F3', fontSize: 18, fontWeight: 700 }}>₹{(Number(totalPendingAmount) || 0).toFixed(2)}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Amount Payable</div>
