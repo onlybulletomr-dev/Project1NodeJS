@@ -324,8 +324,6 @@ function Payment() {
                     <th className="sortable amount-header" onClick={() => handleSort('amounttobepaid')}>Pending{renderSortIndicator('amounttobepaid')}</th>
                     <th className="sortable" onClick={() => handleSort('createdat')}>Invoice Date{renderSortIndicator('createdat')}</th>
                     <th className="sortable" onClick={() => handleSort('paymentdate')}>Paid Date{renderSortIndicator('paymentdate')}</th>
-                    <th className="sortable" onClick={() => handleSort('paymentmode')}>Mode{renderSortIndicator('paymentmode')}</th>
-                    <th className="sortable amount-header" onClick={() => handleSort('paymentamount')}>Payment Amount{renderSortIndicator('paymentamount')}</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -341,8 +339,6 @@ function Payment() {
                       <td className="amount-cell amount-pending">{formatCurrency(invoice.amounttobepaid || 0)}</td>
                       <td>{formatDate(invoice.createdat)}</td>
                       <td>{formatDate(invoice.paymentdate || invoice.invoicepaymentdate)}</td>
-                      <td>{invoice.paymentmode || '-'}</td>
-                      <td className="amount-cell">{invoice.paymentreceivedid ? formatCurrency(invoice.paymentamount || 0) : '-'}</td>
                       <td className="action-cell">
                         {selectedStatus !== 'Paid' ? (
                           <button
@@ -356,7 +352,7 @@ function Payment() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  ))}}
                 </tbody>
               </table>
             </div>

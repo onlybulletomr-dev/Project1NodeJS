@@ -16,13 +16,23 @@ function PaymentModal({
 }) {
   const [vehicleData, setVehicleData] = useState(null);
   const [invoices, setInvoices] = useState([]);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(() => {
+    // Initialize with first payment method's ID if available
+    return paymentMethods.length > 0 ? paymentMethods[0].paymentmethodid : '';
+  });
   const [paymentAmount, setPaymentAmount] = useState('');
   const [invoicePaymentAmounts, setInvoicePaymentAmounts] = useState({});
   const [transactionReference, setTransactionReference] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Initialize selected payment method when paymentMethods changes
+  useEffect(() => {
+    if (paymentMethods.length > 0 && !selectedPaymentMethod) {
+      setSelectedPaymentMethod(paymentMethods[0].paymentmethodid);
+    }
+  }, [paymentMethods]);
 
   // Fetch invoices for the vehicle when modal opens
   useEffect(() => {
@@ -74,7 +84,8 @@ function PaymentModal({
   const resetState = () => {
     setVehicleData(null);
     setInvoices([]);
-    setSelectedPaymentMethod('Cash');
+    // Reset to first payment method's ID or empty string
+    setSelectedPaymentMethod(paymentMethods.length > 0 ? paymentMethods[0].paymentmethodid : '');
     setPaymentAmount('');
     setInvoicePaymentAmounts({});
     setTransactionReference('');
@@ -318,7 +329,6 @@ function PaymentModal({
                   }}
                 >
                   <option value="">-- Select Method --</option>
-                  <option value="Cash">Cash</option>
                   {paymentMethods.map(method => (
                     <option key={method.paymentmethodid} value={method.paymentmethodid}>
                       {method.methodname}

@@ -312,6 +312,16 @@ exports.updatePaymentStatus = async (req, res) => {
     } = req.body;
     const userId = req.headers['x-user-id'] || 1;
 
+    console.log('\n=== UPDATE PAYMENT STATUS REQUEST ===');
+    console.log('InvoiceID:', InvoiceID);
+    console.log('PaymentStatus:', PaymentStatus);
+    console.log('PaymentMethodID:', PaymentMethodID, `(type: ${typeof PaymentMethodID})`);
+    console.log('Amount:', Amount, `(type: ${typeof Amount})`);
+    console.log('TransactionReference:', TransactionReference);
+    console.log('Notes:', Notes);
+    console.log('UserId:', userId);
+    console.log('===================================\n');
+
     if (!InvoiceID || !PaymentStatus) {
       return res.status(400).json({
         success: false,
@@ -372,9 +382,41 @@ exports.updatePaymentStatus = async (req, res) => {
 
     const result = await pool.query(query, [finalPaymentStatus, paymentDateValue, updatedAt, userId, InvoiceID]);
 
+    console.log('[PAYMENT STATUS UPDATE] Invoice status updated to:', finalPaymentStatus);
+    console.log('[PAYMENT DETAIL CHECK] Conditions for creating payment detail:');
+    console.log('  - finalPaymentStatus is Paid or Partial?', (finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial'));
+    console.log('  - Amount provided?', !!Amount, `(Amount=${Amount})`);
+    console.log('  - PaymentMethodID provided?', !!PaymentMethodID, `(PaymentMethodID=${PaymentMethodID})`);
+
     // If payment status is "Paid" or "Partial" and we have amount, record payment details
     if ((finalPaymentStatus === 'Paid' || finalPaymentStatus === 'Partial') && Amount && PaymentMethodID) {
+      console.log('[PAYMENT DETAIL] Creating payment detail record...');
       try {
+        // Validate PaymentMethodID
+        const paymentMethodID = Number(PaymentMethodID);
+        
+        if (isNaN(paymentMethodID)) {
+          console.error('[ERROR] Invalid PaymentMethodID (not a number):', PaymentMethodID);
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid PaymentMethodID. Must be a valid payment method ID.',
+            details: `Received: ${PaymentMethodID} (type: ${typeof PaymentMethodID})`
+          });
+        }
+
+        // Verify payment method exists
+        const paymentMethodCheck = await PaymentMethodMaster.getById(paymentMethodID);
+        if (!paymentMethodCheck) {
+          console.error('[ERROR] PaymentMethodID not found in paymentmethodmaster:', paymentMethodID);
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid PaymentMethodID. Payment method not found.',
+            details: `PaymentMethodID ${paymentMethodID} does not exist in the database`
+          });
+        }
+        
+        console.log('[PAYMENT VALIDATION] PaymentMethod verified:', paymentMethodCheck.methodname, `(ID: ${paymentMethodID})`);
+        
         // Get user's branch information
         const userQuery = `
           SELECT branchid FROM employeemaster 
@@ -386,8 +428,29 @@ exports.updatePaymentStatus = async (req, res) => {
         const invoiceAmount = result.rows[0].totalamount || 0;
         let vehicleID = result.rows[0].vehicleid;
 
-        // VehicleID is used directly from invoice (validated by FK constraint)
-        const finalVehicleID = vehicleID || null;
+        // Validate that vehicleID exists in vehicledetail table (FK references vehicledetailid)
+        let finalVehicleID = null;
+        if (vehicleID) {
+          try {
+            // The FK constraint references vehicledetail(vehicledetailid), so check that column
+            const vehicleCheckQuery = `
+              SELECT vehicledetailid FROM vehicledetail 
+              WHERE vehicledetailid = $1 AND deletedat IS NULL
+              LIMIT 1
+            `;
+            const vehicleCheckResult = await pool.query(vehicleCheckQuery, [vehicleID]);
+            if (vehicleCheckResult.rows.length > 0) {
+              finalVehicleID = vehicleID;
+              console.log('[VEHICLE VALIDATION] Vehicle ID exists:', vehicleID);
+            } else {
+              console.warn('[VEHICLE VALIDATION] Vehicle ID does not exist in vehicledetail table:', vehicleID, '- will set to NULL in payment record');
+              finalVehicleID = null;
+            }
+          } catch (err) {
+            console.warn('[VEHICLE VALIDATION] Error checking vehicle:', err.message, '- will set to NULL');
+            finalVehicleID = null;
+          }
+        }
 
         // Calculate the invoice payment amount (capped at invoice amount)
         const invoicePaymentAmount = Math.min(Number(Amount), Number(invoiceAmount));
@@ -396,7 +459,7 @@ exports.updatePaymentStatus = async (req, res) => {
         const paymentDetailData = {
           invoiceid: InvoiceID,
           vehicleid: finalVehicleID,
-          paymentmethodid: PaymentMethodID,
+          paymentmethodid: paymentMethodID,  // Use validated ID
           processedbyuserid: userId,
           branchid: userBranchID,
           paymentdate: paymentDateValue,
@@ -451,7 +514,7 @@ exports.updatePaymentStatus = async (req, res) => {
             const advancePaymentData = {
               invoiceid: null,  // NULL marks advance payment (not tied to specific invoice)
               vehicleid: finalVehicleID,
-              paymentmethodid: PaymentMethodID,
+              paymentmethodid: paymentMethodID,  // Use validated method ID
               processedbyuserid: userId,
               branchid: userBranchID,
               paymentdate: paymentDateValue,
@@ -467,6 +530,7 @@ exports.updatePaymentStatus = async (req, res) => {
 
             const advanceRecord = await PaymentDetail.create(advancePaymentData);
           } catch (advanceError) {
+            console.warn('[ADVANCE PAYMENT ERROR]:', advanceError.message);
             // Silently fail if advance payment recording fails
           }
         } else {
