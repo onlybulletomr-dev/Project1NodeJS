@@ -4,10 +4,11 @@ class ServiceMaster {
   static async searchByServiceName(servicename) {
     try {
       const result = await pool.query(
-        `SELECT serviceid, servicename, description, defaultrate
+        `SELECT serviceid, servicenumber, servicename, description, defaultrate
          FROM ServiceMaster 
-         WHERE (servicename ILIKE $1 OR description ILIKE $1)
+         WHERE (servicename ILIKE $1 OR servicenumber ILIKE $1 OR description ILIKE $1)
          AND deletedat IS NULL
+         ORDER BY servicenumber, servicename
          LIMIT 20`,
         [`%${servicename}%`]
       );
@@ -35,10 +36,10 @@ class ServiceMaster {
   static async getAll() {
     try {
       const result = await pool.query(
-        `SELECT serviceid, servicename, description, defaultrate
+        `SELECT serviceid, servicenumber, servicename, description, defaultrate
          FROM ServiceMaster 
          WHERE deletedat IS NULL 
-         ORDER BY servicename`
+         ORDER BY servicenumber, servicename`
       );
       return result.rows;
     } catch (error) {

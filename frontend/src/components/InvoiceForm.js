@@ -996,7 +996,7 @@ A/c Type          : Current Account
       // Format display based on source (item or service)
       const displayText = item.source === 'item' 
         ? `${item.partnumber} - ${item.itemdescription || item.itemname}`
-        : `${item.serviceid} - ${item.servicename}`;
+        : `${item.itemnumber || item.servicenumber} - ${item.servicename || item.itemdescription}`;
       setItemInput(displayText);
       setShowItemPopup(false);
       setItemPopupIndex(-1);
@@ -1076,7 +1076,7 @@ A/c Type          : Current Account
               ...prevRows,
               {
                 ...selectedItem,
-                ItemNumber: selectedItem.source === 'item' ? selectedItem.partnumber : selectedItem.serviceid,
+                ItemNumber: selectedItem.source === 'item' ? selectedItem.partnumber : (selectedItem.itemnumber || selectedItem.servicenumber),
                 ItemName: itemName,
                 Qty: Number(qtyInput),
                 Discount: 0,
@@ -1609,7 +1609,7 @@ A/c Type          : Current Account
           const serviceInfo = serviceMap.get(rawItemId);
           const source = itemInfo ? 'item' : (serviceInfo ? 'service' : 'item');
 
-          const itemNumber = itemInfo?.partnumber || (serviceInfo ? String(serviceInfo.serviceid) : rawItemId);
+          const itemNumber = itemInfo?.partnumber || (serviceInfo ? (serviceInfo.servicenumber || String(serviceInfo.serviceid)) : rawItemId);
           const itemName = itemInfo
             ? (itemInfo.description || itemInfo.itemname || itemNumber)
             : (serviceInfo?.servicename || rawItemId);

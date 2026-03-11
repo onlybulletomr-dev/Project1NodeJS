@@ -97,11 +97,11 @@ router.get('/items-services/search', async (req, res) => {
     `;
 
     const servicesQuery = `
-      SELECT serviceid, servicename, description, defaultrate
+      SELECT serviceid, servicenumber, servicename, description, defaultrate
       FROM servicemaster
-      WHERE (servicename ILIKE $1 OR description ILIKE $1)
+      WHERE (servicename ILIKE $1 OR servicenumber ILIKE $1 OR description ILIKE $1)
         AND deletedat IS NULL
-      ORDER BY servicename
+      ORDER BY servicenumber, servicename
     `;
 
     const [itemsResult, servicesResult] = await Promise.all([
@@ -127,8 +127,9 @@ router.get('/items-services/search', async (req, res) => {
     const enrichedServices = services.map(service => ({
       ...service,
       source: 'service',
-      itemnumber: String(service.serviceid),
+      itemnumber: service.servicenumber,
       itemdescription: service.servicename,
+      itemname: service.servicename,
       itemprice: service.defaultrate,
       availableqty: null
     }));
@@ -169,10 +170,10 @@ router.get('/items-services/all', async (req, res) => {
 
     // Get all services
     const servicesQuery = `
-      SELECT serviceid, servicename, description, defaultrate
+      SELECT serviceid, servicenumber, servicename, description, defaultrate
       FROM servicemaster
       WHERE deletedat IS NULL
-      ORDER BY servicename
+      ORDER BY servicenumber, servicename
     `;
 
     const [itemsResult, servicesResult] = await Promise.all([
@@ -198,8 +199,9 @@ router.get('/items-services/all', async (req, res) => {
     const enrichedServices = services.map(service => ({
       ...service,
       source: 'service',
-      itemnumber: String(service.serviceid),
+      itemnumber: service.servicenumber,
       itemdescription: service.servicename,
+      itemname: service.servicename,
       itemprice: service.defaultrate
     }));
 
