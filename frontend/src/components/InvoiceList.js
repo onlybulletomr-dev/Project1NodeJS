@@ -583,6 +583,12 @@ const InvoiceList = () => {
                       </p>
                     </div>
                     <div>
+                      <p style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600, margin: '0 0 4px 0' }}>Phone Number</p>
+                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#1f2937', margin: 0, fontFamily: 'monospace' }}>
+                        {invoiceDetails.customer_phonenumber || selectedInvoice.customer_phonenumber || '-'}
+                      </p>
+                    </div>
+                    <div>
                       <p style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600, margin: '0 0 4px 0' }}>Vehicle Number</p>
                       <p style={{ fontSize: '16px', fontWeight: '700', color: '#1f2937', margin: 0, fontFamily: 'monospace' }}>
                         {invoiceDetails.vehiclenumber || selectedInvoice.vehiclenumber || '-'}
@@ -614,7 +620,8 @@ const InvoiceList = () => {
                         }}>
                           <thead>
                             <tr style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
-                              <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Item</th>
+                              <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Part/Service #</th>
+                              <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Description</th>
                               <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Qty</th>
                               <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Rate</th>
                               <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Amount</th>
@@ -623,6 +630,7 @@ const InvoiceList = () => {
                           <tbody>
                             {(invoiceDetails.items || invoiceDetails.InvoiceDetail || []).map((item, idx) => (
                               <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: idx % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                                <td style={{ padding: '10px 8px', color: '#374151', fontWeight: '600', fontFamily: 'monospace' }}>{item.partnumber || item.servicenumber || item.itemid || '-'}</td>
                                 <td style={{ padding: '10px 8px', color: '#374151' }}>{item.description || item.itemname || '-'}</td>
                                 <td style={{ padding: '10px 8px', textAlign: 'right', color: '#374151' }}>{item.quantity || item.qty || 0}</td>
                                 <td style={{ padding: '10px 8px', textAlign: 'right', color: '#374151' }}>₹{(item.rate || item.unitPrice || 0).toFixed(2)}</td>

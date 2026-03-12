@@ -108,7 +108,13 @@ class InvoiceMaster {
 
   static async getById(id) {
     const result = await pool.query(
-      `SELECT * FROM invoicemaster WHERE invoiceid = $1 AND deletedat IS NULL`,
+      `SELECT 
+        im.*,
+        cm.mobilenumber1 as customer_phonenumber,
+        cm.mobilenumber2 as customer_phonenumber2
+      FROM invoicemaster im
+      LEFT JOIN customermaster cm ON im.customerid = cm.customerid
+      WHERE im.invoiceid = $1 AND im.deletedat IS NULL`,
       [id]
     );
     return result.rows[0];
@@ -143,13 +149,15 @@ class InvoiceMaster {
         im.paymentstatus,
         im.paymentdate,
         COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
+        cm.mobilenumber1 as customer_phonenumber,
+        cm.mobilenumber2 as customer_phonenumber2,
         COALESCE(SUM(pd.amount), 0) as paidamount
       FROM invoicemaster im
       LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
       LEFT JOIN paymentdetail pd ON im.invoiceid = pd.invoiceid AND pd.deletedat IS NULL
       WHERE im.branchid = $1 AND im.deletedat IS NULL
       GROUP BY im.invoiceid, im.invoicenumber, im.invoicedate, im.branchid, im.customerid, im.vehicleid, 
-               im.vehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname
+               im.vehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname, cm.mobilenumber1, cm.mobilenumber2
       ORDER BY im.invoicedate DESC`,
       [branchId]
     );
@@ -172,6 +180,8 @@ class InvoiceMaster {
           im.paymentstatus,
           im.paymentdate,
           COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
+          cm.mobilenumber1 as customer_phonenumber,
+          cm.mobilenumber2 as customer_phonenumber2,
           COALESCE(SUM(pd.amount), 0) as paidamount
         FROM invoicemaster im
         LEFT JOIN LATERAL (
@@ -186,7 +196,7 @@ class InvoiceMaster {
           AND LOWER(REGEXP_REPLACE(COALESCE(NULLIF(im.vehiclenumber, ''), vd.resolvedvehiclenumber, ''), '\\s+', '', 'g')) LIKE
               '%' || LOWER(REGEXP_REPLACE($1, '\\s+', '', 'g')) || '%'
         GROUP BY im.invoiceid, im.invoicenumber, im.invoicedate, im.branchid, im.customerid, im.vehicleid,
-                 im.vehiclenumber, vd.resolvedvehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname
+                 im.vehiclenumber, vd.resolvedvehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname, cm.mobilenumber1, cm.mobilenumber2
         ORDER BY im.invoicedate DESC`,
         [normalizedVehicleNumber]
       );
@@ -206,6 +216,8 @@ class InvoiceMaster {
           im.paymentstatus,
           im.paymentdate,
           COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
+          cm.mobilenumber1 as customer_phonenumber,
+          cm.mobilenumber2 as customer_phonenumber2,
           COALESCE(SUM(pd.amount), 0) as paidamount
         FROM invoicemaster im
         LEFT JOIN LATERAL (
@@ -220,7 +232,7 @@ class InvoiceMaster {
           AND LOWER(REGEXP_REPLACE(COALESCE(NULLIF(im.vehiclenumber, ''), vd.resolvedvehiclenumber, ''), '\\s+', '', 'g')) LIKE
               '%' || LOWER(REGEXP_REPLACE($1, '\\s+', '', 'g')) || '%'
         GROUP BY im.invoiceid, im.invoicenumber, im.invoicedate, im.branchid, im.customerid, im.vehicleid,
-                 im.vehiclenumber, vd.resolvedvehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname
+                 im.vehiclenumber, vd.resolvedvehiclenumber, im.totalamount, im.paymentstatus, im.paymentdate, cm.firstname, cm.lastname, cm.mobilenumber1, cm.mobilenumber2
         ORDER BY im.invoicedate DESC`,
         [normalizedVehicleNumber]
       );

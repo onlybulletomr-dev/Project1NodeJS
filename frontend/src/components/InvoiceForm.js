@@ -1104,11 +1104,11 @@ A/c Type          : Current Account
       setGsChecked(checked);
       
       if (checked) {
-        // Define the three services to add
+        // Define the three services to add - using serviceid 1, 2, 3 as per requirement
         const gsServices = [
-          { serviceid: 13, servicename: 'Water Wash', defaultrate: 150.00, source: 'service' },
-          { serviceid: 15, servicename: 'Chemical Charges', defaultrate: 180.00, source: 'service' },
-          { serviceid: 14, servicename: 'General Service', defaultrate: 880.00, source: 'service' }
+          { serviceid: 1, servicename: 'Water Wash', defaultrate: 150.00, source: 'service' },
+          { serviceid: 2, servicename: 'Chemical Charges', defaultrate: 180.00, source: 'service' },
+          { serviceid: 3, servicename: 'General Service', defaultrate: 880.00, source: 'service' }
         ];
 
         // Add all three services to grid
@@ -1136,7 +1136,7 @@ A/c Type          : Current Account
         // Remove the three GS services from grid when unchecked
         setGridRows(prevRows =>
           prevRows.filter(row => 
-            !(row.serviceid === 13 || row.serviceid === 15 || row.serviceid === 14)
+            !(row.serviceid === 1 || row.serviceid === 2 || row.serviceid === 3)
           )
         );
       }

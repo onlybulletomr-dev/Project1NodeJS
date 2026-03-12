@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 const host = process.env.DB_HOST;
 const isLocalhost = !host || host.includes('localhost') || host.includes('127.0.0.1');

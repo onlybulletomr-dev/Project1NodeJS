@@ -76,8 +76,31 @@ class InvoiceDetail {
 
     const orderByClause = orderByColumn ? ` ORDER BY ${orderByColumn}` : '';
 
+    // Query that joins with both itemmaster and servicemaster to get proper descriptions
     const result = await pool.query(
-      `SELECT * FROM invoicedetail WHERE invoiceid = $1 AND deletedat IS NULL${orderByClause}`,
+      `SELECT 
+        id.*,
+        -- Try to get from itemmaster first (for actual items)
+        COALESCE(im.partnumber, sm.servicenumber, CAST(id.itemid AS VARCHAR)) as partnumber,
+        COALESCE(im.partnumber, sm.servicenumber) as servicenumber,
+        -- Get description from itemmaster or servicemaster
+        COALESCE(
+          CASE WHEN im.itemid IS NOT NULL THEN im.itemname END,
+          CASE WHEN sm.serviceid IS NOT NULL THEN COALESCE(sm.description, sm.servicename) END,
+          'Item ' || CAST(id.itemid AS VARCHAR)
+        ) as description,
+        COALESCE(im.itemname, sm.servicename) as itemname,
+        -- Indicate the source
+        CASE 
+          WHEN im.itemid IS NOT NULL THEN 'item'
+          WHEN sm.serviceid IS NOT NULL THEN 'service'
+          ELSE 'unknown'
+        END as source
+      FROM invoicedetail id
+      LEFT JOIN itemmaster im ON id.itemid = im.itemid AND im.deletedat IS NULL
+      LEFT JOIN servicemaster sm ON id.itemid = sm.serviceid AND sm.deletedat IS NULL
+      WHERE id.invoiceid = $1 AND id.deletedat IS NULL
+      ${orderByClause}`,
       [invoiceId]
     );
     return result.rows;
