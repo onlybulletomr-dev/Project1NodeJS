@@ -636,6 +636,85 @@ app.post('/admin/migrate/fix-employees-render', async (req, res) => {
   }
 });
 
+// New endpoint: Sync missing employees (just add any that don't exist, without deleting)
+app.post('/admin/migrate/sync-missing-employees', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    console.log('[SYNC] Starting to sync missing employees...');
+    
+    const employeesToAdd = [
+      { employeeid: 1, firstname: 'Murali', lastname: 'Murali', branchid: 2 },
+      { employeeid: 2, firstname: 'Immanuvel', lastname: 'Immanuvel', branchid: 2 },
+      { employeeid: 3, firstname: 'Manikandan', lastname: 'Manikandan', branchid: 3 },
+      { employeeid: 4, firstname: 'Charles', lastname: 'Charles', branchid: 3 },
+      { employeeid: 5, firstname: 'Baskar', lastname: 'Baskar', branchid: 2 },
+      { employeeid: 6, firstname: 'Dinesh Babu', lastname: 'Dinesh Babu', branchid: 3 },
+      { employeeid: 7, firstname: 'Jagatheish', lastname: 'Jagatheish', branchid: 3 },
+      { employeeid: 8, firstname: 'Suman', lastname: 'Suman', branchid: 2 },
+      { employeeid: 9, firstname: 'Ayub', lastname: 'Ayub', branchid: 2 },
+      { employeeid: 10, firstname: 'Afrith', lastname: 'Afrith', branchid: 2 },
+      { employeeid: 11, firstname: 'Iyyappan', lastname: 'Iyyappan', branchid: 3 },
+      { employeeid: 12, firstname: 'Ashok', lastname: 'Ashok', branchid: 3 },
+      { employeeid: 13, firstname: 'Anand', lastname: 'Anand', branchid: 2 },
+      { employeeid: 14, firstname: 'Chandru', lastname: 'Murugan', branchid: 3 },
+      { employeeid: 15, firstname: 'Shanmugam', lastname: 'Ramanathan', branchid: 2 }
+    ];
+    
+    let added = [];
+    let skipped = [];
+    let errors = [];
+    
+    for (const emp of employeesToAdd) {
+      try {
+        const result = await pool.query(`
+          INSERT INTO employeemaster 
+          (employeeid, firstname, lastname, branchid, employeetype, role, role_type, dateofjoining, createdby, updatedat, createdat, isactive, deletedat)
+          VALUES ($1, $2, $3, $4, 'Employee', true, 'Employee', CURRENT_DATE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true, NULL)
+          ON CONFLICT (employeeid) DO NOTHING
+          RETURNING employeeid
+        `, [emp.employeeid, emp.firstname, emp.lastname, emp.branchid]);
+        
+        if (result.rows.length > 0) {
+          added.push({id: emp.employeeid, name: `${emp.firstname} ${emp.lastname}`});
+          console.log(`[SYNC] ✓ Added employee ${emp.employeeid}: ${emp.firstname} ${emp.lastname}`);
+        } else {
+          skipped.push({id: emp.employeeid, name: `${emp.firstname} ${emp.lastname}`});
+          console.log(`[SYNC] ⊘ Employee ${emp.employeeid} already exists (skipped)`);
+        }
+      } catch (err) {
+        errors.push({id: emp.employeeid, name: `${emp.firstname} ${emp.lastname}`, error: err.message});
+        console.error(`[SYNC] ✗ Error adding employee ${emp.employeeid}:`, err.message);
+      }
+    }
+    
+    // Get final count
+    const finalCheck = await pool.query('SELECT COUNT(*) as count FROM employeemaster WHERE deletedat IS NULL');
+    
+    res.status(200).json({
+      success: errors.length === 0,
+      summary: {
+        total_processed: employeesToAdd.length,
+        added: added.length,
+        skipped: skipped.length,
+        errors: errors.length,
+        total_active_employees: parseInt(finalCheck.rows[0].count)
+      },
+      added,
+      skipped,
+      errors: errors.length > 0 ? errors : undefined,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error('[SYNC] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint - check deletedat values in employeemaster
 app.get('/admin/debug/deletedat-values', async (req, res) => {
   try {
