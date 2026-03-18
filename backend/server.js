@@ -739,7 +739,7 @@ app.post('/admin/migrate/sync-missing-employees', async (req, res) => {
 // Debug endpoint - check deletedat values in employeemaster
 
 // Simple endpoint: Add employees 14 and 15 without deleting anything
-app.post('/admin/add-employees-14-15', async (req, res) => {
+app.post('/api/admin/add-employees-14-15', async (req, res) => {
   try {
     const pool = require('./config/db');
     console.log('[ADD-EMP14-15] Adding employees 14 and 15...');
@@ -796,7 +796,7 @@ app.post('/admin/add-employees-14-15', async (req, res) => {
 });
 
 // Simple endpoint: Add employee 15 without deleting anything
-app.post('/admin/add-employee-15', async (req, res) => {
+app.post('/api/admin/add-employee-15', async (req, res) => {
   try {
     const pool = require('./config/db');
     console.log('[ADD-EMP15] Adding employee 15...');
