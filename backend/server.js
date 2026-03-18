@@ -737,6 +737,52 @@ app.post('/admin/migrate/sync-missing-employees', async (req, res) => {
 });
 
 // Debug endpoint - check deletedat values in employeemaster
+
+// Simple endpoint: Add employee 15 without deleting anything
+app.post('/admin/add-employee-15', async (req, res) => {
+  try {
+    const pool = require('./config/db');
+    console.log('[ADD-EMP15] Adding employee 15...');
+    
+    const result = await pool.query(`
+      INSERT INTO employeemaster (
+        employeeid, branchid, firstname, lastname, employeetype,
+        role, role_type, dateofjoining, createdby, createdat,
+        updatedby, updatedat, isactive, deletedat
+      ) VALUES (
+        15, 2, 'Shanmugam', 'Ramanathan', 'Employee',
+        true, 'Employee', CURRENT_DATE, 1, CURRENT_TIMESTAMP,
+        12, CURRENT_TIMESTAMP, true, NULL
+      )
+      ON CONFLICT (employeeid) DO UPDATE 
+      SET deletedat = NULL, isactive = true
+      RETURNING employeeid, firstname, lastname
+    `);
+    
+    const finalCount = await pool.query('SELECT COUNT(*) as count FROM employeemaster WHERE deletedat IS NULL');
+    
+    console.log('[ADD-EMP15] ✓ Success');
+    res.status(200).json({
+      success: true,
+      message: 'Employee 15 added successfully',
+      employee: {
+        id: result.rows[0].employeeid,
+        name: `${result.rows[0].firstname} ${result.rows[0].lastname}`
+      },
+      total_active_employees: parseInt(finalCount.rows[0].count),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('[ADD-EMP15] Error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 app.get('/admin/debug/deletedat-values', async (req, res) => {
   try {
     const pool = require('./config/db');
