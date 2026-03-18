@@ -828,3 +828,167 @@ export const verifyDuplicatePassword = async (password, billNo) => {
     throw error;
   }
 };
+
+// Serial Number API
+/**
+ * Get available serial numbers for an item (status='SHELF')
+ * Used during invoicing to select which serial numbers to bill
+ */
+export const getAvailableSerialNumbers = async (itemId) => {
+  try {
+    console.log('[API REQUEST] getAvailableSerialNumbers:', {
+      itemId,
+      url: `${API_BASE_URL}/serialnumbers/available/${itemId}`
+    });
+    const response = await axios.get(`${API_BASE_URL}/serialnumbers/available/${itemId}`);
+    console.log('[API RESPONSE] getAvailableSerialNumbers:', response.data);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching available serial numbers:', error);
+    return [];
+  }
+};
+
+/**
+ * Get all serial numbers for an item in a branch
+ */
+export const getSerialNumbersByItem = async (itemId, branchId) => {
+  try {
+    console.log('[API REQUEST] getSerialNumbersByItem:', {
+      itemId,
+      branchId,
+      url: `${API_BASE_URL}/serialnumbers/item/${itemId}/branch/${branchId}`
+    });
+    const response = await axios.get(`${API_BASE_URL}/serialnumbers/item/${itemId}/branch/${branchId}`);
+    console.log('[API RESPONSE] getSerialNumbersByItem:', response.data);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching serial numbers by item:', error);
+    return [];
+  }
+};
+
+/**
+ * Create batch of serial numbers for inventory (when receiving items from vendor)
+ */
+export const batchCreateSerialNumbers = async (itemId, quantity, vendorId, mrp, manufacturingDate, manufacturer, batch, condition, serialNumbers, purchaseInvoiceId = null, vendorname = null) => {
+  try {
+    console.log('[API REQUEST] batchCreateSerialNumbers:', {
+      itemId,
+      quantity,
+      vendorId,
+      mrp,
+      manufacturingDate,
+      manufacturer,
+      vendorname,
+      batch,
+      condition,
+      purchaseInvoiceId,
+      serialNumbers: serialNumbers.length,
+      url: `${API_BASE_URL}/serialnumbers/batch-create-for-inventory`
+    });
+    const response = await axios.post(`${API_BASE_URL}/serialnumbers/batch-create-for-inventory`, {
+      itemid: itemId,
+      quantity,
+      vendorid: vendorId,
+      mrp,
+      manufacturingdate: manufacturingDate,
+      manufacturer,
+      vendorname,
+      batch,
+      condition,
+      purchaseinvoiceid: purchaseInvoiceId,
+      serialnumbers: serialNumbers
+    });
+    console.log('[API RESPONSE] batchCreateSerialNumbers:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating batch serial numbers:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update serial number status (e.g., mark as INVOICED)
+ */
+export const updateSerialNumberStatus = async (serialNumberId, newStatus) => {
+  try {
+    console.log('[API REQUEST] updateSerialNumberStatus:', {
+      serialNumberId,
+      newStatus,
+      url: `${API_BASE_URL}/serialnumbers/${serialNumberId}/status`
+    });
+    const response = await axios.put(`${API_BASE_URL}/serialnumbers/${serialNumberId}/status`, {
+      status: newStatus
+    });
+    console.log('[API RESPONSE] updateSerialNumberStatus:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating serial number status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get serial numbers by status for a branch
+ */
+export const getSerialNumbersByStatus = async (status, branchId, itemId = null) => {
+  try {
+    let url = `${API_BASE_URL}/serialnumbers/status/${status}/branch/${branchId}`;
+    if (itemId) {
+      url += `?itemid=${itemId}`;
+    }
+    console.log('[API REQUEST] getSerialNumbersByStatus:', { status, branchId, itemId, url });
+    const response = await axios.get(url);
+    console.log('[API RESPONSE] getSerialNumbersByStatus:', response.data);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching serial numbers by status:', error);
+    return [];
+  }
+};
+
+/**
+ * Get shelf (available) serial numbers for a specific item
+ */
+export const getShelfSerialNumbersByItem = async (itemId) => {
+  try {
+    console.log('[API REQUEST] getShelfSerialNumbersByItem:', { itemId, url: `${API_BASE_URL}/serialnumbers/item/${itemId}/shelf` });
+    const response = await axios.get(`${API_BASE_URL}/serialnumbers/item/${itemId}/shelf`);
+    console.log('[API RESPONSE] getShelfSerialNumbersByItem:', response.data);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching shelf serials for item:', error);
+    return [];
+  }
+};
+
+/**
+ * Get items with serial number tracking enabled
+ */
+export const getItemsWithSerialTracking = async () => {
+  try {
+    console.log('[API REQUEST] getItemsWithSerialTracking:', { url: `${API_BASE_URL}/items/serial-tracking` });
+    const response = await axios.get(`${API_BASE_URL}/items/serial-tracking`);
+    console.log('[API RESPONSE] getItemsWithSerialTracking:', response.data);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('Error fetching items with serial tracking:', error);
+    return [];
+  }
+};
+
+/**
+ * Get latest serial number record for an item (for loading previous purchase details)
+ */
+export const getLatestSerialNumberForItem = async (itemId) => {
+  try {
+    console.log('[API REQUEST] getLatestSerialNumberForItem:', { itemId, url: `${API_BASE_URL}/serialnumbers/item/${itemId}/latest` });
+    const response = await axios.get(`${API_BASE_URL}/serialnumbers/item/${itemId}/latest`);
+    console.log('[API RESPONSE] getLatestSerialNumberForItem:', response.data);
+    return response.data.data || null;
+  } catch (error) {
+    console.error('Error fetching latest serial number for item:', error);
+    return null;
+  }
+};
