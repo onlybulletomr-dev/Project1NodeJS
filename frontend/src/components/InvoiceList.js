@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../api';
+import { generateInvoicePrintTemplate, openPrintWindow } from '../utils/printUtils';
 
 const InvoiceList = () => {
   const navigate = useNavigate();
@@ -72,7 +73,30 @@ const InvoiceList = () => {
     const branchId = localStorage.getItem('branchId');
     setCurrentBranchId(branchId ? Number(branchId) : null);
     fetchInvoices('');
-  }, []);
+
+    // Add Ctrl+P keyboard shortcut for printing
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'p') {
+        event.preventDefault();
+        
+        if (selectedInvoice && invoiceDetails) {
+          handlePrintInvoice(selectedInvoice);
+        } else if (selectedInvoice) {
+          // If modal is open but details not fully loaded, prompt user
+          alert('Please wait for invoice details to load before printing.');
+        } else {
+          alert('Please select an invoice to print. Click View on any invoice to open it.');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Cleanup event listener on component unmount
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedInvoice, invoiceDetails]);
 
   const canEditInvoice = (invoice) => {
     if (!invoice) return false;
@@ -93,6 +117,99 @@ const InvoiceList = () => {
         editInvoiceData: invoice,
       },
     });
+  };
+
+  const handlePrintInvoice = (invoice) => {
+    if (!invoiceDetails) {
+      alert('Please open the invoice first to print it.');
+      return;
+    }
+
+    const invoiceData = {
+      invoiceNumber: invoiceDetails.invoicenumber || invoice.invoicenumber || 'DRAFT',
+      invoiceDate: invoiceDetails.invoiceDate || invoice.invoiceDate || new Date().toLocaleDateString('en-GB'),
+      vehicleNumber: invoiceDetails.vehiclenumber || invoice.vehiclenumber || '-',
+      vehicleModel: invoiceDetails.vehiclemodel || invoiceDetails.model || invoiceDetails.carmodel || invoiceDetails.modelname || invoice.vehiclemodel || invoice.model || invoice.carmodel || '-',
+      vehicleColor: invoiceDetails.vehiclecolor || invoiceDetails.color || invoiceDetails.carcolor || invoiceDetails.colorname || invoice.vehiclecolor || invoice.color || invoice.carcolor || '-',
+      jobCard: invoiceDetails.jobcard || invoiceDetails.poNumber || '-',
+      customerName: invoiceDetails.customername || invoice.customername || 'N/A',
+      area: invoiceDetails.area || invoiceDetails.custArea || invoiceDetails.location || invoice.area || '-',
+      phoneNumber: invoiceDetails.customer_phonenumber || invoiceDetails.customerphonenumber || invoiceDetails.phonenumber || invoice.customer_phonenumber || '-',
+      companyName: 'ONLY BULLET',
+      companyEmail: 'info@onlybullet.com',
+      companyPhone: 'Branch',
+      companyAddress: `
+        <div>190, Ponniyaman Kovil 2nd St,</div>
+        <div>Behind South Indian Bank, Sholinganallur,</div>
+        <div>Chennai - 600119</div>
+      `,
+      odometer: invoiceDetails.odometer || '-',
+      notes: invoiceDetails.observation || invoiceDetails.notes || '-',
+      items: invoiceDetails.items || [],
+      total: invoiceDetails.totalAmount || 0,
+    };
+
+    const { html } = generateInvoicePrintTemplate(invoiceData);
+    openPrintWindow(html, invoiceData.invoiceNumber);
+  };
+
+  const handlePrintButtonClick = async (invoice) => {
+    // Open the modal and load invoice details, then print
+    setSelectedInvoice(invoice);
+    setDetailsLoading(true);
+    
+    try {
+      const userId = localStorage.getItem('userId');
+      const invoiceId = invoice.invoiceid || invoice.InvoiceID || invoice.id;
+      
+      const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}`, {
+        headers: {
+          'x-user-id': userId,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch invoice details');
+      
+      const result = await response.json();
+      
+      if (result.data && result.data.invoiceMaster) {
+        const { invoiceMaster, invoiceDetails: details } = result.data;
+        
+        const flatData = {
+          ...invoiceMaster,
+          invoiceDate: invoiceMaster.invoicedate 
+            ? new Date(invoiceMaster.invoicedate).toLocaleDateString('en-IN')
+            : '-',
+          paymentDate: invoiceMaster.paymentdate
+            ? new Date(invoiceMaster.paymentdate).toLocaleDateString('en-IN')
+            : '-',
+          subtotal: parseFloat(invoiceMaster.subtotal || invoiceMaster.partsincome || 0),
+          totalAmount: parseFloat(invoiceMaster.totalamount || 0),
+          taxAmount: parseFloat((invoiceMaster.tax1 || 0) + (invoiceMaster.tax2 || 0)),
+          discountAmount: parseFloat(invoiceMaster.totaldiscount || 0),
+          items: (details || []).map(item => ({
+            ...item,
+            description: item.description || item.itemname || `Item ${item.itemid || 'N/A'}`,
+            quantity: item.qty || item.quantity || 0,
+            rate: parseFloat(item.unitprice || item.rate || 0),
+            amount: parseFloat(item.linetotal || 0),
+          })),
+          paymentstatus: invoiceMaster.paymentstatus || 'Pending',
+        };
+        
+        setInvoiceDetails(flatData);
+        // Trigger print after state is updated
+        setTimeout(() => {
+          handlePrintInvoice(invoice);
+        }, 300);
+      }
+    } catch (error) {
+      console.error('Error fetching invoice details for print:', error);
+      alert('Failed to load invoice details for printing: ' + error.message);
+      setSelectedInvoice(null);
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
   const handleVehicleSearch = async () => {
@@ -455,6 +572,30 @@ const InvoiceList = () => {
                             Edit
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => handlePrintButtonClick(invoice)}
+                          title="Print invoice (or press Ctrl+P when viewing)"
+                          style={{
+                            padding: '6px 10px',
+                            border: '1px solid #9333ea',
+                            borderRadius: '6px',
+                            background: '#fff',
+                            color: '#9333ea',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3e8ff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fff';
+                          }}
+                        >
+                          Print
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -698,9 +839,38 @@ const InvoiceList = () => {
               padding: '16px 24px',
               borderTop: '1px solid #e5e7eb',
               display: 'flex',
-              justifyContent: 'flex-end',
+              justifyContent: 'space-between',
               gap: '12px',
             }}>
+              <button
+                type="button"
+                onClick={() => handlePrintInvoice(selectedInvoice)}
+                disabled={detailsLoading}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #9333ea',
+                  borderRadius: '6px',
+                  background: '#9333ea',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: detailsLoading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                  opacity: detailsLoading ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!detailsLoading) {
+                    e.currentTarget.style.backgroundColor = '#7c3aed';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!detailsLoading) {
+                    e.currentTarget.style.backgroundColor = '#9333ea';
+                  }
+                }}
+              >
+                🖨 Print
+              </button>
               <button
                 type="button"
                 onClick={closeModal}
