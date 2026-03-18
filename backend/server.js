@@ -21,6 +21,10 @@ const seedRoutes = require('./routes/seedRoutes');
 const authRoutes = require('./routes/authRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const roleManagementRoutes = require('./routes/roleManagementRoutes');
+const serialNumberRoutes = require('./routes/serialnumber');
+const serialNumberTrackingRoutes = require('./routes/serialnumbertracking');
+const pointsRoutes = require('./routes/points');
+const itemMasterConfigRoutes = require('./routes/itemmaster-config');
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 5000;
@@ -71,6 +75,10 @@ app.use('/api', vehicleDetailRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api', seedRoutes);
 app.use('/api/roles', roleManagementRoutes);
+app.use('/api/serialnumbers', serialNumberRoutes);
+app.use('/api/serialnumbertracking', serialNumberTrackingRoutes);
+app.use('/api/points', pointsRoutes);
+app.use('/api/itemmaster', itemMasterConfigRoutes);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -577,7 +585,9 @@ app.post('/admin/migrate/fix-employees-render', async (req, res) => {
       { employeeid: 10, firstname: 'Afrith', lastname: 'Afrith', branchid: 2 },
       { employeeid: 11, firstname: 'Iyyappan', lastname: 'Iyyappan', branchid: 3 },
       { employeeid: 12, firstname: 'Ashok', lastname: 'Ashok', branchid: 3 },
-      { employeeid: 13, firstname: 'Anand', lastname: 'Anand', branchid: 2 }
+      { employeeid: 13, firstname: 'Anand', lastname: 'Anand', branchid: 2 },
+      { employeeid: 14, firstname: 'Chandru', lastname: 'Murugan', branchid: 3 },
+      { employeeid: 15, firstname: 'Shanmugam', lastname: 'Ramanathan', branchid: 2 }
     ];
     
     let insertedCount = 0;
