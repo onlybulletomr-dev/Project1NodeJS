@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import SerialNumberUpdatePopup from './SerialNumberUpdatePopup';
 import SerialNumberSelectionPopup from './SerialNumberSelectionPopup';
-import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getAllItemsAndServicesInvoicePlus, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity, validateVendorInvoice, verifyDuplicatePassword, getShelfSerialNumbersByItem } from '../api';
+import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getAllItemsAndServicesInvoicePlus, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity, validateVendorInvoice, verifyDuplicatePassword } from '../api';
 import { generateInvoicePrintTemplate, openPrintWindow } from '../utils/printUtils';
 
 // Search all vehicles by vehicle number and return with customer details
