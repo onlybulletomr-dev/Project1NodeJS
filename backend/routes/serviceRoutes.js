@@ -202,6 +202,7 @@ router.get('/items-services/all', async (req, res) => {
 
     const itemMasterColumns = new Set(itemMasterColumnsResult.rows.map(row => row.column_name));
     const descriptionColumn = itemMasterColumns.has('description') ? 'description' : 'itemname';
+    const pointsColumn = itemMasterColumns.has('points') ? 'im.points' : 'NULL as points';
 
     // Get all items from itemmaster ONLY (no itemdetail join, no qty field)
     // Removed LIMIT to fetch all items
@@ -213,7 +214,7 @@ router.get('/items-services/all', async (req, res) => {
         im.${descriptionColumn} AS itemname,
         im.uom,
         im.mrp,
-        im.points,
+        ${pointsColumn},
         im.duplicateserialnumber,
         im.serialnumbertracking
       FROM itemmaster im
