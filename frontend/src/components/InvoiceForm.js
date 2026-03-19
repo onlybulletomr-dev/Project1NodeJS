@@ -514,7 +514,7 @@ export default function InvoiceForm({ mode = 'invoice' }) {
           InvoiceDetails: activeGridRows.map(row => ({
             ItemNumber: row.ItemNumber || row.partnumber,
             ItemID: row.ItemNumber || row.partnumber,
-            PartNumber: row.partnumber || '', // Include screen PartNumber snapshot
+            PartNumber: row.source === 'service' ? (row.ItemNumber || row.partnumber) : (row.partnumber || ''), // For services, use ItemNumber as PartNumber
             ItemName: row.ItemName || '', // Include screen ItemName snapshot
             Qty: row.Qty,
             UnitPrice: row.UnitPrice,
