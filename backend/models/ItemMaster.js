@@ -49,8 +49,17 @@ class ItemMaster {
 
   static async getAll() {
     try {
+      // Check which columns exist
+      const columnsResult = await pool.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'itemmaster'`
+      );
+      const columns = new Set(columnsResult.rows.map(row => row.column_name));
+      
+      const pointsColumn = columns.has('points') ? 'points' : 'NULL as points';
+      const duplicateSerialColumn = columns.has('duplicateserialnumber') ? 'duplicateserialnumber' : 'NULL as duplicateserialnumber';
+      
       const result = await pool.query(
-        `SELECT itemid, partnumber, itemname, uom, mrp, points, duplicateserialnumber, serialnumbertracking
+        `SELECT itemid, partnumber, itemname, uom, mrp, ${pointsColumn}, ${duplicateSerialColumn}, serialnumbertracking
          FROM itemmaster 
          WHERE deletedat IS NULL 
          ORDER BY partnumber`

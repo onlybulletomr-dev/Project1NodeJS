@@ -76,32 +76,45 @@ class InvoiceDetail {
       ? 'invoicedetailid'
       : (columnSet.has('id') ? 'id' : null);
 
+    const hasPartnumber = columnSet.has('partnumber');
+    const hasItemname = columnSet.has('itemname');
+    const hasExtraVar1 = columnSet.has('extravar1');
+    const hasExtraVar2 = columnSet.has('extravar2');
+    const hasExtraInt1 = columnSet.has('extraint1');
+    const hasUpdatedby = columnSet.has('updatedby');
+    const hasUpdatedat = columnSet.has('updatedat');
+    const hasDeletedat = columnSet.has('deletedat');
+    const hasDeletedby = columnSet.has('deletedby');
+
     const orderByClause = primaryKeyColumn ? ` ORDER BY ${primaryKeyColumn}` : '';
+
+    // Build SELECT clause with only existing columns
+    let selectClause = `SELECT 
+      ${primaryKeyColumn} as invoicedetailid,
+      invoicedetail.invoiceid,
+      invoicedetail.itemid,
+      invoicedetail.qty,
+      invoicedetail.unitprice,
+      invoicedetail.linediscount,
+      invoicedetail.linetotal,
+      invoicedetail.lineitemtax1,
+      invoicedetail.lineitemtax2,
+      ${hasExtraVar1 ? 'invoicedetail.extravar1,' : 'NULL as extravar1,'}
+      ${hasExtraVar2 ? 'invoicedetail.extravar2,' : 'NULL as extravar2,'}
+      ${hasExtraInt1 ? 'invoicedetail.extraint1,' : 'NULL as extraint1,'}
+      invoicedetail.createdby,
+      invoicedetail.createdat,
+      ${hasUpdatedby ? 'invoicedetail.updatedby,' : 'NULL as updatedby,'}
+      ${hasUpdatedat ? 'invoicedetail.updatedat,' : 'NULL as updatedat,'}
+      ${hasDeletedat ? 'invoicedetail.deletedat,' : 'NULL as deletedat,'}
+      ${hasDeletedby ? 'invoicedetail.deletedby,' : 'NULL as deletedby,'}
+      ${hasPartnumber ? 'COALESCE(invoicedetail.partnumber, CAST(invoicedetail.itemid AS VARCHAR)) as partnumber' : "CAST(invoicedetail.itemid AS VARCHAR) as partnumber"},
+      ${hasItemname ? 'COALESCE(invoicedetail.itemname, im.itemname, sm.servicename, \'Item \' || CAST(invoicedetail.itemid AS VARCHAR)) as itemname,' : "COALESCE(im.itemname, sm.servicename, 'Item ' || CAST(invoicedetail.itemid AS VARCHAR)) as itemname,"}
+      ${hasItemname ? 'COALESCE(invoicedetail.itemname, im.itemname, sm.servicename) as description' : "COALESCE(im.itemname, sm.servicename) as description"}`;
 
     // First fetch invoice details with fallback names
     const detailsResult = await pool.query(
-      `SELECT 
-        ${primaryKeyColumn} as invoicedetailid,
-        invoicedetail.invoiceid,
-        invoicedetail.itemid,
-        invoicedetail.qty,
-        invoicedetail.unitprice,
-        invoicedetail.linediscount,
-        invoicedetail.linetotal,
-        invoicedetail.lineitemtax1,
-        invoicedetail.lineitemtax2,
-        invoicedetail.extravar1,
-        invoicedetail.extravar2,
-        invoicedetail.extraint1,
-        invoicedetail.createdby,
-        invoicedetail.createdat,
-        invoicedetail.updatedby,
-        invoicedetail.updatedat,
-        invoicedetail.deletedat,
-        invoicedetail.deletedby,
-        COALESCE(invoicedetail.partnumber, CAST(invoicedetail.itemid AS VARCHAR)) as partnumber,
-        COALESCE(invoicedetail.itemname, im.itemname, sm.servicename, 'Item ' || CAST(invoicedetail.itemid AS VARCHAR)) as itemname,
-        COALESCE(invoicedetail.itemname, im.itemname, sm.servicename) as description
+      `${selectClause}
       FROM invoicedetail
       LEFT JOIN itemmaster im ON invoicedetail.itemid = im.itemid AND im.deletedat IS NULL
       LEFT JOIN servicemaster sm ON invoicedetail.itemid = sm.serviceid AND sm.deletedat IS NULL
