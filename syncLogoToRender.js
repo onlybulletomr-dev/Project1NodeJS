@@ -22,7 +22,12 @@ const localConfig = {
 // Render database connection
 const renderConfig = {
   connectionString: process.env.DATABASE_URL || process.env.RENDER_DB_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: {
+    rejectUnauthorized: false
+  },
+  connect_timeout: 10,
+  statement_timeout: 30000,
+  idle_in_transaction_session_timeout: 30000
 };
 
 async function syncLogoData() {
