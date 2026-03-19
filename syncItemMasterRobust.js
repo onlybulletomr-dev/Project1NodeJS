@@ -61,8 +61,6 @@ async function syncItemMasterRobust() {
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       const totalBatches = Math.ceil(records.length / BATCH_SIZE);
 
-      console.log(`   Batch ${batchNum}/${totalBatches} (records ${i + 1}-${Math.min(i + BATCH_SIZE, records.length)})`);
-
       for (const record of batch) {
         try {
           // Build dynamic INSERT with all columns
@@ -74,6 +72,11 @@ async function syncItemMasterRobust() {
 
           await renderPool.query(insertSql, values);
           successCount++;
+
+          // Print progress every 1000 records
+          if (successCount % 1000 === 0) {
+            console.log(`   📊 PROGRESS: ${successCount}/${records.length} records synced (${Math.round(successCount / records.length * 100)}%)`);
+          }
           
         } catch (err) {
           // Handle connection errors by reconnecting
@@ -105,7 +108,8 @@ async function syncItemMasterRobust() {
         }
       }
       
-      console.log(`   ✓ Batch ${batchNum} complete (synced: ${successCount}/${i + BATCH_SIZE})\n`);
+      const batchProgress = Math.min(i + BATCH_SIZE, records.length);
+      console.log(`   ✓ Batch ${batchNum}/${totalBatches} complete (${batchProgress}/${records.length})\n`);
     }
 
     console.log('\n' + '='.repeat(70));
