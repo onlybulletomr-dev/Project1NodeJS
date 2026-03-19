@@ -72,40 +72,40 @@ class InvoiceDetail {
 
   static async getByInvoiceId(invoiceId) {
     const columnSet = await this.getColumnSet();
-    const orderByColumn = columnSet.has('invoicedetailid')
+    const primaryKeyColumn = columnSet.has('invoicedetailid')
       ? 'invoicedetailid'
       : (columnSet.has('id') ? 'id' : null);
 
-    const orderByClause = orderByColumn ? ` ORDER BY ${orderByColumn}` : '';
+    const orderByClause = primaryKeyColumn ? ` ORDER BY ${primaryKeyColumn}` : '';
 
     // First fetch invoice details with fallback names
     const detailsResult = await pool.query(
       `SELECT 
-        id.invoicedetailid,
-        id.invoiceid,
-        id.itemid,
-        id.qty,
-        id.unitprice,
-        id.linediscount,
-        id.linetotal,
-        id.lineitemtax1,
-        id.lineitemtax2,
-        id.extravar1,
-        id.extravar2,
-        id.extraint1,
-        id.createdby,
-        id.createdat,
-        id.updatedby,
-        id.updatedat,
-        id.deletedat,
-        id.deletedby,
-        COALESCE(id.partnumber, CAST(id.itemid AS VARCHAR)) as partnumber,
-        COALESCE(id.itemname, im.itemname, sm.servicename, 'Item ' || CAST(id.itemid AS VARCHAR)) as itemname,
-        COALESCE(id.itemname, im.itemname, sm.servicename) as description
-      FROM invoicedetail id
-      LEFT JOIN itemmaster im ON id.itemid = im.itemid AND im.deletedat IS NULL
-      LEFT JOIN servicemaster sm ON id.itemid = sm.serviceid AND sm.deletedat IS NULL
-      WHERE id.invoiceid = $1 AND id.deletedat IS NULL
+        ${primaryKeyColumn} as invoicedetailid,
+        invoiceid,
+        itemid,
+        qty,
+        unitprice,
+        linediscount,
+        linetotal,
+        lineitemtax1,
+        lineitemtax2,
+        extravar1,
+        extravar2,
+        extraint1,
+        createdby,
+        createdat,
+        updatedby,
+        updatedat,
+        deletedat,
+        deletedby,
+        COALESCE(partnumber, CAST(itemid AS VARCHAR)) as partnumber,
+        COALESCE(itemname, im.itemname, sm.servicename, 'Item ' || CAST(itemid AS VARCHAR)) as itemname,
+        COALESCE(itemname, im.itemname, sm.servicename) as description
+      FROM invoicedetail
+      LEFT JOIN itemmaster im ON invoicedetail.itemid = im.itemid AND im.deletedat IS NULL
+      LEFT JOIN servicemaster sm ON invoicedetail.itemid = sm.serviceid AND sm.deletedat IS NULL
+      WHERE invoicedetail.invoiceid = $1 AND invoicedetail.deletedat IS NULL
       ${orderByClause}`,
       [invoiceId]
     );
@@ -113,15 +113,17 @@ class InvoiceDetail {
     // Then fetch serial numbers separately and attach to details
     const serialResult = await pool.query(
       `SELECT 
-        invoicedetailid,
+        sn.invoicedetailid,
         string_agg(
-          'SN: ' || COALESCE(serialnumber, '-') || ' | Batch: ' || COALESCE(batch, '-') || ' | Model: ' || COALESCE(model, '-') || ' | Mfg: ' || COALESCE(remarks, '-'),
+          'SN: ' || COALESCE(sn.serialnumber, '-') || ' | Batch: ' || COALESCE(sn.batch, '-') || ' | Model: ' || COALESCE(sn.model, '-') || ' | Mfg: ' || COALESCE(sn.remarks, '-'),
           ' | '
         ) as serials_info
-      FROM serialnumber
-      WHERE invoicedetailid IN (SELECT invoicedetailid FROM invoicedetail WHERE invoiceid = $1 AND deletedat IS NULL)
-        AND deletedat IS NULL
-      GROUP BY invoicedetailid`,
+      FROM serialnumber sn
+      WHERE sn.invoicedetailid IN (
+        SELECT ${primaryKeyColumn} FROM invoicedetail WHERE invoiceid = $1 AND deletedat IS NULL
+      )
+        AND sn.deletedat IS NULL
+      GROUP BY sn.invoicedetailid`,
       [invoiceId]
     );
 
