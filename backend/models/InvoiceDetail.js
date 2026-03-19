@@ -123,28 +123,40 @@ class InvoiceDetail {
       [invoiceId]
     );
 
-    // Then fetch serial numbers separately and attach to details
-    const serialResult = await pool.query(
-      `SELECT 
-        sn.invoicedetailid,
-        string_agg(
-          'SN: ' || COALESCE(sn.serialnumber, '-') || ' | Batch: ' || COALESCE(sn.batch, '-') || ' | Model: ' || COALESCE(sn.model, '-') || ' | Mfg: ' || COALESCE(sn.remarks, '-'),
-          ' | '
-        ) as serials_info
-      FROM serialnumber sn
-      WHERE sn.invoicedetailid IN (
-        SELECT ${primaryKeyColumn} FROM invoicedetail WHERE invoiceid = $1 AND deletedat IS NULL
-      )
-        AND sn.deletedat IS NULL
-      GROUP BY sn.invoicedetailid`,
-      [invoiceId]
-    );
+    // Check if serialnumber table exists before querying
+    let serialMap = new Map();
+    try {
+      const tableExistsResult = await pool.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_name = 'serialnumber'`
+      );
+      
+      if (tableExistsResult.rows.length > 0) {
+        // Table exists, fetch serial numbers
+        const serialResult = await pool.query(
+          `SELECT 
+            sn.invoicedetailid,
+            string_agg(
+              'SN: ' || COALESCE(sn.serialnumber, '-') || ' | Batch: ' || COALESCE(sn.batch, '-') || ' | Model: ' || COALESCE(sn.model, '-') || ' | Mfg: ' || COALESCE(sn.remarks, '-'),
+              ' | '
+            ) as serials_info
+          FROM serialnumber sn
+          WHERE sn.invoicedetailid IN (
+            SELECT ${primaryKeyColumn} FROM invoicedetail WHERE invoiceid = $1 AND deletedat IS NULL
+          )
+            AND sn.deletedat IS NULL
+          GROUP BY sn.invoicedetailid`,
+          [invoiceId]
+        );
 
-    // Map serial info by invoicedetailid
-    const serialMap = new Map();
-    serialResult.rows.forEach(row => {
-      serialMap.set(row.invoicedetailid, row.serials_info);
-    });
+        // Map serial info by invoicedetailid
+        serialResult.rows.forEach(row => {
+          serialMap.set(row.invoicedetailid, row.serials_info);
+        });
+      }
+    } catch (error) {
+      // If serialnumber table doesn't exist or query fails, just continue without serials
+      console.log('Serial numbers not available:', error.message);
+    }
 
     // Attach serial info to details
     const result = detailsResult.rows.map(row => ({
