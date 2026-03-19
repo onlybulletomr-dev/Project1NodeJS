@@ -22,11 +22,13 @@ class InvoiceDetail {
       LineItemTax1,
       LineItemTax2,
       CreatedBy,
+      PartNumber,
+      ItemName,
     } = data;
 
     const CreatedAt = new Date().toISOString().split('T')[0];
 
-    const insertValues = [InvoiceID, ItemID, Qty, UnitPrice, LineDiscount, LineTotal, LineItemTax1 || 0, LineItemTax2 || 0, CreatedBy, CreatedAt];
+    const insertValues = [InvoiceID, ItemID, Qty, UnitPrice, LineDiscount, LineTotal, LineItemTax1 || 0, LineItemTax2 || 0, CreatedBy, CreatedAt, PartNumber || null, ItemName || null];
 
     const schemaResult = await pool.query(
       `SELECT is_identity, column_default
@@ -45,8 +47,8 @@ class InvoiceDetail {
     if (hasAutoId || !hasIdColumn) {
       const result = await pool.query(
         `INSERT INTO invoicedetail (
-          invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat, partnumber, itemname
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *`,
         insertValues
       );
@@ -59,8 +61,8 @@ class InvoiceDetail {
 
     const fallbackResult = await pool.query(
       `INSERT INTO invoicedetail (
-        invoicedetailid, invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        invoicedetailid, invoiceid, itemid, qty, unitprice, linediscount, linetotal, lineitemtax1, lineitemtax2, createdby, createdat, partnumber, itemname
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [nextInvoiceDetailId, ...insertValues]
     );
@@ -76,26 +78,30 @@ class InvoiceDetail {
 
     const orderByClause = orderByColumn ? ` ORDER BY ${orderByColumn}` : '';
 
-    // Query that joins with both itemmaster and servicemaster to get proper descriptions
-    const result = await pool.query(
+    // First fetch invoice details with fallback names
+    const detailsResult = await pool.query(
       `SELECT 
-        id.*,
-        -- Try to get from itemmaster first (for actual items)
-        COALESCE(im.partnumber, sm.servicenumber, CAST(id.itemid AS VARCHAR)) as partnumber,
-        COALESCE(im.partnumber, sm.servicenumber) as servicenumber,
-        -- Get description from itemmaster or servicemaster
-        COALESCE(
-          CASE WHEN im.itemid IS NOT NULL THEN im.itemname END,
-          CASE WHEN sm.serviceid IS NOT NULL THEN COALESCE(sm.description, sm.servicename) END,
-          'Item ' || CAST(id.itemid AS VARCHAR)
-        ) as description,
-        COALESCE(im.itemname, sm.servicename) as itemname,
-        -- Indicate the source
-        CASE 
-          WHEN im.itemid IS NOT NULL THEN 'item'
-          WHEN sm.serviceid IS NOT NULL THEN 'service'
-          ELSE 'unknown'
-        END as source
+        id.invoicedetailid,
+        id.invoiceid,
+        id.itemid,
+        id.qty,
+        id.unitprice,
+        id.linediscount,
+        id.linetotal,
+        id.lineitemtax1,
+        id.lineitemtax2,
+        id.extravar1,
+        id.extravar2,
+        id.extraint1,
+        id.createdby,
+        id.createdat,
+        id.updatedby,
+        id.updatedat,
+        id.deletedat,
+        id.deletedby,
+        COALESCE(id.partnumber, CAST(id.itemid AS VARCHAR)) as partnumber,
+        COALESCE(id.itemname, im.itemname, sm.servicename, 'Item ' || CAST(id.itemid AS VARCHAR)) as itemname,
+        COALESCE(id.itemname, im.itemname, sm.servicename) as description
       FROM invoicedetail id
       LEFT JOIN itemmaster im ON id.itemid = im.itemid AND im.deletedat IS NULL
       LEFT JOIN servicemaster sm ON id.itemid = sm.serviceid AND sm.deletedat IS NULL
@@ -103,7 +109,35 @@ class InvoiceDetail {
       ${orderByClause}`,
       [invoiceId]
     );
-    return result.rows;
+
+    // Then fetch serial numbers separately and attach to details
+    const serialResult = await pool.query(
+      `SELECT 
+        invoicedetailid,
+        string_agg(
+          'SN: ' || COALESCE(serialnumber, '-') || ' | Batch: ' || COALESCE(batch, '-') || ' | Model: ' || COALESCE(model, '-') || ' | Mfg: ' || COALESCE(remarks, '-'),
+          ' | '
+        ) as serials_info
+      FROM serialnumber
+      WHERE invoicedetailid IN (SELECT invoicedetailid FROM invoicedetail WHERE invoiceid = $1 AND deletedat IS NULL)
+        AND deletedat IS NULL
+      GROUP BY invoicedetailid`,
+      [invoiceId]
+    );
+
+    // Map serial info by invoicedetailid
+    const serialMap = new Map();
+    serialResult.rows.forEach(row => {
+      serialMap.set(row.invoicedetailid, row.serials_info);
+    });
+
+    // Attach serial info to details
+    const result = detailsResult.rows.map(row => ({
+      ...row,
+      serials_info: serialMap.get(row.invoicedetailid) || null
+    }));
+
+    return result;
   }
 
   static async getById(id) {

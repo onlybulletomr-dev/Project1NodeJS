@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../api';
-import { generateInvoicePrintTemplate, openPrintWindow } from '../utils/printUtils';
+import { generateInvoicePrintTemplate, openPrintWindow, printInvoiceWithConfig } from '../utils/printUtils';
 
 const InvoiceList = () => {
   const navigate = useNavigate();
@@ -43,10 +43,10 @@ const InvoiceList = () => {
 
       const transformedInvoices = (result.data || result || []).map(inv => ({
         ...inv,
-        dueAmount: (parseFloat(inv.totalamount) || 0) - (parseFloat(inv.paidamount) || 0),
+        dueAmount: (parseFloat(inv.totalamount) || 0) - (parseFloat(inv.amountpaid) || 0),
         invoiceDate: inv.invoicedate ? new Date(inv.invoicedate).toLocaleDateString('en-IN') : '-',
         totalAmount: parseFloat(inv.totalamount) || 0,
-        paidAmount: parseFloat(inv.paidamount) || 0,
+        paidAmount: parseFloat(inv.amountpaid) || 0,
       }));
 
       const filteredInvoices = !cleanSearchText
@@ -79,11 +79,9 @@ const InvoiceList = () => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'p') {
         event.preventDefault();
         
-        if (selectedInvoice && invoiceDetails) {
-          handlePrintInvoice(selectedInvoice);
-        } else if (selectedInvoice) {
-          // If modal is open but details not fully loaded, prompt user
-          alert('Please wait for invoice details to load before printing.');
+        if (selectedInvoice) {
+          // Call handlePrintButtonClick to load details and print
+          handlePrintButtonClick(selectedInvoice);
         } else {
           alert('Please select an invoice to print. Click View on any invoice to open it.');
         }
@@ -119,38 +117,44 @@ const InvoiceList = () => {
     });
   };
 
-  const handlePrintInvoice = (invoice) => {
+  const handlePrintInvoice = async (invoice) => {
     if (!invoiceDetails) {
-      alert('Please open the invoice first to print it.');
       return;
     }
 
-    const invoiceData = {
-      invoiceNumber: invoiceDetails.invoicenumber || invoice.invoicenumber || 'DRAFT',
-      invoiceDate: invoiceDetails.invoiceDate || invoice.invoiceDate || new Date().toLocaleDateString('en-GB'),
-      vehicleNumber: invoiceDetails.vehiclenumber || invoice.vehiclenumber || '-',
-      vehicleModel: invoiceDetails.vehiclemodel || invoiceDetails.model || invoiceDetails.carmodel || invoiceDetails.modelname || invoice.vehiclemodel || invoice.model || invoice.carmodel || '-',
-      vehicleColor: invoiceDetails.vehiclecolor || invoiceDetails.color || invoiceDetails.carcolor || invoiceDetails.colorname || invoice.vehiclecolor || invoice.color || invoice.carcolor || '-',
-      jobCard: invoiceDetails.jobcard || invoiceDetails.poNumber || '-',
-      customerName: invoiceDetails.customername || invoice.customername || 'N/A',
-      area: invoiceDetails.area || invoiceDetails.custArea || invoiceDetails.location || invoice.area || '-',
-      phoneNumber: invoiceDetails.customer_phonenumber || invoiceDetails.customerphonenumber || invoiceDetails.phonenumber || invoice.customer_phonenumber || '-',
-      companyName: 'ONLY BULLET',
-      companyEmail: 'info@onlybullet.com',
-      companyPhone: 'Branch',
-      companyAddress: `
-        <div>190, Ponniyaman Kovil 2nd St,</div>
-        <div>Behind South Indian Bank, Sholinganallur,</div>
-        <div>Chennai - 600119</div>
-      `,
-      odometer: invoiceDetails.odometer || '-',
-      notes: invoiceDetails.observation || invoiceDetails.notes || '-',
-      items: invoiceDetails.items || [],
-      total: invoiceDetails.totalAmount || 0,
-    };
+    try {
+      // Use centralized print function
+      const userCompanyId = currentBranchId || localStorage.getItem('branchId') || 3;
+      
+      const invoiceData = {
+        invoiceNumber: invoiceDetails.invoicenumber || invoice.invoicenumber || 'DRAFT',
+        invoiceDate: invoiceDetails.invoiceDate || invoice.invoiceDate || new Date().toLocaleDateString('en-GB'),
+        vehicleNumber: invoiceDetails.vehiclenumber || invoice.vehiclenumber || '-',
+        vehicleModel: invoiceDetails.vehiclemodel || invoiceDetails.model || invoiceDetails.carmodel || invoiceDetails.modelname || invoice.vehiclemodel || invoice.model || invoice.carmodel || invoice.modelname || '-',
+        vehicleColor: invoiceDetails.vehiclecolor || invoiceDetails.color || invoiceDetails.carcolor || invoiceDetails.colorname || invoice.vehiclecolor || invoice.color || invoice.carcolor || invoice.colorname || '-',
+        jobCard: invoiceDetails.jobcard || invoiceDetails.poNumber || '-',
+        customerName: invoiceDetails.customername || invoice.customername || 'N/A',
+        area: invoiceDetails.area || invoiceDetails.custArea || invoiceDetails.location || invoice.area || '-',
+        phoneNumber: invoiceDetails.customer_phonenumber || invoiceDetails.customerphonenumber || invoiceDetails.phonenumber || invoice.customer_phonenumber || '-',
+        companyName: 'ONLY BULLET',
+        companyAddress: '',
+        companyEmail: 'info@onlybullet.com',
+        companyPhone: '-',
+        odometer: invoiceDetails.odometer || '-',
+        notes: invoiceDetails.observation || invoiceDetails.notes || '-',
+        items: invoiceDetails.items || [],
+        total: invoiceDetails.totalAmount || 0,
+        subtotal: invoiceDetails.subtotal || 0,
+        tax: invoiceDetails.taxAmount || 0,
+        discount: invoiceDetails.discountAmount || 0,
+        paidAmount: invoiceDetails.paidAmount || 0,
+      };
 
-    const { html } = generateInvoicePrintTemplate(invoiceData);
-    openPrintWindow(html, invoiceData.invoiceNumber);
+      // Call centralized print function
+      await printInvoiceWithConfig(invoiceData, userCompanyId, API_BASE_URL);
+    } catch (error) {
+      console.error('Error in handlePrintInvoice:', error);
+    }
   };
 
   const handlePrintButtonClick = async (invoice) => {
@@ -187,6 +191,9 @@ const InvoiceList = () => {
           totalAmount: parseFloat(invoiceMaster.totalamount || 0),
           taxAmount: parseFloat((invoiceMaster.tax1 || 0) + (invoiceMaster.tax2 || 0)),
           discountAmount: parseFloat(invoiceMaster.totaldiscount || 0),
+          paidAmount: parseFloat(invoiceMaster.amountpaid || 0),
+          vehiclemodel: invoiceMaster.vehiclemodel || invoiceMaster.model || invoiceMaster.carmodel || invoiceMaster.modelname || '-',
+          vehiclecolor: invoiceMaster.vehiclecolor || invoiceMaster.color || invoiceMaster.carcolor || invoiceMaster.colorname || '-',
           items: (details || []).map(item => ({
             ...item,
             description: item.description || item.itemname || `Item ${item.itemid || 'N/A'}`,
@@ -259,6 +266,7 @@ const InvoiceList = () => {
           totalAmount: parseFloat(invoiceMaster.totalamount || 0),
           taxAmount: parseFloat((invoiceMaster.tax1 || 0) + (invoiceMaster.tax2 || 0)),
           discountAmount: parseFloat(invoiceMaster.totaldiscount || 0),
+          paidAmount: parseFloat(invoiceMaster.amountpaid || 0),
           
           // Store items array
           items: (invoiceDetails || []).map(item => ({

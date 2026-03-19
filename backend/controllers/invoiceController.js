@@ -1,6 +1,7 @@
 const InvoiceMaster = require('../models/InvoiceMaster');
 const InvoiceDetail = require('../models/InvoiceDetail');
 const ItemMaster = require('../models/ItemMaster');
+const ServiceMaster = require('../models/ServiceMaster');
 
 // Helper function to generate invoice number in format BBBYYMMMXXX
 async function generateInvoiceNumber(pool, branchId) {
@@ -160,22 +161,61 @@ exports.saveInvoice = async (req, res) => {
       throw new Error('Failed to get invoiceid from created record: ' + JSON.stringify(invoiceMaster));
     }
     
+    console.log('=== PROCESSING INVOICE DETAILS ===');
+    console.log('InvoiceDetails array:', JSON.stringify(InvoiceDetails, null, 2));
+    
+    // Group details by item to handle multiple serials of the same item
+    const groupedDetails = {};
+    
     for (const detail of InvoiceDetails) {
+      const itemKey = detail.ItemID || detail.ItemNumber;
+      
+      if (!groupedDetails[itemKey]) {
+        groupedDetails[itemKey] = {
+          detail: detail,
+          serials: []
+        };
+      }
+      
+      if (detail.serialnumberid) {
+        groupedDetails[itemKey].serials.push(detail.serialnumberid);
+      }
+    }
+    
+    console.log('Grouped details:', JSON.stringify(groupedDetails, null, 2));
+    
+    // Process each unique item once
+    for (const itemKey in groupedDetails) {
+      const { detail, serials } = groupedDetails[itemKey];
+      
+      console.log('\n--- Processing Grouped Item ---');
+      console.log(`Item Key: ${itemKey}, Serial Count: ${serials.length}`);
+      
       // Get itemid from itemmaster using partnumber for items, or use serviceid directly for services
       const partnumber = detail.ItemID || detail.ItemNumber;
       const itemSource = detail.source || 'item'; // Default to item if not specified
       let itemid = null;
+      // IMPORTANT: Store snapshots from SCREEN VALUES, not from itemmaster
+      let snapshotPartNumber = detail.PartNumber || partnumber; // Use screen value
+      let snapshotItemName = detail.ItemName || ''; // Use screen value from form
       
       if (itemSource === 'service') {
-        // For services, use the serviceid directly as itemid (it's VARCHAR so can store any string)
-        itemid = String(partnumber);
-        console.log(`Using service ID directly: ${itemid}`);
+        // For services, look up the serviceid from servicemaster using the service number
+        const service = await ServiceMaster.getByServiceNumber(partnumber);
+        if (service) {
+          itemid = service.serviceid;
+          console.log(`Looked up serviceid for service number ${partnumber}: ${itemid}`);
+        } else {
+          console.warn(`Service not found for service number: ${partnumber}`);
+          throw new Error(`Service ${partnumber} not found in database`);
+        }
       } else {
-        // For items, look up in ItemMaster using partnumber
+        // For items, look up in ItemMaster using partnumber to get itemid only
         if (partnumber) {
           const item = await ItemMaster.getByPartNumber(partnumber);
           if (item) {
             itemid = item.itemid;
+            // DO NOT overwrite snapshots - keep screen values
             console.log(`Looked up itemid for partnumber ${partnumber}: ${itemid}`);
           } else {
             console.warn(`Item not found for partnumber: ${partnumber}`);
@@ -185,21 +225,59 @@ exports.saveInvoice = async (req, res) => {
         }
       }
       
+      // For items with multiple serials, sum the quantities
+      let totalQty = detail.Qty;
+      let unitPrice = parseFloat(detail.UnitPrice);
+      
+      // If there are serials and source is item (serial-tracked), qty should match serial count
+      if (serials.length > 0 && itemSource === 'item') {
+        totalQty = serials.length;
+        console.log(`Adjusted qty to match serial count: ${totalQty}`);
+      }
+      
       const invoiceDetailData = {
         InvoiceID: invoiceId,
         ItemID: itemid, // Use the actual itemid from itemmaster, or serviceid for services
-        Qty: parseInt(detail.Qty),
-        UnitPrice: parseFloat(detail.UnitPrice),
+        Qty: totalQty,
+        UnitPrice: unitPrice,
         LineDiscount: parseFloat(detail.Discount || 0),
-        LineTotal: parseFloat(detail.Total),
+        LineTotal: unitPrice * totalQty - (parseFloat(detail.Discount || 0) * totalQty),
         LineItemTax1: 0,
         LineItemTax2: 0,
         CreatedBy: userId,  // Track who created it
+        PartNumber: snapshotPartNumber, // Store snapshot of partnumber
+        ItemName: snapshotItemName, // Store snapshot of itemname
       };
       
       console.log('Creating invoice detail with looked-up itemid:', invoiceDetailData);
       const invoiceDetail = await InvoiceDetail.create(invoiceDetailData);
       invoiceDetailRecords.push(invoiceDetail);
+
+      // Link all serial numbers for this item to this single invoice detail
+      if (serials.length > 0 && invoiceDetail.invoicedetailid) {
+        console.log(`Linking ${serials.length} serial(s) to invoicedetailid ${invoiceDetail.invoicedetailid}`);
+        
+        for (const serialId of serials) {
+          console.log(`  - Linking serial ${serialId}`);
+          
+          const updateSerialQuery = `
+            UPDATE serialnumber
+            SET invoicedetailid = $1, status = 'INVOICED', updatedat = CURRENT_TIMESTAMP
+            WHERE serialnumberid = $2 AND status = 'SHELF'
+          `;
+          
+          try {
+            const updateResult = await pool.query(updateSerialQuery, [
+              invoiceDetail.invoicedetailid,
+              serialId
+            ]);
+            console.log(`    ✓ Serial ${serialId} linked successfully (rows affected: ${updateResult.rowCount})`);
+          } catch (err) {
+            console.error(`    Error linking serial ${serialId}:`, err.message);
+            // Continue with invoice save even if serial linking fails
+          }
+        }
+      }
     }
 
     console.log('=== INVOICE SAVE SUCCESS ===');
@@ -245,13 +323,76 @@ exports.getInvoiceById = async (req, res) => {
       });
     }
 
-    const invoiceMaster = await InvoiceMaster.getById(id);
-    if (!invoiceMaster) {
+    const pool = require('../config/db');
+    
+    // Get invoice with vehicle details and calculated amount paid
+    const invoiceMasterResult = await pool.query(
+      `SELECT 
+        im.invoiceid,
+        im.invoicenumber,
+        im.branchid,
+        im.customerid,
+        im.vehicleid,
+        im.jobcardid,
+        im.invoicedate,
+        im.duedate,
+        im.invoicetype,
+        im.subtotal,
+        im.totaldiscount,
+        im.partsincome,
+        im.serviceincome,
+        im.tax1,
+        im.tax2,
+        im.totalamount,
+        im.technicianmain,
+        im.technicianassistant,
+        im.waterwash,
+        im.serviceadvisorin,
+        im.serviceadvisordeliver,
+        im.testdriver,
+        im.cleaner,
+        im.additionalwork,
+        im.odometer,
+        im.notes,
+        im.notes1,
+        im.extravar1,
+        im.extravar2,
+        im.extraint1,
+        im.createdby,
+        im.createdat,
+        im.updatedby,
+        im.updatedat,
+        im.deletedat,
+        im.deletedby,
+        im.paymentstatus,
+        im.paymentdate,
+        im.vehiclenumber,
+        COALESCE(vm.modelname, '-') as vehiclemodel,
+        COALESCE(vm.color, '-') as vehiclecolor,
+        COALESCE(SUM(CASE WHEN pd.paymentstatus IN ('Paid', 'Completed') THEN pd.amount ELSE 0 END), 0) as amountpaid
+      FROM invoicemaster im
+      LEFT JOIN vehiclemaster vm ON im.vehicleid = vm.vehicleid AND vm.deletedat IS NULL
+      LEFT JOIN paymentdetail pd ON im.invoiceid = pd.invoiceid AND pd.deletedat IS NULL
+      WHERE im.invoiceid = $1 AND im.deletedat IS NULL
+      GROUP BY im.invoiceid, im.invoicenumber, im.branchid, im.customerid, im.vehicleid, im.jobcardid,
+               im.invoicedate, im.duedate, im.invoicetype, im.subtotal, im.totaldiscount, im.partsincome,
+               im.serviceincome, im.tax1, im.tax2, im.totalamount, im.technicianmain, im.technicianassistant,
+               im.waterwash, im.serviceadvisorin, im.serviceadvisordeliver, im.testdriver, im.cleaner,
+               im.additionalwork, im.odometer, im.notes, im.notes1, im.extravar1, im.extravar2, im.extraint1,
+               im.createdby, im.createdat, im.updatedby, im.updatedat, im.deletedat, im.deletedby,
+               im.paymentstatus, im.paymentdate, im.vehiclenumber,
+               vm.modelname, vm.color`,
+      [id]
+    );
+
+    if (invoiceMasterResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Invoice not found',
       });
     }
+
+    const invoiceMaster = invoiceMasterResult.rows[0];
 
     // Verify invoice belongs to user's branch
     if (invoiceMaster.branchid !== userBranchId) {
@@ -458,7 +599,15 @@ exports.updateInvoice = async (req, res) => {
         let itemid = null;
 
         if (itemSource === 'service') {
-          itemid = String(partnumber);
+          // For services, look up the serviceid from servicemaster using the service number
+          const service = await ServiceMaster.getByServiceNumber(partnumber);
+          if (service) {
+            itemid = service.serviceid;
+            console.log(`Looked up serviceid for service number ${partnumber}: ${itemid}`);
+          } else {
+            console.warn(`Service not found for service number: ${partnumber}`);
+            throw new Error(`Service ${partnumber} not found in database`);
+          }
         } else if (partnumber) {
           const item = await ItemMaster.getByPartNumber(partnumber);
           if (item) {

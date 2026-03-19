@@ -5,7 +5,8 @@ import html2canvas from 'html2canvas';
 import SerialNumberUpdatePopup from './SerialNumberUpdatePopup';
 import SerialNumberSelectionPopup from './SerialNumberSelectionPopup';
 import { searchEmployees, saveInvoice, updateInvoice, getNextInvoiceNumber, getCustomers, getAllVehicleDetails, getAllEmployees, searchItemsAndServices, searchItemsInvoiceMode, getAllItemsAndServices, getAllItemsAndServicesInvoicePlus, getCompanies, getCompanyById, getBranchId, getInvoiceById, getAllItems, getAllServices, updateItemDetailQuantity, validateVendorInvoice, verifyDuplicatePassword } from '../api';
-import { generateInvoicePrintTemplate, openPrintWindow } from '../utils/printUtils';
+import { generateInvoicePrintTemplate, openPrintWindow, printInvoiceWithConfig } from '../utils/printUtils';
+import { API_BASE_URL } from '../api';
 
 // Search all vehicles by vehicle number and return with customer details
 async function searchVehiclesByNumber(query) {
@@ -579,52 +580,113 @@ export default function InvoiceForm({ mode = 'invoice' }) {
       }
     };
 
-    const getInvoiceDocumentData = (mode = 'print') => {
+    const handleInvoiceDocument = async (mode = 'print') => {
       if (!validateMandatoryFields()) {
-        return null;
+        return;
       }
 
-      const companyAddressLines = [
-        branchCompany?.AddressLine1 || branchCompany?.addressline1,
-        branchCompany?.AddressLine2 || branchCompany?.addressline2,
-        [branchCompany?.City || branchCompany?.city, branchCompany?.State || branchCompany?.state]
-          .filter(Boolean)
-          .join(', '),
-        branchCompany?.PostalCode || branchCompany?.postalcode,
-      ].filter((line) => line && String(line).trim().length > 0);
+      try {
+        const branchId = branchCompany?.companyid || branchCompany?.CompanyID || 3;
+        
+        const invoiceData = {
+          invoiceNumber: generatedInvoiceNumber || previewInvoiceNumber || 'DRAFT',
+          invoiceDate: invoiceDate
+            ? new Date(invoiceDate).toLocaleDateString('en-GB')
+            : new Date().toLocaleDateString('en-GB'),
+          vehicleNumber: selectedVehicle.vehiclenumber || '-',
+          vehicleModel: selectedVehicle.vehiclemodel || selectedVehicle.model || selectedVehicle.carmodel || selectedVehicle.modelname || '-',
+          vehicleColor: selectedVehicle.vehiclecolor || selectedVehicle.color || selectedVehicle.carcolor || selectedVehicle.colorname || '-',
+          jobCard: jobCardInput || '-',
+          customerName: selectedVehicle.customername || '-',
+          area: selectedVehicle.area || selectedVehicle.custArea || selectedVehicle.location || '-',
+          phoneNumber: selectedVehicle.phonenumber || selectedVehicle.customer_phonenumber || selectedVehicle.custphonenumber || '-',
+          companyName: branchCompany?.CompanyName || branchCompany?.companyname || 'ONLY BULLET',
+          companyAddress: '',
+          companyEmail: branchCompany?.EmailAddress || branchCompany?.emailaddress || '',
+          companyPhone: branchCompany?.PhoneNumber1 || branchCompany?.phonenumber1 || '',
+          odometer: odometer || '-',
+          notes: notes || '-',
+          items: activeGridRows,
+          total: total || 0,
+          subtotal: subtotal || 0,
+          tax: 0,
+          discount: validDiscount || 0,
+          paidAmount: 0,
+        };
 
-      const companyAddressHtml = (companyAddressLines.length > 0
-        ? companyAddressLines
-        : [
-            '190, Ponniyaman Kovil 2nd St,',
-            'Behind South Indian Bank, & Sholinganallur,',
-          ]
-      ).map((line) => `<div>${line}</div>`).join('');
+        if (mode === 'print') {
+          // Use centralized print function
+          await printInvoiceWithConfig(invoiceData, branchId, API_BASE_URL);
+        } else if (mode === 'preview') {
+          // For preview, generate HTML
+          const { html } = await (async () => {
+            console.log('Fetching company config for form preview, branchId:', branchId);
+            const configResponse = await fetch(`${API_BASE_URL}/companies/${branchId}/config`);
+            const configResult = await configResponse.json();
+            const config = configResult.data || {};
+            
+            const branchAddressStr = [
+              config.addressline1,
+              config.addressline2,
+              config.city
+            ].filter(line => line && line.trim()).join(', ');
 
-      const invoiceData = {
-        invoiceNumber: generatedInvoiceNumber || previewInvoiceNumber || 'DRAFT',
-        invoiceDate: invoiceDate
-          ? new Date(invoiceDate).toLocaleDateString('en-GB')
-          : new Date().toLocaleDateString('en-GB'),
-        vehicleNumber: selectedVehicle.vehiclenumber || '-',
-        vehicleModel: selectedVehicle.vehiclemodel || selectedVehicle.model || selectedVehicle.carmodel || selectedVehicle.modelname || '-',
-        vehicleColor: selectedVehicle.vehiclecolor || selectedVehicle.color || selectedVehicle.carcolor || selectedVehicle.colorname || '-',
-        jobCard: jobCardInput || '-',
-        customerName: selectedVehicle.customername || '-',
-        area: selectedVehicle.area || selectedVehicle.custArea || selectedVehicle.location || '-',
-        phoneNumber: selectedVehicle.phonenumber || selectedVehicle.customer_phonenumber || selectedVehicle.custphonenumber || '-',
-        companyName: branchCompany?.CompanyName || branchCompany?.companyname || 'ONLY BULLET',
-        companyEmail: branchCompany?.EmailAddress || branchCompany?.emailaddress || '',
-        companyPhone: branchCompany?.PhoneNumber1 || branchCompany?.phonenumber1 || '',
-        companyAddress: companyAddressHtml,
-        odometer: odometer || '-',
-        notes: notes || '-',
-        items: activeGridRows,
-        total: total || 0,
-      };
+            const completeInvoiceData = {
+              ...invoiceData,
+              companyName: config.companyname || invoiceData.companyName || 'ONLY BULLET',
+              branchAddress: branchAddressStr || '',
+              companyLogo: config.logoimagepath || '',
+              companyEmail: config.emailaddress || invoiceData.companyEmail || '',
+              companyPhone: config.phonenumber1 || invoiceData.companyPhone || '',
+            };
 
-      const { html } = generateInvoicePrintTemplate(invoiceData);
-      return { html, printableInvoiceNumber: invoiceData.invoiceNumber };
+            return generateInvoicePrintTemplate(completeInvoiceData, 'form');
+          })();
+          
+          const printWindow = window.open('', '_blank', 'width=980,height=720');
+          if (!printWindow) {
+            alert('Popup blocked. Please allow popups.');
+            return;
+          }
+          printWindow.document.open();
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.focus();
+        } else if (mode === 'pdf') {
+          return { html: '', printableInvoiceNumber: invoiceData.invoiceNumber };
+        }
+      } catch (error) {
+        console.error('Error in handleInvoiceDocument:', error);
+        // Fallback
+        const invoiceData = {
+          invoiceNumber: generatedInvoiceNumber || previewInvoiceNumber || 'DRAFT',
+          invoiceDate: invoiceDate ? new Date(invoiceDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'),
+          vehicleNumber: selectedVehicle?.vehiclenumber || '-',
+          vehicleModel: selectedVehicle?.vehiclemodel || '-',
+          vehicleColor: selectedVehicle?.vehiclecolor || '-',
+          jobCard: jobCardInput || '-',
+          customerName: selectedVehicle?.customername || '-',
+          area: selectedVehicle?.area || '-',
+          phoneNumber: selectedVehicle?.phonenumber || '-',
+          companyName: 'ONLY BULLET',
+          companyAddress: '',
+          companyEmail: '',
+          companyPhone: '',
+          odometer: odometer || '-',
+          notes: notes || '-',
+          items: activeGridRows,
+          total: total || 0,
+          subtotal: subtotal || 0,
+          tax: 0,
+          discount: validDiscount || 0,
+          paidAmount: 0,
+        };
+        
+        const { html } = generateInvoicePrintTemplate(invoiceData, 'form');
+        if (mode === 'print') {
+          openPrintWindow(html, invoiceData.invoiceNumber);
+        }
+      }
     };
 
     const savePdfWithPickerOrDownload = async (doc, fileName) => {
@@ -653,32 +715,6 @@ export default function InvoiceForm({ mode = 'invoice' }) {
       doc.save(fileName);
     };
 
-    const handleInvoiceDocument = (mode = 'print') => {
-      const invoiceDocumentData = getInvoiceDocumentData(mode);
-      if (!invoiceDocumentData) {
-        return;
-      }
-
-      const printWindow = window.open('', '_blank', 'width=980,height=720');
-      if (!printWindow) {
-        alert('Popup blocked. Please allow popups to print invoice.');
-        return;
-      }
-
-      printWindow.document.open();
-      printWindow.document.write(invoiceDocumentData.html);
-      printWindow.document.close();
-      printWindow.focus();
-
-      if (mode === 'preview') {
-        return;
-      }
-
-      setTimeout(() => {
-        printWindow.print();
-      }, 300);
-    };
-
     const handlePrintInvoice = () => {
       handleInvoiceDocument('print');
     };
@@ -688,111 +724,167 @@ export default function InvoiceForm({ mode = 'invoice' }) {
     };
 
     const handleSavePdfInvoice = async () => {
-      const invoiceDocumentData = getInvoiceDocumentData('pdf');
-      if (!invoiceDocumentData) {
+      if (!validateMandatoryFields()) {
         return;
       }
 
-      const rawVehicleNumber = selectedVehicle?.vehiclenumber || '';
-      const vehicleDigits = String(rawVehicleNumber).replace(/\D/g, '');
-      const last4VehicleDigits = vehicleDigits.slice(-4) || String(rawVehicleNumber).slice(-4);
-
-      const rawCustomerFirstName =
-        selectedVehicle?.customerfirstname ||
-        (selectedVehicle?.customername ? String(selectedVehicle.customername).trim().split(/\s+/)[0] : 'Customer');
-
-      const safeLast4 = String(last4VehicleDigits || '0000').replace(/[^a-zA-Z0-9]/g, '');
-      const safeFirstName = String(rawCustomerFirstName || 'Customer').replace(/[^a-zA-Z0-9]/g, '');
-      const fileNameCore = `${safeLast4}${safeFirstName}` || `Invoice${invoiceDocumentData.printableInvoiceNumber}`;
-      const fileName = `${fileNameCore}.pdf`;
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.left = '-10000px';
-      iframe.style.top = '0';
-      iframe.style.width = '820px';
-      iframe.style.height = '1120px';
-      iframe.style.opacity = '0';
-      document.body.appendChild(iframe);
-
       try {
-        await new Promise((resolve, reject) => {
-          const timeoutId = setTimeout(() => reject(new Error('Timed out while preparing invoice PDF view.')), 15000);
-          iframe.onload = () => {
-            clearTimeout(timeoutId);
-            resolve();
-          };
-          iframe.srcdoc = invoiceDocumentData.html;
-        });
+        const branchId = branchCompany?.companyid || branchCompany?.CompanyID || 3;
+        
+        const invoiceData = {
+          invoiceNumber: generatedInvoiceNumber || previewInvoiceNumber || 'DRAFT',
+          invoiceDate: invoiceDate
+            ? new Date(invoiceDate).toLocaleDateString('en-GB')
+            : new Date().toLocaleDateString('en-GB'),
+          vehicleNumber: selectedVehicle.vehiclenumber || '-',
+          vehicleModel: selectedVehicle.vehiclemodel || selectedVehicle.model || selectedVehicle.carmodel || selectedVehicle.modelname || '-',
+          vehicleColor: selectedVehicle.vehiclecolor || selectedVehicle.color || selectedVehicle.carcolor || selectedVehicle.colorname || '-',
+          jobCard: jobCardInput || '-',
+          customerName: selectedVehicle.customername || '-',
+          area: selectedVehicle.area || selectedVehicle.custArea || selectedVehicle.location || '-',
+          phoneNumber: selectedVehicle.phonenumber || selectedVehicle.customer_phonenumber || selectedVehicle.custphonenumber || '-',
+          companyName: branchCompany?.CompanyName || branchCompany?.companyname || 'ONLY BULLET',
+          companyAddress: '',
+          companyEmail: branchCompany?.EmailAddress || branchCompany?.emailaddress || '',
+          companyPhone: branchCompany?.PhoneNumber1 || branchCompany?.phonenumber1 || '',
+          odometer: odometer || '-',
+          notes: notes || '-',
+          items: activeGridRows,
+          total: total || 0,
+          subtotal: subtotal || 0,
+          tax: 0,
+          discount: validDiscount || 0,
+          paidAmount: 0,
+        };
 
-        const iframeDocument = iframe.contentDocument;
-        const invoiceSheet = iframeDocument?.querySelector('.sheet');
-        if (!invoiceSheet) {
-          throw new Error('Unable to render invoice sheet for PDF.');
-        }
+        // Fetch company config and generate PDF
+        console.log('Fetching company config for PDF, branchId:', branchId);
+        const configResponse = await fetch(`${API_BASE_URL}/companies/${branchId}/config`);
+        const configResult = await configResponse.json();
+        const config = configResult.data || {};
+        
+        const branchAddressStr = [
+          config.addressline1,
+          config.addressline2,
+          config.city
+        ].filter(line => line && line.trim()).join(', ');
 
-        const images = Array.from(iframeDocument?.images || []);
-        await Promise.all(
-          images.map((img) => {
-            if (img.complete) {
-              return Promise.resolve();
-            }
-            return new Promise((resolve) => {
-              img.onload = () => resolve();
-              img.onerror = () => resolve();
-            });
-          })
-        );
+        const completeInvoiceData = {
+          ...invoiceData,
+          companyName: config.companyname || invoiceData.companyName || 'ONLY BULLET',
+          branchAddress: branchAddressStr || '',
+          companyLogo: config.logoimagepath || '',
+          companyEmail: config.emailaddress || invoiceData.companyEmail || '',
+          companyPhone: config.phonenumber1 || invoiceData.companyPhone || '',
+        };
 
-        const canvas = await html2canvas(invoiceSheet, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-        });
+        const { html } = generateInvoicePrintTemplate(completeInvoiceData, 'form');
 
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pageWidthMm = 210;
-        const pageHeightMm = 297;
-        const pageHeightPx = (canvas.width * pageHeightMm) / pageWidthMm;
-        let renderedHeightPx = 0;
-        let isFirstPage = true;
+        // Create iframe to render HTML
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.left = '-10000px';
+        iframe.style.top = '0';
+        iframe.style.width = '820px';
+        iframe.style.height = '1120px';
+        iframe.style.opacity = '0';
+        document.body.appendChild(iframe);
 
-        while (renderedHeightPx < canvas.height) {
-          const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedHeightPx);
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = sliceHeightPx;
+        try {
+          // Write HTML directly to iframe document
+          const iframeDocument = iframe.contentDocument;
+          iframeDocument.open();
+          iframeDocument.write(html);
+          iframeDocument.close();
 
-          const pageContext = pageCanvas.getContext('2d');
-          pageContext.drawImage(
-            canvas,
-            0,
-            renderedHeightPx,
-            canvas.width,
-            sliceHeightPx,
-            0,
-            0,
-            canvas.width,
-            sliceHeightPx
+          // Wait a bit for DOM to be ready
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          const invoiceSheet = iframeDocument.querySelector('.page');
+          if (!invoiceSheet) {
+            console.error('Invoice sheet not found. HTML contains:', html.substring(0, 500));
+            throw new Error('Unable to render invoice sheet for PDF.');
+          }
+
+          const images = Array.from(iframeDocument.images || []);
+          await Promise.all(
+            images.map((img) => {
+              if (img.complete) {
+                return Promise.resolve();
+              }
+              return new Promise((resolve) => {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              });
+            })
           );
 
-          const pageImage = pageCanvas.toDataURL('image/png');
-          const pageImageHeightMm = (sliceHeightPx * pageWidthMm) / canvas.width;
+          const canvas = await html2canvas(invoiceSheet, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+          });
 
-          if (!isFirstPage) {
-            pdf.addPage();
+          const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+          const pageWidthMm = 210;
+          const pageHeightMm = 297;
+          const pageHeightPx = (canvas.width * pageHeightMm) / pageWidthMm;
+          let renderedHeightPx = 0;
+          let isFirstPage = true;
+
+          while (renderedHeightPx < canvas.height) {
+            const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedHeightPx);
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = sliceHeightPx;
+
+            const pageContext = pageCanvas.getContext('2d');
+            pageContext.drawImage(
+              canvas,
+              0,
+              renderedHeightPx,
+              canvas.width,
+              sliceHeightPx,
+              0,
+              0,
+              canvas.width,
+              sliceHeightPx
+            );
+
+            const pageImage = pageCanvas.toDataURL('image/jpeg', 0.95);
+            const pageImageHeightMm = (sliceHeightPx * pageWidthMm) / canvas.width;
+
+            if (!isFirstPage) {
+              pdf.addPage();
+            }
+            pdf.addImage(pageImage, 'JPEG', 0, 0, pageWidthMm, pageImageHeightMm);
+
+            renderedHeightPx += sliceHeightPx;
+            isFirstPage = false;
           }
-          pdf.addImage(pageImage, 'PNG', 0, 0, pageWidthMm, pageImageHeightMm);
 
-          renderedHeightPx += sliceHeightPx;
-          isFirstPage = false;
+          // Generate filename
+          const rawVehicleNumber = selectedVehicle?.vehiclenumber || '';
+          const vehicleDigits = String(rawVehicleNumber).replace(/\D/g, '');
+          const last4VehicleDigits = vehicleDigits.slice(-4) || String(rawVehicleNumber).slice(-4);
+          const rawCustomerFirstName =
+            selectedVehicle?.customerfirstname ||
+            (selectedVehicle?.customername ? String(selectedVehicle.customername).trim().split(/\s+/)[0] : 'Customer');
+          const safeLast4 = String(last4VehicleDigits || '0000').replace(/[^a-zA-Z0-9]/g, '');
+          const safeFirstName = String(rawCustomerFirstName || 'Customer').replace(/[^a-zA-Z0-9]/g, '');
+          const fileNameCore = `${safeLast4}${safeFirstName}` || `Invoice${invoiceData.invoiceNumber}`;
+          const fileName = `${fileNameCore}.pdf`;
+
+          await savePdfWithPickerOrDownload(pdf, fileName);
+        } catch (error) {
+          console.error('Error saving invoice PDF:', error);
+          alert(`Failed to save invoice PDF. ${error.message || ''}`.trim());
+        } finally {
+          iframe.remove();
         }
-
-        await savePdfWithPickerOrDownload(pdf, fileName);
       } catch (error) {
-        console.error('Error saving invoice PDF:', error);
-        alert(`Failed to save invoice PDF. ${error.message || ''}`.trim());
-      } finally {
-        iframe.remove();
+        console.error('Error in handleSavePdfInvoice:', error);
+        alert(`Error preparing PDF: ${error.message || 'Unknown error'}`);
       }
     };
 
@@ -1805,12 +1897,49 @@ export default function InvoiceForm({ mode = 'invoice' }) {
 
             handleSelectVehicle(exactVehicle);
           } else {
-            setSelectedVehicle({
-              vehicleid: invoiceVehicleId,
-              vehicledetailid: invoiceVehicleId,
-              customerid: invoiceMaster.customerid,
-              vehiclenumber: invoiceVehicleNumber,
-            });
+            // Fallback: use invoice master data + fetch customer from customer master
+            console.log('Vehicle search returned no results, fetching customer details for customerid:', invoiceMaster.customerid);
+            
+            try {
+              const customersRes = await getCustomers();
+              const allCustomers = Array.isArray(customersRes) ? customersRes : (customersRes?.data || []);
+              const customer = allCustomers.find(c => String(c.CustomerID) === String(invoiceMaster.customerid));
+              
+              const customerName = customer 
+                ? `${customer.firstname || customer.FirstName || ''} ${customer.lastname || customer.LastName || ''}`.trim()
+                : 'N/A';
+              
+              const phoneNumber = customer
+                ? (customer.mobilenumber1 || customer.MobileNumber1 || customer.phonenumber || customer.PhoneNumber || '-')
+                : '-';
+              
+              console.log('Fetched customer name:', customerName);
+              
+              setSelectedVehicle({
+                vehicleid: invoiceVehicleId,
+                vehicledetailid: invoiceVehicleId,
+                customerid: invoiceMaster.customerid,
+                vehiclenumber: invoiceVehicleNumber,
+                customername: customerName,
+                mobilenumber1: phoneNumber,
+                vehiclemodel: invoiceMaster.vehiclemodel || '-',
+                vehiclecolor: invoiceMaster.vehiclecolor || '-',
+                area: invoiceMaster.area || '-',
+              });
+            } catch (error) {
+              console.error('Error fetching customer details:', error);
+              setSelectedVehicle({
+                vehicleid: invoiceVehicleId,
+                vehicledetailid: invoiceVehicleId,
+                customerid: invoiceMaster.customerid,
+                vehiclenumber: invoiceVehicleNumber,
+                customername: 'N/A',
+                mobilenumber1: '-',
+                vehiclemodel: invoiceMaster.vehiclemodel || '-',
+                vehiclecolor: invoiceMaster.vehiclecolor || '-',
+                area: invoiceMaster.area || '-',
+              });
+            }
           }
         }
       } catch (error) {

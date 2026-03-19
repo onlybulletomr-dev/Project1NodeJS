@@ -111,3 +111,51 @@ exports.deleteCompany = async (req, res) => {
     });
   }
 };
+
+// Get company config for printing
+exports.getCompanyConfig = async (req, res) => {
+  try {
+    const { branchId } = req.params;
+    const pool = require('../config/db');
+
+    const result = await pool.query(
+      `SELECT 
+        companyid,
+        companyname,
+        addressline1,
+        addressline2,
+        city,
+        state,
+        postalcode,
+        country,
+        phonenumber1,
+        phonenumber2,
+        emailaddress,
+        bankname,
+        bankaccountnumber,
+        bankswiftcode,
+        logoimagepath
+       FROM companymaster 
+       WHERE companyid = $1 AND deletedat IS NULL`,
+      [branchId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Company config not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching company config',
+      error: error.message,
+    });
+  }
+};

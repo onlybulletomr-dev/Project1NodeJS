@@ -5,7 +5,7 @@
 
 const safe = (value) => (value ?? '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export const generateInvoicePrintTemplate = (invoiceData) => {
+export const generateInvoicePrintTemplate = (invoiceData, source = 'form') => {
   const {
     invoiceNumber,
     invoiceDate,
@@ -20,10 +20,19 @@ export const generateInvoicePrintTemplate = (invoiceData) => {
     companyEmail,
     companyPhone,
     companyAddress,
+    branchAddress,
+    companyLogo,
+    bankName,
+    bankAccount,
+    bankIFSC,
     odometer,
     notes,
     items,
     total,
+    subtotal = 0,
+    tax = 0,
+    discount = 0,
+    paidAmount = 0,
   } = invoiceData;
 
   // Calculate service due date (current date + 4 months)
@@ -53,6 +62,9 @@ export const generateInvoicePrintTemplate = (invoiceData) => {
     .join('');
 
   const totalAmount = Number(total || 0);
+  const discountAmount = Number(discount || 0);
+  const paidAmountValue = Number(paidAmount || 0);
+  const balanceDue = Math.max(0, totalAmount - paidAmountValue);
 
   const html = `
     <!DOCTYPE html>
@@ -63,17 +75,19 @@ export const generateInvoicePrintTemplate = (invoiceData) => {
           @page { size: A4; margin: 0; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; background: #ebebeb; color: #111; }
-          .page { width: 210mm; height: 297mm; margin: 12px auto; background: #fff; display: flex; flex-direction: column; }
+          .page { width: 210mm; height: 297mm; margin: 12px auto; background: #fff; display: flex; flex-direction: column; border: 2px solid #000; }
           .header-section { height: 25%; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #000; }
-          .logo-center { text-align: center; flex: 1; }
-          .logo { font-size: 32px; font-weight: 700; letter-spacing: 1px; }
-          .left-info { flex: 0.95; font-size: 9px; line-height: 1.3; }
-          .right-info { flex: 1.05; font-size: 9px; line-height: 1.3; text-align: left; padding-left: 8px; }
+          .logo-center { text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 5px; }
+          .logo { font-size: 32px; font-weight: 700; letter-spacing: 2px; }
+          .logo-company { display: none; }
+          .company-logo { max-width: 100px; max-height: 100px; object-fit: contain; }
+          .branch-info { flex: 0.95; font-size: 11px; line-height: 1.3; }
+          .right-info { flex: 1.05; font-size: 11px; line-height: 1.3; text-align: left; padding-left: 8px; }
           .right-info-line { margin-bottom: 2px; min-height: 12px; }
           .empty-line { height: 12px; }
           .content-section { height: 50%; padding: 15px 20px; overflow: hidden; }
-          table { width: 100%; border-collapse: collapse; font-size: 10px; }
-          thead th { background: #6a6a6a; color: #fff; border-left: 1px solid #666; border-right: 1px solid #666; border-top: 1px solid #666; border-bottom: 1px solid #666; padding: 4px 3px; text-align: center; font-weight: 600; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          thead th { background: #6a6a6a; color: #fff; border-left: 1px solid #666; border-right: 1px solid #666; border-top: 1px solid #666; border-bottom: 1px solid #666; padding: 4px 3px; text-align: center; font-weight: 700; font-size: 12px; }
           tbody td { border-left: 1px solid #666; border-right: 1px solid #666; padding: 3px 5px; }
           tbody tr:nth-child(odd) { background: #fff; }
           tbody tr:nth-child(even) { background: #f9f9f9; }
@@ -83,13 +97,13 @@ export const generateInvoicePrintTemplate = (invoiceData) => {
           .col-qty { width: 8%; text-align: center; }
           .col-rate { width: 12%; text-align: right; }
           .col-total { width: 12%; text-align: right; }
-          .footer-section { height: 25%; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 2px solid #000; gap: 15px; }
-          .notes-area { flex: 0.8; font-size: 9px; line-height: 1.3; white-space: pre-wrap; }
+          .footer-section { height: 25%; padding: 15px 20px; display: flex; justify-content: space-between; align-items: flex-start; border-top: 2px solid #000; gap: 15px; }
+          .notes-area { flex: 0.8; font-size: 11px; line-height: 1.3; white-space: pre-wrap; }
           .qr-middle { width: 140px; text-align: center; display: flex; flex-direction: column; align-items: center; }
           .qr-area img { width: 110px; height: 110px; border: 1px solid #999; margin-bottom: 4px; }
-          .qr-text { font-size: 7px; line-height: 1.2; text-align: center; }
-          .totals-area { flex: 0.8; font-size: 10px; text-align: right; }
-          .totals-line { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 600; gap: 30px; }
+          .qr-text { font-size: 11px; line-height: 1.2; text-align: center; }
+          .totals-area { flex: 0.8; font-size: 14px; text-align: right; }
+          .totals-line { display: flex; justify-content: space-between; margin-bottom: 3px; font-weight: 600; gap: 20px; line-height: 1.2; font-size: 14px; }
           @media print {
             body { background: #fff; }
             .page { margin: 0; }
@@ -100,26 +114,28 @@ export const generateInvoicePrintTemplate = (invoiceData) => {
         <div class="page">
           <!-- HEADER SECTION (25%) -->
           <div class="header-section">
-            <div class="left-info">
-              ${companyAddress}
+            <div class="branch-info">
+              <div><strong>${safe(companyName || 'ONLY BULLET')}</strong></div>
+              ${branchAddress ? `<div>${safe(branchAddress)}</div>` : ''}
+              ${companyAddress ? `<div>${safe(companyAddress)}</div>` : ''}
               ${companyEmail ? `<div style="margin-top: 4px;">${safe(companyEmail)}</div>` : ''}
               ${companyPhone ? `<div>${safe(companyPhone)}</div>` : ''}
-              <div style="margin-top: 4px;"><strong>${safe(customerName)}</strong></div>
-              <div>${safe(area)}</div>
-              <div>${safe(phoneNumber)}</div>
+              ${customerName ? `<div style="margin-top: 6px; border-top: 1px solid #ccc; padding-top: 4px;"><strong>${safe(customerName)}</strong></div>` : ''}
+              ${area ? `<div>${safe(area)}</div>` : ''}
+              ${phoneNumber ? `<div>${safe(phoneNumber)}</div>` : ''}
             </div>
             <div class="logo-center">
-              <div class="logo">● ${safe(companyName)}</div>
+              ${companyLogo ? `<img src="${companyLogo}" alt="Company Logo" class="company-logo" />` : '<div class="logo">OB</div>'}
             </div>
             <div class="right-info">
-              <div class="right-info-line">${safe(invoiceDate)}</div>
-              <div class="right-info-line">${safe(invoiceNumber)}</div>
+              <div class="right-info-line"><strong>${safe(invoiceDate)}</strong></div>
+              <div class="right-info-line"><strong>${safe(invoiceNumber)}</strong></div>
               <div class="right-info-line">${safe(vehicleNumber)}</div>
               <div class="right-info-line">${safe(vehicleModel)}</div>
               <div class="right-info-line">${safe(vehicleColor)}</div>
               <div class="right-info-line">${safe(jobCard)}</div>
               <div class="right-info-line" style="min-height: 1px; margin: 2px 0;"></div>
-              <div class="right-info-line">Service due</div>
+              <div class="right-info-line"><strong>Service due</strong></div>
               <div class="right-info-line">${safe(serviceDueDateStr)}</div>
               <div class="right-info-line">${odometerValue > 0 ? safe(serviceDueKms.toString()) : '-'} kms</div>
             </div>
@@ -151,10 +167,7 @@ ${safe(notes)}
             </div>
             <div class="qr-middle">
               <img src="https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(`PAY|INR|${totalAmount.toFixed(2)}|${invoiceNumber}`)}" alt="QR" />
-              <div class="qr-text">Pay ₹${Number(totalAmount).toFixed(0)}
-ONLY BULLET
-A/C: 344002000285538
-IFSC: IOBA0003400</div>
+
             </div>
             <div class="totals-area">
               <div class="totals-line">
@@ -162,12 +175,16 @@ IFSC: IOBA0003400</div>
                 <span>₹${Number(totalAmount).toFixed(0)}</span>
               </div>
               <div class="totals-line">
+                <span>Discount</span>
+                <span>₹${Number(discountAmount).toFixed(0)}</span>
+              </div>
+              <div class="totals-line">
                 <span>Adv. Paid</span>
-                <span>₹0</span>
+                <span>₹${Number(paidAmountValue).toFixed(0)}</span>
               </div>
               <div class="totals-line">
                 <span>Balance Due</span>
-                <span>₹${Number(totalAmount).toFixed(0)}</span>
+                <span>₹${Number(balanceDue).toFixed(0)}</span>
               </div>
             </div>
           </div>
@@ -196,4 +213,48 @@ export const openPrintWindow = (html, invoiceNumber) => {
   }, 250);
 
   return printWindow;
+};
+
+/**
+ * Centralized print function - used by both InvoiceList and InvoiceForm
+ * Fetches company config and generates print window
+ */
+export const printInvoiceWithConfig = async (invoiceData, companyId, API_BASE_URL) => {
+  try {
+    // Fetch company config
+    console.log('Fetching company config for ID:', companyId);
+    const configResponse = await fetch(`${API_BASE_URL}/companies/${companyId}/config`);
+    const configResult = await configResponse.json();
+    const config = configResult.data || {};
+    
+    console.log('Company config received:', config);
+
+    // Build address string
+    const branchAddressStr = [
+      config.addressline1,
+      config.addressline2,
+      config.city
+    ].filter(line => line && line.trim()).join(', ');
+
+    // Merge config data with invoice data
+    const completeInvoiceData = {
+      ...invoiceData,
+      companyName: config.companyname || invoiceData.companyName || 'ONLY BULLET',
+      branchAddress: branchAddressStr || invoiceData.branchAddress || '',
+      companyLogo: config.logoimagepath || invoiceData.companyLogo || '',
+      companyEmail: config.emailaddress || invoiceData.companyEmail || 'info@onlybullet.com',
+      companyPhone: config.phonenumber1 || invoiceData.companyPhone || '-',
+    };
+
+    console.log('Complete invoice data for print:', completeInvoiceData);
+
+    // Generate HTML and open print
+    const { html } = generateInvoicePrintTemplate(completeInvoiceData, 'unified');
+    openPrintWindow(html, completeInvoiceData.invoiceNumber);
+  } catch (error) {
+    console.error('Error in printInvoiceWithConfig:', error);
+    // Fallback: print with whatever data is available
+    const { html } = generateInvoicePrintTemplate(invoiceData, 'unified');
+    openPrintWindow(html, invoiceData.invoiceNumber);
+  }
 };

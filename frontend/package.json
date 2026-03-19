@@ -5,6 +5,8 @@
   "proxy": "http://localhost:5000",
   "dependencies": {
     "axios": "^1.4.0",
+    "canvg": "^4.0.3",
+    "dompurify": "^3.3.3",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "react": "^18.2.0",
@@ -14,7 +16,7 @@
     "sequelize": "^6.37.7"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "set SKIP_PREFLIGHT_CHECK=true && set NODE_OPTIONS=--no-deprecation && react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

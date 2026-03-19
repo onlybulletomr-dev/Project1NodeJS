@@ -243,7 +243,7 @@ function Payment() {
     setSortDirection('asc');
   };
 
-  const sortedInvoices = [...invoices].sort((a, b) => {
+  const sortedInvoices = [...invoices].sort(( a, b) => {
     const left = toSortableValue(a, sortField);
     const right = toSortableValue(b, sortField);
 

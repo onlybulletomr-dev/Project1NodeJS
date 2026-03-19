@@ -47,6 +47,23 @@ router.get('/items', async (req, res) => {
   }
 });
 
+// Get items with serial number tracking enabled (MUST be before /:id route)
+router.get('/items/serial-tracking', async (req, res) => {
+  try {
+    const items = await ItemMaster.getSerialNumberRequiredItems();
+    res.status(200).json({ 
+      success: true, 
+      data: items || [] 
+    });
+  } catch (error) {
+    console.error('Error fetching items with serial tracking:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Get item by ID
 router.get('/items/:id', async (req, res) => {
   try {

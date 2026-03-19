@@ -151,7 +151,7 @@ class InvoiceMaster {
         COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
         cm.mobilenumber1 as customer_phonenumber,
         cm.mobilenumber2 as customer_phonenumber2,
-        COALESCE(SUM(pd.amount), 0) as paidamount
+        COALESCE(SUM(CASE WHEN pd.paymentstatus IN ('Paid', 'Completed') THEN pd.amount ELSE 0 END), 0) as amountpaid
       FROM invoicemaster im
       LEFT JOIN customermaster cm ON im.customerid = cm.customerid AND cm.deletedat IS NULL
       LEFT JOIN paymentdetail pd ON im.invoiceid = pd.invoiceid AND pd.deletedat IS NULL
@@ -182,7 +182,7 @@ class InvoiceMaster {
           COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
           cm.mobilenumber1 as customer_phonenumber,
           cm.mobilenumber2 as customer_phonenumber2,
-          COALESCE(SUM(pd.amount), 0) as paidamount
+          COALESCE(SUM(CASE WHEN pd.paymentstatus IN ('Paid', 'Completed') THEN pd.amount ELSE 0 END), 0) as amountpaid
         FROM invoicemaster im
         LEFT JOIN LATERAL (
           SELECT v.registrationnumber as resolvedvehiclenumber
@@ -218,7 +218,7 @@ class InvoiceMaster {
           COALESCE(NULLIF(TRIM(COALESCE(cm.firstname, '') || ' ' || COALESCE(cm.lastname, '')), ''), 'N/A') as customername,
           cm.mobilenumber1 as customer_phonenumber,
           cm.mobilenumber2 as customer_phonenumber2,
-          COALESCE(SUM(pd.amount), 0) as paidamount
+          COALESCE(SUM(CASE WHEN pd.paymentstatus IN ('Paid', 'Completed') THEN pd.amount ELSE 0 END), 0) as amountpaid
         FROM invoicemaster im
         LEFT JOIN LATERAL (
           SELECT v.vehiclenumber as resolvedvehiclenumber

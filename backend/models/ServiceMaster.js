@@ -33,6 +33,21 @@ class ServiceMaster {
     }
   }
 
+  static async getByServiceNumber(serviceNumber) {
+    try {
+      const result = await pool.query(
+        `SELECT serviceid, servicenumber, servicename, description, defaultrate
+         FROM ServiceMaster 
+         WHERE servicenumber = $1 AND deletedat IS NULL`,
+        [serviceNumber]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error fetching service by number:', error);
+      throw error;
+    }
+  }
+
   static async getAll() {
     try {
       const result = await pool.query(

@@ -75,25 +75,75 @@ router.get('/items-services/search', async (req, res) => {
     const stockColumn = stockColumnCandidates.find(column => itemDetailColumns.has(column)) || null;
 
     // For invoice+, fetch PRIMARY from itemdetail with qty info
-    // If q is empty, return all items; otherwise filter by pattern
+    // Also include items with serialnumbertracking=true even if they have no itemdetail
     const searchPattern = (q && q.length > 0) ? `%${q}%` : '%';
     
     const itemsQuery = `
       SELECT DISTINCT
-        id.itemid,
+        im.itemid,
         im.partnumber,
         im.${descriptionColumn} AS itemdescription,
         im.${descriptionColumn} AS itemname,
         im.uom,
         im.mrp,
-        ${stockColumn ? `COALESCE(id.${stockColumn}, 0)` : '0'} AS availableqty
+        im.points,
+        im.duplicateserialnumber,
+        im.serialnumbertracking,
+        im.servicechargeid,
+        im.servicechargemethod,
+        ${stockColumn ? `COALESCE(id.${stockColumn}, 0)` : '0'} AS availableqty,
+        'itemdetail' AS source_type
       FROM itemdetail id
       JOIN itemmaster im ON id.itemid = im.itemid
       WHERE id.branchid = $2 
         AND id.deletedat IS NULL 
         AND im.deletedat IS NULL
         AND (im.partnumber ILIKE $1 OR im.${descriptionColumn} ILIKE $1)
-      ORDER BY im.partnumber
+      
+      UNION
+      
+      SELECT DISTINCT
+        im.itemid,
+        im.partnumber,
+        im.${descriptionColumn} AS itemdescription,
+        im.${descriptionColumn} AS itemname,
+        im.uom,
+        im.mrp,
+        im.points,
+        im.duplicateserialnumber,
+        im.serialnumbertracking,
+        im.servicechargeid,
+        im.servicechargemethod,
+        0 AS availableqty,
+        'itemmaster' AS source_type
+      FROM itemmaster im
+      WHERE im.serialnumbertracking = true
+        AND im.deletedat IS NULL
+        AND (im.partnumber ILIKE $1 OR im.${descriptionColumn} ILIKE $1)
+        AND NOT EXISTS (SELECT 1 FROM itemdetail WHERE itemid = im.itemid AND branchid = $2)
+      
+      UNION
+      
+      SELECT DISTINCT
+        im.itemid,
+        im.partnumber,
+        im.${descriptionColumn} AS itemdescription,
+        im.${descriptionColumn} AS itemname,
+        im.uom,
+        im.mrp,
+        im.points,
+        im.duplicateserialnumber,
+        im.serialnumbertracking,
+        im.servicechargeid,
+        im.servicechargemethod,
+        0 AS availableqty,
+        'itemmaster' AS source_type
+      FROM itemmaster im
+      WHERE im.deletedat IS NULL
+        AND (im.partnumber ILIKE $1 OR im.${descriptionColumn} ILIKE $1)
+        AND NOT EXISTS (SELECT 1 FROM itemdetail WHERE itemid = im.itemid)
+      
+      ORDER BY partnumber
     `;
 
     const servicesQuery = `
@@ -112,7 +162,7 @@ router.get('/items-services/search', async (req, res) => {
     const items = itemsResult.rows;
     const services = servicesResult.rows;
 
-    console.log(`🔍 Search query: "${q || 'all'}" - Found ${items.length} items from itemdetail, ${services.length} services`);
+    console.log(`🔍 Search query: "${q || 'all'}" - Found ${items.length} items (from itemdetail + serial-tracked itemmaster), ${services.length} services`);
 
     // Add source field to distinguish between items and services
     const enrichedItems = items.map(item => ({
@@ -162,7 +212,10 @@ router.get('/items-services/all', async (req, res) => {
         im.${descriptionColumn} AS itemdescription,
         im.${descriptionColumn} AS itemname,
         im.uom,
-        im.mrp
+        im.mrp,
+        im.points,
+        im.duplicateserialnumber,
+        im.serialnumbertracking
       FROM itemmaster im
       WHERE im.deletedat IS NULL
       ORDER BY im.partnumber
