@@ -41,6 +41,7 @@ function CustomerMaster() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [searchFilter, setSearchFilter] = useState('');
 
   // Create refs for form fields
   const firstNameRef = useRef(null);
@@ -610,6 +611,20 @@ function CustomerMaster() {
     setEditingId(null);
   };
 
+  // Filter customers by name or vehicle number
+  const filteredCustomers = customers.filter(customer => {
+    const firstName = (customer.FirstName || customer.firstname || '').toLowerCase();
+    const lastName = (customer.LastName || customer.lastname || '').toLowerCase();
+    const vehicleNumber = (customer.VehicleNumber || customer.vehiclenumber || '').toLowerCase();
+    const searchLower = searchFilter.toLowerCase();
+    
+    return (
+      firstName.includes(searchLower) ||
+      lastName.includes(searchLower) ||
+      vehicleNumber.includes(searchLower)
+    );
+  });
+
   return (
     <div className="customer-master">
       <div className="messages-container">
@@ -824,12 +839,29 @@ function CustomerMaster() {
 
         {/* Right Column - Customer Details List */}
         <div className="recent-customer-section">
-          <h3>Customer Details</h3>
-          {customers.length === 0 ? (
-            <div className="customer-item">No customers yet</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h3 style={{ margin: 0 }}>Customer Details</h3>
+          </div>
+          <input
+            type="text"
+            placeholder="Search by customer name or vehicle number..."
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              marginBottom: '12px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              fontSize: '14px',
+              boxSizing: 'border-box'
+            }}
+          />
+          {filteredCustomers.length === 0 ? (
+            <div className="customer-item">No customers found</div>
           ) : (
             <div className="customer-list-simple">
-              {customers.map((customer, index) => {
+              {filteredCustomers.map((customer, index) => {
                 // Handle both uppercase and lowercase field names from API
                 const customerId = customer.CustomerID || customer.customerid;
                 const firstName = customer.FirstName || customer.firstname;
