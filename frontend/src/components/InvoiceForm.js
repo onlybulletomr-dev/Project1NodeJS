@@ -2093,9 +2093,9 @@ export default function InvoiceForm({ mode = 'invoice' }) {
                         key={`${result.source}-${result.itemid || result.serviceid}`}
                         style={{ display: 'grid', gridTemplateColumns: mode === 'invoice' ? '25% 65% 10%' : '25% 55% 10% 10%', gap: 0, padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid #eee', background: i === itemPopupIndex ? '#e3f2fd' : (i % 2 === 0 ? '#f9f9f9' : '#fff'), fontSize: '11px', alignItems: 'center' }}
                         onClick={() => handleSelectItem(result)}
-                        title={`${result.itemnumber || (result.source === 'item' ? result.partnumber : result.serviceid)} - ${result.itemdescription || (result.source === 'item' ? result.itemname : result.servicename)} - ₹${result.itemprice ?? (result.source === 'item' ? result.mrp : result.defaultrate)}`}
+                        title={`${result.itemnumber || (result.source === 'item' ? result.partnumber : result.servicenumber)} - ${result.itemdescription || (result.source === 'item' ? result.itemname : result.servicename)} - ₹${result.itemprice ?? (result.source === 'item' ? result.mrp : result.defaultrate)}`}
                       >
-                        <span>{result.itemnumber || (result.source === 'item' ? result.partnumber : result.serviceid)}</span>
+                        <span>{result.itemnumber || (result.source === 'item' ? result.partnumber : result.servicenumber)}</span>
                         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{result.itemdescription || (result.source === 'item' ? (result.itemdescription || result.itemname) : result.servicename)}</span>
                         <span style={{ color: '#666' }}>₹{Number((result.itemprice ?? (result.source === 'item' ? result.mrp : result.defaultrate)) || 0).toFixed(0)}</span>
                         {mode !== 'invoice' && (
@@ -2152,7 +2152,7 @@ export default function InvoiceForm({ mode = 'invoice' }) {
               <tbody>
                 {activeGridRows.map((row, actualIdx) => (
                   <tr key={actualIdx}>
-                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.ItemNumber || row.partnumber || row.serviceid || ''}</td>
+                    <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.ItemNumber || row.partnumber || row.servicenumber || ''}</td>
                     <td style={{ border: '1px solid #eee', padding: 2, fontSize: '12px' }}>{row.ItemName}</td>
                     <td style={{ border: '1px solid #eee', padding: 2 }}>
                       <input
