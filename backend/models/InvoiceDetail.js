@@ -110,14 +110,15 @@ class InvoiceDetail {
       hasDeletedat ? `invoicedetail.deletedat` : `NULL as deletedat`,
       hasDeletedby ? `invoicedetail.deletedby` : `NULL as deletedby`,
       hasPartnumber 
-        ? `COALESCE(invoicedetail.partnumber, CAST(invoicedetail.itemid AS VARCHAR)) as partnumber`
-        : `CAST(invoicedetail.itemid AS VARCHAR) as partnumber`,
+        ? `COALESCE(invoicedetail.partnumber, sm.servicenumber, im.partnumber, CAST(invoicedetail.itemid AS VARCHAR)) as partnumber`
+        : `COALESCE(sm.servicenumber, im.partnumber, CAST(invoicedetail.itemid AS VARCHAR)) as partnumber`,
       hasItemname
         ? `COALESCE(invoicedetail.itemname, im.itemname, sm.servicename, 'Item ' || CAST(invoicedetail.itemid AS VARCHAR)) as itemname`
         : `COALESCE(im.itemname, sm.servicename, 'Item ' || CAST(invoicedetail.itemid AS VARCHAR)) as itemname`,
       hasItemname
         ? `COALESCE(invoicedetail.itemname, im.itemname, sm.servicename) as description`
-        : `COALESCE(im.itemname, sm.servicename) as description`
+        : `COALESCE(im.itemname, sm.servicename) as description`,
+      `sm.servicenumber as servicenumber` // Add servicenumber field for service lookup fallback
     ];
 
     const selectClause = `SELECT ${selectList.join(', ')}`;
