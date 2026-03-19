@@ -315,6 +315,9 @@ exports.getInvoiceById = async (req, res) => {
   try {
     const { id } = req.params;
     const userBranchId = req.user?.branchId;
+    
+    console.log('getInvoiceById called with id:', id, 'userBranchId:', userBranchId);
+    console.log('req.user contains:', req.user);
 
     if (!userBranchId) {
       return res.status(401).json({
@@ -413,11 +416,13 @@ exports.getInvoiceById = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Error retrieving invoice:', err);
+    console.error('Error retrieving invoice by ID:', err);
+    console.error('Stack trace:', err.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve invoice',
       error: err.message,
+      details: err.detail || err.hint || 'Check server logs for details'
     });
   }
 };
