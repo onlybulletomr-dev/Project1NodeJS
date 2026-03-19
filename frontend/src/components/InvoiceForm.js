@@ -1316,11 +1316,10 @@ export default function InvoiceForm({ mode = 'invoice' }) {
       
       if (checked) {
         // Define the three services to add - using serviceid 1, 2, 3 as per requirement
-        const gsServices = [
-          { serviceid: 1, servicename: 'Water Wash', defaultrate: 150.00, source: 'service' },
-          { serviceid: 2, servicename: 'Chemical Charges', defaultrate: 180.00, source: 'service' },
-          { serviceid: 3, servicename: 'General Service', defaultrate: 880.00, source: 'service' }
-        ];
+        const gsServiceIds = [1, 2, 3];
+        const gsServices = gsServiceIds
+          .map(id => allServices.find(s => s.serviceid === id))
+          .filter(s => s); // Filter out any not found
 
         // Add all three services to grid
         setGridRows(prevRows => {
@@ -1331,13 +1330,14 @@ export default function InvoiceForm({ mode = 'invoice' }) {
             if (!exists) {
               newRows.push({
                 ...service,
-                ItemNumber: service.serviceid,
+                ItemNumber: service.servicenumber || service.serviceid,
                 ItemName: service.servicename,
                 Qty: 1,
                 Discount: 0,
                 UnitPrice: parseFloat(service.defaultrate),
                 Total: parseFloat(service.defaultrate) * 1,
                 isDeleted: false,
+                source: 'service'
               });
             }
           });
